@@ -8,7 +8,7 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 | File | Contents |
 | --- | --- |
 | `orchestrator.ts` | `Orchestrator` (polling, steps, outbox, dispatch, sessions, replies, verification, decisions), `consumesCapacity`, `TraceEvent` |
-| `contracts.ts` | `Verifier`, `DecisionPolicy` (implemented later by M1.5/M1.6), unavailable stubs, actor helpers |
+| `contracts.ts` | `Verifier` (implemented by `src/verify/`, see `docs/VERIFICATION.md`), `DecisionPolicy` (M1.6), `VERIFICATION_STATUS_CONTEXT`, `verificationStatus`, unavailable stubs, actor helpers |
 | `prompts.ts` | Loads and renders `prompts/*.md` strictly |
 | `comments.ts` | GitHub comment bodies (question, triage summary, notices) |
 | `../../prompts/` | Repository-owned prompt templates (see `prompts/README.md`) |
@@ -18,7 +18,8 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 `npm start` starts polling only when `liveSettingsProblems(settings)` is empty; otherwise it logs why and
 serves the scaffold as before. Live wiring: `BugStore.open()` (`data/bugs.json`), `GitHubTracker`,
 `DevinClient.fromSettings`, `Prompts.load()`, `requireLiveResults: true` (stub verifiers/policies are
-refused), and the unavailable verifier and policy until M1.5/M1.6 provide real ones.
+refused), `verifierFromSettings` when `verifierSettingsProblems` is empty (otherwise the unavailable
+verifier, with the reason logged), and the unavailable policy until M1.6 provides one.
 
 ## Cycle
 
@@ -45,7 +46,7 @@ refused), and the unavailable verifier and policy until M1.5/M1.6 provide real o
 7. Pending dispatch → reconcile (below).
 8. Live session → read it: valid structured output → model event; otherwise only its live state.
 9. Relay one genuine human comment to the live session.
-10. `verifying` → injected `Verifier`; `triaged` with `DECISION` ≠ `person` → injected `DecisionPolicy`.
+10. `merged` without a settled post-merge proof → `Verifier` (`post-merge`, merge commit); `verifying` → injected `Verifier`; `triaged` with `DECISION` ≠ `person` → injected `DecisionPolicy`.
 11. `queued` with a route → dispatch.
 
 ## Durable state and exact-once effects
@@ -121,8 +122,9 @@ type PolicyOutcome =
 ```
 
 `unavailable` is recorded nowhere and never implies success (`verifier-unavailable`, `policy-unavailable`).
-A completed attempt must match the current head (`pre-merge`), and is recorded through
-`verification-recorded`, so failed-proof (`MAX_FIX_RETRIES`) and infrastructure-error budgets stay separate
+A completed attempt must match the requested phase and SHA (the current head for `pre-merge`, the merge
+commit for `post-merge`), and is recorded through `verification-recorded` together with a durable
+`set-commit-status` operation (context `bug-smasher/verification`) on that SHA, so failed-proof (`MAX_FIX_RETRIES`) and infrastructure-error budgets stay separate
 as the model defines. A failed proof with retries left sends `verification-retry` to the same session for the
 same PR branch. With `requireLiveResults`, non-live verifiers and policies are not called. Policy decisions
 are attributed to `policy:<rule>` and explained in one comment.
@@ -171,6 +173,7 @@ Tests are in `test/orchestrator.test.ts` unless noted.
 | Feature intake by acceptance criteria | `features` |
 | Separate failed-proof and infrastructure-error budgets; retry on the same PR branch | `verification contract` › keeps failed-proof… |
 | Unavailable dependencies never imply success | `verification contract` (all three tests), `direct repair` |
+| Independent verifier integration (statuses, retries, handoffs, post-merge) | `test/orchestrator-verification.test.ts`; see `docs/VERIFICATION.md` |
 | Merge commit recorded; post-merge acknowledgement once | `merge` |
 | Interface actor | `interface actions` |
 | Bot labels never approve repair; all undelivered comments reach Devin; stale repair questions do not free capacity; fix PRs must close the issue | `review hardening` |

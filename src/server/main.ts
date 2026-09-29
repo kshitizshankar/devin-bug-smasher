@@ -5,6 +5,7 @@ import { Orchestrator } from '../orchestrator/orchestrator.ts';
 import { Prompts } from '../orchestrator/prompts.ts';
 import { BugStore } from '../store/bug-store.ts';
 import { GitHubTracker } from '../tracker/github.ts';
+import { verifierFromSettings, verifierSettingsProblems } from '../verify/verifier.ts';
 import { createApp } from './app.ts';
 
 let settings: Settings;
@@ -35,12 +36,17 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
     return null;
   }
   const repo = settings.github.repo as NonNullable<Settings['github']['repo']>;
+  const verifierProblems = verifierSettingsProblems(settings);
+  if (verifierProblems.length > 0) {
+    console.log(`Independent verification is unavailable until settings are complete: ${verifierProblems.join('; ')}`);
+  }
   const orchestrator = new Orchestrator({
     store: await BugStore.open(),
     tracker: new GitHubTracker({ repo, token: settings.github.token as string }),
     devin: DevinClient.fromSettings(settings),
     settings,
     prompts: await Prompts.load(),
+    ...(verifierProblems.length === 0 ? { verifier: verifierFromSettings(settings) } : {}),
     requireLiveResults: true,
     trace: (event) => {
       if (event.type === 'error' || event.type === 'effect-failed' || event.type === 'refused') {

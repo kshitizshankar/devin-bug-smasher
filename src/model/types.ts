@@ -103,6 +103,57 @@ export interface FixInfo {
 /** A fix as submitted by a session, before any merge. */
 export type SubmittedFix = Omit<FixInfo, 'mergeCommitSha'>;
 
+export const VERIFICATION_RUN_ROLES = ['base', 'head'] as const;
+export type VerificationRunRole = (typeof VERIFICATION_RUN_ROLES)[number];
+
+export const VERIFICATION_STEPS = ['setup', 'test'] as const;
+export type VerificationStep = (typeof VERIFICATION_STEPS)[number];
+
+/** `passed`/`failed` are test assertion outcomes; `error` means the step could not run or be read. */
+export const RUN_OUTCOMES = ['passed', 'failed', 'error'] as const;
+export type RunOutcome = (typeof RUN_OUTCOMES)[number];
+
+export const DIFF_CHECKS = [
+  'test-removed',
+  'test-disabled',
+  'test-weakened',
+  'check-silenced',
+  'rules-changed',
+  /** Flag only: the change outside tests removes lines and adds none. */
+  'deletion-only',
+] as const;
+export type DiffCheck = (typeof DIFF_CHECKS)[number];
+
+/** One command the verifier ran in a disposable workspace. */
+export interface VerificationRun {
+  role: VerificationRunRole;
+  step: VerificationStep;
+  sha: string;
+  /** Argument vector as executed (no shell). */
+  command: string[];
+  startedAt: Timestamp;
+  endedAt: Timestamp;
+  exitCode: number | null;
+  outcome: RunOutcome;
+  reason: string;
+  /** Bounded tail of the combined output, with configured secrets redacted. */
+  outputTail: string;
+}
+
+export interface DiffFinding {
+  check: DiffCheck;
+  file: string;
+  detail: string;
+}
+
+export interface VerificationEvidence {
+  runs: VerificationRun[];
+  /** Diff checks that failed verification. */
+  violations: DiffFinding[];
+  /** Findings for the person deciding the merge; they never fail verification. */
+  flags: DiffFinding[];
+}
+
 export interface VerificationAttempt {
   phase: VerificationPhase;
   baseSha: string;
@@ -114,6 +165,8 @@ export interface VerificationAttempt {
   at: Timestamp;
   /** Devin session whose fix was being verified; retry and error budgets are counted per session. */
   sessionId: string | null;
+  /** Per-run evidence from the independent verifier; absent on attempts recorded without it. */
+  evidence?: VerificationEvidence;
 }
 
 export interface Decision {
@@ -200,6 +253,7 @@ export const WORKFLOW_OPERATION_TYPES = [
   'post-comment',
   'send-message',
   'merge-pr',
+  'set-commit-status',
 ] as const;
 
 /** A side effect accepted with a transition and not yet confirmed applied. Every operation is idempotent. */
@@ -212,7 +266,15 @@ export type WorkflowOperation =
   | { type: 'post-comment'; key: string; body: string }
   /** `marker` is part of `message`; a message already carrying it in the session is not sent again. */
   | { type: 'send-message'; sessionId: string; marker: string; message: string }
-  | { type: 'merge-pr'; prNumber: number; expectedHeadSha: string };
+  | { type: 'merge-pr'; prNumber: number; expectedHeadSha: string }
+  /** Publishes a verification result on the exact commit that was checked. Repeating it is harmless. */
+  | {
+      type: 'set-commit-status';
+      sha: string;
+      state: 'success' | 'failure' | 'error';
+      context: string;
+      description: string;
+    };
 
 /** Question a repair or feature session asked; the model tracks investigation questions itself. */
 export interface WorkQuestion {

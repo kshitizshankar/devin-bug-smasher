@@ -1,5 +1,5 @@
 import type { LabelSettings } from '../config/settings.ts';
-import type { Recommendation, TriageFindings } from '../model/types.ts';
+import type { DiffFinding, Recommendation, TriageFindings } from '../model/types.ts';
 
 const RECOMMENDATION_TEXT: Record<Recommendation, string> = {
   devin_fix: 'Devin can fix this',
@@ -84,4 +84,15 @@ export function existingPullRequestComment(prNumber: number, prUrl: string, engi
 export function policyDecisionComment(action: 'fix' | 'engineer', rule: string, reasons: readonly string[]): string {
   const verb = action === 'fix' ? 'started the fix' : 'handed the issue to an engineer';
   return [`**Decision policy \`${rule}\` ${verb}.**`, '', bullets(reasons)].join('\n');
+}
+
+/** Findings that do not fail verification but that the person deciding the merge should see. */
+export function verificationFlagsComment(prUrl: string, headSha: string, flags: readonly DiffFinding[]): string {
+  return [
+    `**Verification passed with a flag for review** (${prUrl}, commit \`${headSha.slice(0, 12)}\`)`,
+    '',
+    bullets(flags.map((flag) => (flag.file === '' ? `${flag.check}: ${flag.detail}` : `${flag.check} in \`${flag.file}\`: ${flag.detail}`))),
+    '',
+    'Some real fixes only delete code; check that this one removes the bug rather than the behaviour under test.',
+  ].join('\n');
 }
