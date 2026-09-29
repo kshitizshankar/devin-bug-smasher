@@ -91,6 +91,7 @@ listed actions and refuses the rest without changing the record.
 | PR actually merged, issue open                   | `merged`                                 | Merged  | close                           |
 | PR actually merged, issue closed                 | `merged`                                 | Merged  | —                               |
 | `with-engineer`, engineer label, or PR closed unmerged | `needs-engineer`                   | Backlog | triage, fix, close              |
+| Merged fix handed off by post-merge verification, issue closed | `needs-engineer`           | Backlog | — (until the issue is reopened) |
 | Issue closed (not merged)                        | `closed`                                 | Backlog | —                               |
 
 Rules behind the table:
@@ -149,8 +150,12 @@ Main flows:
 - `triage`/`fix` actions from `with-engineer` (or replacing the engineer label with a work label) return the
   work to `queued` with the person's context. The previous fix PR moves to `priorFixes`, so its closed or
   merged state no longer affects the new work.
-- Issue closed → `closed` (running session stopped). Reopened → `triaged` if a bug has findings, otherwise
-  label routing (or `with-engineer` for the engineer label).
+- Issue closed → `closed` (running session stopped). Reopened → routed by the current labels with engineer
+  precedence: the engineer label → `with-engineer`; a bug with findings → `triaged`, upgraded to repair by a
+  repair or feature label; otherwise label routing.
+- A merged fix handed to an engineer by post-merge verification stays `with-engineer` when the issue is
+  (or already was) closed, so the failure remains visible as `needs-engineer`. No actions are offered until
+  the issue is reopened; reopening applies the labels as a label snapshot would.
 
 ### Verification accounting
 
@@ -164,6 +169,7 @@ Counts are per fix session, so a new session after a handoff starts with fresh b
 | PR head changes                 | Back to `verifying`; earlier proof no longer applies; attempts for an old head are refused (`stale-head`) |
 | Post-merge attempt              | Must target `fix.mergeCommitSha`; any other commit is refused (`stale-head`)             |
 | Post-merge `fail`               | Hands off (`post-merge-verification-failed`); the record stays merged but `postMergeVerified` is `false` |
+| Post-merge accounting           | `postMergeVerified` and the post-merge error counter use only attempts for the current fix's merge commit; attempts for archived PRs never count |
 
 ## Persistence
 

@@ -80,7 +80,7 @@ export interface Presentation {
     latestVerification: VerificationAttempt | null;
     /** True only when a pre-merge verification passed for the head the PR has now. */
     currentHeadVerified: boolean;
-    /** `null` until a post-merge verification is recorded. */
+    /** `null` until a post-merge verification is recorded for the current fix's merge commit. */
     postMergeVerified: boolean | null;
     handoff: Handoff | null;
     outstandingQuestion: Question | null;
@@ -106,6 +106,18 @@ export function wasMerged(record: BugRecord): boolean {
   return record.stageHistory.some((entry) => entry.stage === 'merged');
 }
 
+/** True when the current fix was merged and then handed to an engineer (post-merge verification). */
+export function mergedFixHandedOff(record: BugRecord): boolean {
+  return record.stage === 'with-engineer' && record.fix !== null && record.fix.mergeCommitSha !== null;
+}
+
+/** Post-merge attempts for the current fix's merge commit; attempts for archived PRs never count. */
+export function currentMergeVerifications(record: BugRecord): VerificationAttempt[] {
+  const mergeCommit = record.fix?.mergeCommitSha ?? null;
+  if (mergeCommit === null) return [];
+  return record.verifications.filter((attempt) => attempt.phase === 'post-merge' && attempt.headSha === mergeCommit);
+}
+
 function linkedPullRequest(record: BugRecord | undefined, facts: GitHubFacts): GitHubFacts['pullRequest'] {
   if (record?.fix == null || facts.pullRequest === null) return null;
   return facts.pullRequest.number === record.fix.prNumber ? facts.pullRequest : null;
@@ -123,6 +135,8 @@ function status(record: BugRecord | undefined, facts: GitHubFacts, labels: Label
   const merged = record?.stage === 'merged' || (record?.stage !== 'with-engineer' && pr?.state === 'merged');
 
   if (merged) return 'merged';
+  // A failed post-merge check stays visible even though merging usually closed the issue.
+  if (record !== undefined && mergedFixHandedOff(record)) return 'needs-engineer';
   if (facts.issue.state === 'closed' || record?.stage === 'closed') return 'closed';
   if (labels.route === 'engineer' || record?.stage === 'with-engineer') return 'needs-engineer';
   if (pr?.state === 'closed' && record?.stage !== 'triaged' && record?.stage !== 'queued') {
@@ -176,7 +190,7 @@ function actionsFor(
     case 'queued-fix':
       return kind === 'feature' ? ['engineer', 'close'] : ['triage', 'engineer', 'close'];
     case 'needs-engineer':
-      return ['triage', 'fix', 'close'];
+      return issueOpen ? ['triage', 'fix', 'close'] : [];
     case 'waiting-for-reply':
       return record !== undefined && outstandingQuestion(record) !== null
         ? ['reply', 'engineer', 'close']
@@ -205,7 +219,7 @@ export function presentBug(
   const kind: TaskKind = record?.kind ?? (labels.route === 'feature' ? 'feature' : 'bug');
   const code = status(record, facts, labels);
   const latestVerification = record?.verifications.at(-1) ?? null;
-  const postMerge = record?.verifications.filter((attempt) => attempt.phase === 'post-merge').at(-1);
+  const postMerge = record === undefined ? undefined : currentMergeVerifications(record).at(-1);
 
   return {
     key: record?.key ?? formatBugKey({ owner: facts.issue.owner, repo: facts.issue.repo, number: facts.issue.number }),

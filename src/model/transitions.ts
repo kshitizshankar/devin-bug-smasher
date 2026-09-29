@@ -1,7 +1,7 @@
 import type { LabelSettings } from '../config/settings.ts';
 import { formatBugKey } from './keys.ts';
 import { intakeEligibility, resolveLabels } from './labels.ts';
-import { outstandingQuestion, presentBug } from './presentation.ts';
+import { currentMergeVerifications, mergedFixHandedOff, outstandingQuestion, presentBug } from './presentation.ts';
 import type {
   ActionName,
   BugRecord,
@@ -436,9 +436,7 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
           return done(record, now, handOff(record, 'post-merge-verification-failed', attempt.reason, options, now));
         }
         if (attempt.result === 'error') {
-          const errors = record.verifications.filter(
-            (candidate) => candidate.phase === 'post-merge' && candidate.result === 'error',
-          ).length;
+          const errors = currentMergeVerifications(record).filter((candidate) => candidate.result === 'error').length;
           if (errors >= options.maxVerificationErrors) {
             return done(record, now, handOff(record, 'verification-error', attempt.reason, options, now));
           }
@@ -498,7 +496,9 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
     }
 
     case 'issue-closed': {
-      if (record.stage === 'closed' || record.stage === 'merged') return unchanged(current);
+      if (record.stage === 'closed' || record.stage === 'merged' || mergedFixHandedOff(record)) {
+        return unchanged(current);
+      }
       const effects = stopSessionEffects(record, now);
       moveTo(record, 'closed', now);
       record.route = null;
@@ -506,13 +506,16 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
     }
 
     case 'issue-reopened': {
+      if (record.stage === 'with-engineer') {
+        return transition(current, { type: 'labels-changed', labels: event.labels }, options, now);
+      }
       if (record.stage !== 'closed') return unchanged(current);
       const { route } = resolveLabels(event.labels, options.labels);
       if (route === 'engineer') return done(record, now, handOff(record, 'engineer-label', null, options, now));
       archiveFix(record);
       if (record.triage !== null && record.kind === 'bug') {
         moveTo(record, 'triaged', now);
-        return done(record, now);
+        return done(record, now, routeFromLabels(record, event.labels, options, now) ?? []);
       }
       moveTo(record, 'queued', now);
       routeFromLabels(record, event.labels, options, now);

@@ -647,3 +647,85 @@ describe('second review regressions', () => {
     );
   });
 });
+
+describe('third review regressions', () => {
+  const OTHER_MERGE = 'd'.repeat(40);
+  const mergedPr7 = (): BugRecord =>
+    event(event(verifyingRecord(), { type: 'verification-recorded', attempt: attempt('pass') }), {
+      type: 'pr-merged',
+      prNumber: 7,
+      mergeCommitSha: MERGE_SHA,
+    });
+  const closedMergedFacts = (labels: string[]) =>
+    facts(labels, { state: 'closed', pullRequest: { number: 7, state: 'merged', headSha: HEAD_A } });
+
+  it('keeps a failed post-merge check visible as Needs an engineer while GitHub has the issue closed', () => {
+    const closedFirst = event(mergedPr7(), { type: 'issue-closed' });
+    const failed = event(closedFirst, { type: 'verification-recorded', attempt: attempt('fail', MERGE_SHA, 'post-merge') });
+    assert.equal(failed.stage, 'with-engineer');
+
+    const late = expectOk(applyEvent(failed, { type: 'issue-closed' }, options, now()));
+    assert.equal(late.changed, false, 'a late close event does not hide the handoff');
+
+    const view = presentBug(failed, closedMergedFacts([LABEL.engineer]), LABEL);
+    assert.equal(view.status, 'needs-engineer');
+    assert.equal(view.statusLabel, 'Needs an engineer');
+    assert.equal(view.group, 'Backlog');
+    assert.deepEqual(view.actions, [], 'nothing that needs a reopened issue is offered');
+    assert.equal(view.history.postMergeVerified, false);
+    expectError(act(failed, closedMergedFacts([LABEL.engineer]), { name: 'fix', actor: 'ana' }), 'action-not-permitted');
+
+    const reopened = event(failed, { type: 'issue-reopened', labels: [LABEL.engineer] });
+    assert.equal(reopened.stage, 'with-engineer');
+    const openFacts = facts([LABEL.engineer], { pullRequest: { number: 7, state: 'merged', headSha: HEAD_A } });
+    assert.deepEqual(presentBug(reopened, openFacts, LABEL).actions, ['triage', 'fix', 'close']);
+  });
+
+  it('shows post-merge proof and counts post-merge errors only for the current merge commit', () => {
+    let old = mergedPr7();
+    for (let i = 0; i < 2; i += 1) {
+      old = event(old, { type: 'verification-recorded', attempt: attempt('error', MERGE_SHA, 'post-merge') });
+    }
+    const failed = event(old, { type: 'verification-recorded', attempt: attempt('fail', MERGE_SHA, 'post-merge') });
+    const restarted = expectOk(
+      act(failed, facts([LABEL.engineer], { pullRequest: { number: 7, state: 'merged', headSha: HEAD_A } }), {
+        name: 'fix',
+        actor: 'ana',
+      }),
+    ).record;
+    const ended = event(restarted, { type: 'session-status', sessionId: 'session-fix', liveState: 'ended' });
+    let record = event(ended, {
+      type: 'session-started',
+      session: { id: 'session-2', url: 'u' },
+      issueState: 'open',
+      labels: [LABEL.fix],
+    });
+    record = event(record, { type: 'fix-submitted', fix: { ...fixInfo(HEAD_B), prNumber: 8 } });
+    record = event(record, { type: 'verification-recorded', attempt: attempt('pass', HEAD_B) });
+    record = event(record, { type: 'pr-merged', prNumber: 8, mergeCommitSha: OTHER_MERGE });
+
+    const pr8Facts = facts([LABEL.fix], { state: 'closed', pullRequest: { number: 8, state: 'merged', headSha: HEAD_B } });
+    assert.equal(presentBug(record, pr8Facts, LABEL).history.postMergeVerified, null, 'PR #7 proof is not reused');
+
+    const errored = event(record, { type: 'verification-recorded', attempt: attempt('error', OTHER_MERGE, 'post-merge') });
+    assert.equal(errored.stage, 'merged', "PR #7's errors do not count toward PR #8's budget");
+    const proven = event(errored, { type: 'verification-recorded', attempt: attempt('pass', OTHER_MERGE, 'post-merge') });
+    assert.equal(presentBug(proven, pr8Facts, LABEL).history.postMergeVerified, true);
+  });
+
+  it('routes a reopened issue with findings by its current labels', () => {
+    const triaged = event(triagingRecord(), { type: 'triage-completed', findings: findings() });
+    const closed = event(triaged, { type: 'issue-closed' });
+
+    const toFix = event(closed, { type: 'issue-reopened', labels: [LABEL.fix] });
+    assert.equal(toFix.stage, 'queued');
+    assert.equal(toFix.route, 'fix');
+    assert.equal(presentBug(toFix, facts([LABEL.fix]), LABEL).status, 'queued-fix');
+
+    const engineerWins = event(closed, { type: 'issue-reopened', labels: [LABEL.engineer, LABEL.fix] });
+    assert.equal(engineerWins.stage, 'with-engineer');
+
+    const triageOnly = event(closed, { type: 'issue-reopened', labels: [LABEL.triage] });
+    assert.equal(triageOnly.stage, 'triaged');
+  });
+});
