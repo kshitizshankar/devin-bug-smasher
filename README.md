@@ -14,7 +14,8 @@ None of the following exists yet:
 - **Workflow** – running bug intake, triage, investigation, repair and pull request tracking. The shared
   bug model, label routing, pure transitions and settings are defined (see [`docs/MODEL.md`](docs/MODEL.md)),
   but no service drives them.
-- **Integrations** – GitHub, Devin or any other provider integration.
+- **Integrations** – the GitHub tracker adapter exists (see [`docs/TRACKER.md`](docs/TRACKER.md)) but
+  nothing in the running service uses it yet; there is no Devin or other provider integration.
 - **Verification** – independent regression verification of proposed fixes.
 - **Dashboard** – the frontend is a placeholder page only.
 - **Persistence wiring** – the atomically written JSON store (`src/store/bug-store.ts`) exists but nothing
@@ -111,6 +112,7 @@ src/server/      Node.js service (TypeScript, standard library only)
 src/model/       Shared bug model: types, labels, transitions, presentation, validation
 src/store/       Atomic JSON bug store (data/bugs.json)
 src/config/      Typed environment settings
+src/tracker/     GitHub tracker interface, REST adapter and in-memory stand-in
 web/             React + Vite frontend source
 test/            Smoke and behaviour tests (node:test)
 dist/web/        Generated frontend build output (git-ignored)
