@@ -664,6 +664,9 @@ describe('operator run', () => {
     try {
       const response = await fetch(new URL('/api/health', service.baseUrl));
       assert.equal(response.status, 200);
+      for (let attempt = 0; attempt < 50 && !/Replay mode/.test(service.output()); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
       assert.match(service.output(), /Replay mode/);
     } finally {
       await service.stop();
