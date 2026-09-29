@@ -305,6 +305,19 @@ describe('Devin Review', () => {
     assert.equal(reviewPosts(f.h), 1);
   });
 
+  it('records a Review that stays missing past the grace period as unavailable', async (t) => {
+    const f = await readyFix(t, { MERGE: 'rule' });
+    greenCi(f.h, HEAD_1);
+    await until(f.h, f.key, (record) => (record.review?.rounds.length ?? 0) === 1);
+    f.h.offline.reviews.delete(f.pr.url);
+    await f.h.cycle();
+    assert.equal(f.h.record(f.key).review?.rounds[0]?.status, 'pending');
+    f.h.advance(31 * 60 * 1000);
+    const record = await until(f.h, f.key, (r) => r.review?.rounds[0]?.status === 'unavailable');
+    assert.match(record.review?.rounds[0]?.detail ?? '', /not-requested/);
+    assert.equal(record.stage, 'ready-to-merge');
+  });
+
   it('records an unavailable Review, never treats it as passed, and Rule merge waits', async (t) => {
     const f = await readyFix(t, { MERGE: 'rule' }, { review: false });
     greenCi(f.h, HEAD_1);

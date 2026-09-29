@@ -179,6 +179,8 @@ const RELAY_STAGES: readonly Stage[] = ['triaging', 'needs-input', 'fixing'];
 const HANDOFF_STAGES: readonly Stage[] = ['queued', 'triaging', 'needs-input', 'triaged', 'fixing'];
 const OUTPUT_TAIL_CHARS = 4000;
 const DEFAULT_MAX_REVIEW_REPAIRS = 2;
+/** How long a requested Review may be reported missing (or on another commit) before it counts as unavailable. */
+const REVIEW_MISSING_GRACE_MS = 30 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
 
 export function emptyWorkflow(): WorkflowState {
@@ -1413,8 +1415,15 @@ export class Orchestrator {
       if (round.status === 'pending') {
         const state = await this.#reviewCall(record, () => this.#devin.getReview(fix.prUrl, fix.headSha));
         if (state === null || state.status === 'pending') return false;
-        // The provider may briefly report no Review (or the previous head's) for a requested commit; keep polling.
-        if (state.status === 'unavailable' && (state.reason === 'not-requested' || state.reason === 'different-commit')) return false;
+        // The provider may briefly report no Review (or the previous head's) for a requested commit; keep polling
+        // for a grace period, after which the round is recorded as unavailable.
+        if (
+          state.status === 'unavailable' &&
+          (state.reason === 'not-requested' || state.reason === 'different-commit') &&
+          this.#now().getTime() - Date.parse(round.requestedAt) < REVIEW_MISSING_GRACE_MS
+        ) {
+          return false;
+        }
         await this.#settleRound(record.key, fix.prNumber, round, state, review);
       } else if (round.status === 'completed' && round.findings.length > 0 && round.correctionSentAt === null && round.blocker === null) {
         const repairs = review.rounds.filter((other) => other.prNumber === fix.prNumber && other.correctionSentAt !== null).length;

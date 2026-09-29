@@ -64,6 +64,11 @@ export class Harness {
 
   readonly clock: () => Date;
 
+  /** Moves the shared clock forward. */
+  advance(ms: number): void {
+    this.#time += ms;
+  }
+
   static async create(options: HarnessOptions = {}): Promise<Harness> {
     const harness = new Harness(options);
     harness.#dir = await mkdtemp(join(tmpdir(), 'bug-smasher-orchestrator-'));

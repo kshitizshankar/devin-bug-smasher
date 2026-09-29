@@ -165,7 +165,7 @@ Once a head is `ready-to-merge`:
    the new head is verified afresh and reviewed again. After `maxReviewRepairs` (default 2) correction
    rounds per PR, or when the session has ended, the round gets a durable `blocker` and one keyed comment.
    While polling a requested Review, `not-requested` or an earlier commit's Review keeps the round
-   `pending`. An error, `forbidden`, `not-requested` (when requesting), `cancelled`, `skipped` or disabled Review is recorded as
+   `pending` for up to 30 minutes after the request, then the round is `unavailable`. An error, `forbidden`, `not-requested` (when requesting), `cancelled`, `skipped` or disabled Review is recorded as
    `unavailable` and never counts as passed. Auto-Fix is never assumed. Resolved or removed finding threads
    are recorded as `resolutions` (`same-session` when fixed on a later head after a correction).
 2. **Merge policy** (`MERGE`), evaluated on a fresh read of the PR, check runs, commit statuses, Review
