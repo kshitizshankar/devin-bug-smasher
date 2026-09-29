@@ -24,8 +24,9 @@ closes an issue. See [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md#decision-an
 
 `npm run setup` configures the target repository's labels and bug issue form on GitHub and its Playbook,
 Knowledge notes, indexing, blueprint and build on Devin, changing only what differs; `env-status`, `mirror`
-and `report` inspect builds, copy issues in and write `RESULTS.md`. Every command that writes supports
-`--dry-run`. See [`docs/OPERATOR.md`](docs/OPERATOR.md).
+and `report` inspect builds, copy issues in and write `RESULTS.md`. Every command that writes to GitHub or
+Devin supports `--dry-run`; `report` is the exception, as it only writes a local `RESULTS.md`. See
+[`docs/OPERATOR.md`](docs/OPERATOR.md).
 
 ## Not yet implemented
 
