@@ -111,6 +111,7 @@ src/server/      Node.js service (TypeScript, standard library only)
 src/model/       Shared bug model: types, labels, transitions, presentation, validation
 src/store/       Atomic JSON bug store (data/bugs.json)
 src/config/      Typed environment settings
+src/devin/       Devin API v3 adapter and offline stand-in (see docs/DEVIN.md)
 web/             React + Vite frontend source
 test/            Smoke and behaviour tests (node:test)
 dist/web/        Generated frontend build output (git-ignored)
