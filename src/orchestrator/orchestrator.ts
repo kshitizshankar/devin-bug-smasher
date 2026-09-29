@@ -96,6 +96,7 @@ export type OrchestratorDevin = Pick<
   | 'sendMessage'
   | 'listMessages'
   | 'terminateSession'
+  | 'archiveSession'
   | 'requestReview'
   | 'getReview'
 >;
@@ -660,12 +661,13 @@ export class Orchestrator {
         await this.#tracker.closeIssue(number);
         return;
       case 'stop-session':
-        // Archived so a later comment on the session's pull request cannot wake it. A session that is
-        // already archived or ended (409) or gone (404) counts as stopped.
+        // Archived so a later comment on the session's pull request cannot wake it. A session that cannot be
+        // terminated because it already ended (409) is archived on its own; a missing one (404) counts as stopped.
         try {
           await this.#devin.terminateSession(op.sessionId, { archive: true });
         } catch (error) {
           if (!(error instanceof DevinError && (error.kind === 'not-found' || error.kind === 'conflict'))) throw error;
+          if (error.kind === 'conflict') await this.#archive(op.sessionId);
         }
         return;
       case 'post-comment':
@@ -686,6 +688,14 @@ export class Orchestrator {
       case 'set-commit-status':
         await this.#tracker.createCommitStatus(op.sha, { state: op.state, context: op.context, description: op.description });
         return;
+    }
+  }
+
+  async #archive(sessionId: string): Promise<void> {
+    try {
+      await this.#devin.archiveSession(sessionId);
+    } catch (error) {
+      if (!(error instanceof DevinError && (error.kind === 'not-found' || error.kind === 'conflict'))) throw error;
     }
   }
 

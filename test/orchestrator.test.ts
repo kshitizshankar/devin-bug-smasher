@@ -244,10 +244,24 @@ describe('orchestrator: close, handoff and reopen', () => {
       await h.cycle();
       assert.equal(h.record(issue.key).stage, 'closed');
       assert.equal(terminations().at(-1)?.query.get('archive'), 'true');
+      if (status === 409) assert.equal(h.session(h.sessionId(issue.key)).is_archived, true, 'a session that already ended is still archived');
       assert.deepEqual(h.record(issue.key).workflow?.outbox ?? [], [], `a ${status} stop is not retried`);
       assert.ok(!h.types(issue.key).includes('effect-dropped'), `a ${status} stop is handled like a missing session`);
       assert.ok(!h.types(issue.key).includes('effect-failed'));
     }
+
+    const ended = h.tracker.seedIssue({ title: 'Ended but not archived', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const endedId = h.sessionId(ended.key);
+    h.working(endedId);
+    h.offline.failNext({ method: 'DELETE', path: '/sessions/', status: 409 });
+    h.offline.failNext({ method: 'POST', path: '/archive', status: 409 });
+    h.tracker.externalCloseIssue(ended.number, 'maintainer');
+    await h.cycle();
+    assert.equal(h.record(ended.key).stage, 'closed');
+    assert.ok(h.offline.requests.some((request) => request.method === 'POST' && request.path.endsWith(`/sessions/${endedId}/archive`)), 'a 409 on terminate still archives');
+    assert.deepEqual(h.record(ended.key).workflow?.outbox ?? [], [], 'a 409 on archive counts as archived');
+    assert.ok(!h.types(ended.key).includes('effect-dropped'));
   });
 
   it('hands off instead of restarting when a session ends unexpectedly', async (t) => {

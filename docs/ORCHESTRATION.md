@@ -73,8 +73,8 @@ operation that was in flight, and each is idempotent:
 - `send-message` carries a `Reference: bug-smasher:…` marker; before sending, the session's messages are
   read and an already-delivered marker is skipped (`message-already-delivered`).
 - Labels are add-before-remove and no-ops when already applied; `stop-session` terminates
-  and archives the session (so a later pull request comment cannot wake it) and treats not-found (404) or
-  already archived or ended (409) as stopped;
+  and archives the session (so a later pull request comment cannot wake it); a 409 (already ended) falls back
+  to `archiveSession`, and not-found (404) or an already archived session (409) counts as stopped;
   `merge-pr` uses the expected head SHA. Permanent failures (`not-found`, `validation`, …) are dropped with
   `effect-dropped`, retryable ones stay queued (`effect-failed`).
 
