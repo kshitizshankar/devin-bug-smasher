@@ -14,6 +14,14 @@ function quote(text: string): string {
     .join('\n');
 }
 
+/** The proposed new test file, fenced so no backtick run inside it can close the block. */
+function proposedTestCode(test: TriageFindings['proposedTest']): string[] {
+  if (test.code === undefined || test.code.trim() === '') return [];
+  const longest = Math.max(2, ...[...test.code.matchAll(/`+/g)].map((run) => run[0].length));
+  const fence = '`'.repeat(longest + 1);
+  return ['', `New test file \`${test.file}\` (proposed by Devin; not run by the service):`, fence, test.code.replace(/\n+$/, ''), fence];
+}
+
 function bullets(items: readonly string[]): string {
   return items.length === 0 ? '- (none)' : items.map((item) => `- ${item}`).join('\n');
 }
@@ -55,6 +63,7 @@ export function triageComment(findings: TriageFindings, labels: LabelSettings): 
     '```',
     findings.proposedTest.command,
     '```',
+    ...proposedTestCode(findings.proposedTest),
     '',
     `**Recommendation:** ${RECOMMENDATION_TEXT[findings.recommendation]} (${findings.confidence} confidence). ` +
       findings.reason,

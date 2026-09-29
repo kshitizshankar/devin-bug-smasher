@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { PROMPT_NAMES, PromptError, Prompts, placeholders, renderTemplate } from '../src/orchestrator/prompts.ts';
+import { loadSettings } from '../src/config/settings.ts';
+import { triageComment } from '../src/orchestrator/comments.ts';
 import { findings } from './helpers/model.ts';
 
 const issue = {
@@ -164,5 +166,21 @@ describe('prompt assets: every route', () => {
     ] as const) {
       assert.match(feature, pattern, `feature: ${what}`);
     }
+  });
+});
+
+describe('triage comment', () => {
+  const labels = loadSettings({ GITHUB_REPO: 'acme/widgets' }).labels;
+
+  it('includes the full code of a proposed new test file, fenced so it cannot break out', () => {
+    const code = "import { it } from 'node:test';\n// ``` inside the test\nit('rejects empty names', () => {});\n";
+    const comment = triageComment(findings({ proposedTest: { description: 'Rejects empty names', file: 'test/save.test.ts', command: 'node --test test/save.test.ts', code } }), labels);
+    assert.match(comment, /New test file `test\/save\.test\.ts`/);
+    assert.ok(comment.includes(`\`\`\`\`\n${code.trimEnd()}\n\`\`\`\``), 'the code sits in a fence longer than any backtick run inside it');
+  });
+
+  it('omits the code block when the proposed test file already exists', () => {
+    const comment = triageComment(findings(), labels);
+    assert.doesNotMatch(comment, /New test file/);
   });
 });
