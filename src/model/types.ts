@@ -66,8 +66,6 @@ export interface SessionInfo {
   updatedAt: Timestamp;
   /** Set when the model asked the adapter to stop this session (a `stop-session` effect). */
   stopRequestedAt: Timestamp | null;
-  /** Set when a stop ended without the session being archived, so it could still wake on a pull request comment. */
-  archiveFailedAt?: Timestamp;
 }
 
 export interface TriageFindings {
@@ -336,6 +334,8 @@ export interface BugRecord {
   evaluations?: PolicyEvaluation[];
   /** Orchestrator bookkeeping; absent on records the orchestrator has not handled yet. */
   workflow?: WorkflowState;
+  /** Sessions a stop left unarchived, so they could still wake on a pull request comment; absent when none. */
+  unarchivedSessions?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

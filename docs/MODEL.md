@@ -31,7 +31,7 @@ The store keeps only orchestration and evidence data (`BugRecord` in `src/model/
 | `kind`          | `bug` or `feature`                                                                                 |
 | `stage`         | One of the ten internal stages below                                                               |
 | `route`         | Work queued or running: `triage`, `fix` or `null`                                                  |
-| `session`       | Devin session `id`, `url`, `route`, `liveState` (`starting`/`running`/`blocked`/`ended`), timestamps, `stopRequestedAt`, `archiveFailedAt` (a stop left it unarchived) |
+| `session`       | Devin session `id`, `url`, `route`, `liveState` (`starting`/`running`/`blocked`/`ended`), timestamps, `stopRequestedAt` |
 | `triage`        | Findings: title, summary, reproduction steps, expected/actual, suspected cause, affected files, reproduced + notes, proposed test (description, file, command — **data only, never executed** — and optional `code`, the full test file when it is not on the default branch), recommendation (`devin_fix`/`needs_engineer`/`close`), reason, confidence |
 | `fix`           | PR number/URL, current head SHA, test files, summary, `mergeCommitSha`, `mergedBy` (`github:<login>`) and `mergedAt` (set by `pr-merged`) |
 | `priorFixes`    | Earlier fix PRs, moved here when work is returned to investigation or repair                      |
@@ -43,6 +43,7 @@ The store keeps only orchestration and evidence data (`BugRecord` in `src/model/
 | `review`        | Optional Devin Review record: one round per reviewed `{prNumber, headSha}` (`pending`/`completed`/`unavailable`, detail, unresolved findings with thread ID/path/line/body/URL, `correctionSentAt`, durable `blocker`) and `resolutions` (thread, head it was found on and resolved on, `same-session` or `github`) |
 | `evaluations`   | Optional Rule/Automatic policy evaluations: `kind` (`decision`/`merge`), policy, rule, subject (triage commit or PR head), outcome (`fix`/`engineer`/`merge`/`wait`), every check (`name`, `ok`, `blocking`, `detail`), reproduction evidence (`sha`, test file, `reproduced`/`not-reproduced`/`unknown`, reason, runs) |
 | `insights`      | Optional session insights (`acuUsed` — `null` when unknown, never zero — and notes)                |
+| `unarchivedSessions` | Optional IDs of sessions a stop left unarchived (they could still wake on a pull request comment); shown in the next-action text |
 
 Display strings (status labels, groups, actions) are **not** persisted.
 

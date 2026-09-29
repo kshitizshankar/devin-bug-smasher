@@ -711,10 +711,9 @@ export class Orchestrator {
   }
 
   async #archiveFailed(key: string, sessionId: string): Promise<never> {
-    const at = this.#now().toISOString();
     await this.#store.update(key, (current) => {
-      if (current?.session?.id !== sessionId) return undefined;
-      current.session.archiveFailedAt = at;
+      if (current === undefined || current.unarchivedSessions?.includes(sessionId)) return undefined;
+      current.unarchivedSessions = [...(current.unarchivedSessions ?? []), sessionId];
       return current;
     });
     this.#emit(key, 'session-not-archived', { sessionId });

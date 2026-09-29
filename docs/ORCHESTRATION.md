@@ -75,7 +75,7 @@ operation that was in flight, and each is idempotent:
 - Labels are add-before-remove and no-ops when already applied; `stop-session` terminates
   and archives the session (so a later pull request comment cannot wake it); a 409 (already ended) falls back
   to `archiveSession`, and a 409 there is accepted only if `getSession` reports it archived. Not-found (404)
-  counts as stopped. A session left unarchived sets `session.archiveFailedAt`, is logged
+  counts as stopped. A session left unarchived is added to `unarchivedSessions`, is logged
   (`session-not-archived`), shown in the bug's next-action text and the stop is dropped, not applied;
   `merge-pr` uses the expected head SHA. Permanent failures (`not-found`, `validation`, …) are dropped with
   `effect-dropped`, retryable ones stay queued (`effect-failed`).

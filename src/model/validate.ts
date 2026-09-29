@@ -338,7 +338,6 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
     checkTimestamp(session.startedAt, `${path}.session.startedAt`, problems);
     checkTimestamp(session.updatedAt, `${path}.session.updatedAt`, problems);
     checkNullableTimestamp(session.stopRequestedAt, `${path}.session.stopRequestedAt`, problems);
-    if (session.archiveFailedAt !== undefined) checkTimestamp(session.archiveFailedAt, `${path}.session.archiveFailedAt`, problems);
   }
   if (value.triage !== null) problems.push(...validateTriageFindings(value.triage, `${path}.triage`));
   if (value.fix !== null) problems.push(...validateFixInfo(value.fix, `${path}.fix`));
@@ -384,6 +383,7 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
   }
   if (value.insights !== null) problems.push(...validateSessionInsights(value.insights, `${path}.insights`));
   if (value.review !== undefined) problems.push(...validateReviewRecord(value.review, `${path}.review`));
+  if (value.unarchivedSessions !== undefined) checkArray(value.unarchivedSessions, `${path}.unarchivedSessions`, problems, checkStringItem);
   if (value.evaluations !== undefined) {
     checkArray(value.evaluations, `${path}.evaluations`, problems, (item, itemPath, list) => {
       list.push(...validatePolicyEvaluation(item, itemPath));

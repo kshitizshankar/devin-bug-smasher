@@ -271,13 +271,13 @@ describe('orchestrator: close, handoff and reopen', () => {
       if (archived) {
         assert.ok(stop('effect-applied'), 'a 409 on archive completes the stop when the session is archived');
         assert.ok(!stop('effect-dropped'));
-        assert.equal(record.session?.archiveFailedAt, undefined);
+        assert.equal(record.unarchivedSessions, undefined);
         assert.doesNotMatch(note.text, /could not be archived/);
       } else {
         assert.ok(!stop('effect-applied'), 'a stop that leaves the session unarchived is not reported done');
         assert.ok(stop('effect-dropped'));
         assert.ok(h.types(issue.key).includes('session-not-archived'));
-        assert.ok(record.session?.archiveFailedAt, 'the failed archive is recorded on the bug');
+        assert.deepEqual(record.unarchivedSessions, [id], 'the failed archive is recorded on the bug');
         assert.match(note.text, new RegExp(`Devin session ${id} was stopped but could not be archived`));
         assert.equal(note.waitingOn, 'person');
       }
