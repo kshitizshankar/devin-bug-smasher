@@ -27,6 +27,8 @@ status on the exact commit that was checked.
 | `VERIFY_WORK_DIR` | `<repo>/data/verify` | Repository mirror and disposable workspaces |
 
 Example for a Node target: `CHECK_COMMAND=node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination={results} {files}`.
+`CHECK_COMMAND` must run exactly the files it receives in `{files}`. The verifier does not check that each
+selected file produced test cases, so a command that ignores `{files}` can report results for other tests.
 Until `GITHUB_REPO`, `VERIFY_IMAGE` and a `CHECK_COMMAND` with both placeholders are set, the service logs
 why and keeps the unavailable verifier, so nothing is reported as verified.
 
@@ -34,6 +36,8 @@ why and keeps the unavailable verifier, so nothing is reported as verified.
 
 For `pre-merge`, the head is the PR head and the base is the PR base; for `post-merge`, the head is the
 recorded merge commit and the base is its first parent.
+Post-merge verification supports merge commits and squash merges only. After a rebase merge, the first parent
+is the PR's previous rebased commit, so tests added earlier in the PR look unchanged and the proof fails.
 
 1. **Validate the selected test paths** before anything is fetched or run. Refused: empty selection,
    absolute or `~` paths, `..`, `.git`, leading `-` (options), globs, `::` selectors, shell
