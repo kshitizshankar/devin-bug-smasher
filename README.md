@@ -20,9 +20,6 @@ None of the following exists yet:
 - **Dashboard** – the frontend is a placeholder page only.
 - **Docker packaging** – there is no Dockerfile or container image.
 
-With complete live settings, a `devin-builds-feature` issue is routed to a feature implementation session
-specified by the issue's acceptance criteria (see [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md)).
-
 ## Prerequisites
 
 - Node.js **22.18.0 or later** (see `.nvmrc`). The service runs TypeScript directly using Node's native type
