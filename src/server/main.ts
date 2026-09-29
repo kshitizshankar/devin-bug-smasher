@@ -1,24 +1,19 @@
 import type { AddressInfo } from 'node:net';
-import { fileURLToPath } from 'node:url';
+import { loadSettings, SettingsError, type Settings } from '../config/settings.ts';
 import { createApp } from './app.ts';
 
-const DEFAULT_PORT = 3000;
-const DEFAULT_HOST = '127.0.0.1';
-
-function parsePort(value: string | undefined): number {
-  if (value === undefined || value === '') {
-    return DEFAULT_PORT;
+let settings: Settings;
+try {
+  settings = loadSettings();
+} catch (error) {
+  if (error instanceof SettingsError) {
+    console.error(error.message);
+    process.exit(1);
   }
-  const port = Number(value);
-  if (!Number.isInteger(port) || port < 0 || port > 65535) {
-    throw new Error(`Invalid PORT value: ${value}`);
-  }
-  return port;
+  throw error;
 }
 
-const port = parsePort(process.env.PORT);
-const host = process.env.HOST || DEFAULT_HOST;
-const staticDir = process.env.STATIC_DIR || fileURLToPath(new URL('../../dist/web', import.meta.url));
+const { host, port, staticDir } = settings.server;
 
 const server = createApp({ staticDir });
 
