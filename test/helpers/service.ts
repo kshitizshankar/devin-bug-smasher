@@ -6,6 +6,10 @@ export const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 
 export interface RunningService {
   baseUrl: string;
+  /** Combined stdout and stderr the service has written so far. */
+  output: () => string;
+  /** Exit code or signal if the service process has exited, otherwise undefined. */
+  exitStatus: () => string | undefined;
   stop: () => Promise<void>;
 }
 
@@ -50,6 +54,11 @@ export async function startService(env: Record<string, string> = {}): Promise<Ru
 
   return {
     baseUrl,
+    output: () => output,
+    exitStatus: () =>
+      child.exitCode !== null || child.signalCode !== null
+        ? `code=${child.exitCode}, signal=${child.signalCode}`
+        : undefined,
     stop: async () => {
       if (child.exitCode !== null || child.signalCode !== null) {
         return;

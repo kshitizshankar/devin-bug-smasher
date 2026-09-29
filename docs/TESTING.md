@@ -19,6 +19,7 @@ suite finishes.
 | ----------------------- | --------------------------------------------------------------------------------------------------- | --------------------- |
 | `test/health.test.ts`   | `GET /api/health` returns `200` with the ok payload; non-GET is `405`; unknown API route is `404`   | No                    |
 | `test/frontend.test.ts` | `/` serves the built `index.html`; every referenced JS/CSS asset is served byte-for-byte; SPA fallback; missing asset `404`; path traversal blocked | Yes |
+| `test/static-read-failure.test.ts` | An asset that cannot be opened (mode `000`) returns `500`; a read that fails after headers are committed (Linux `/proc/self/mem` symlink) ends the response; `/api/health` still returns `200` after each | No |
 
 Run a selected file:
 

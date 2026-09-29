@@ -1,7 +1,7 @@
-import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { open, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
+import { pipeline } from 'node:stream/promises';
 
 export interface AppOptions {
   staticDir: string;
@@ -78,15 +78,17 @@ async function serveStatic(
     return;
   }
 
+  const handle = await open(file.path, 'r');
   res.writeHead(200, {
     'content-type': CONTENT_TYPES[extname(file.path)] ?? 'application/octet-stream',
     'content-length': file.size,
   });
   if (req.method === 'HEAD') {
+    await handle.close();
     res.end();
     return;
   }
-  createReadStream(file.path).pipe(res);
+  await pipeline(handle.createReadStream(), res);
 }
 
 export function createApp(options: AppOptions): Server {
