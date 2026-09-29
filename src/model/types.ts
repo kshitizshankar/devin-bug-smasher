@@ -123,6 +123,7 @@ export const DIFF_CHECKS = [
   'test-removed',
   'test-disabled',
   'test-weakened',
+  /** Flag only: suppression comments added on net (older records may hold it as a violation). */
   'check-silenced',
   'rules-changed',
   /** Flag only: the change outside tests removes lines and adds none. */

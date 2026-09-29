@@ -129,11 +129,6 @@ describe('independent verification against fixture repositories', () => {
         { 'test/double.test.mjs': DOUBLE_TEST.replace('  assert.equal(double(0), 0);\n', '') },
         /test-weakened in test\/double\.test\.mjs: assertions dropped from 3 to 2/,
       ],
-      [
-        'an added suppression comment',
-        { 'src/math.mjs': FIXED_MATH.replace('export function add', '// eslint-disable-next-line\nexport function add') },
-        /check-silenced in src\/math\.mjs: 1 suppression comment/,
-      ],
       ['a changed CI workflow', { '.github/workflows/ci.yml': 'on: push\njobs: { skip: {} }\n' }, /rules-changed in \.github\/workflows\/ci\.yml/],
       ['an added pytest.ini', { 'pytest.ini': '[pytest]\naddopts = -k "not slow"\n' }, /rules-changed in pytest\.ini/],
       [
@@ -164,6 +159,66 @@ describe('independent verification against fixture repositories', () => {
     assert.deepEqual(attempt.evidence?.violations, []);
     assert.deepEqual(attempt.evidence?.flags.map((flag) => flag.check), ['deletion-only']);
     assert.match(attempt.reason, /flagged for review: deletion-only/);
+  });
+
+  describe('added suppression comments are flagged for a person, not failures', () => {
+    const fix = { 'src/math.mjs': FIXED_MATH, [ADD_TEST_PATH]: ADD_TEST };
+    const REPORT_PATH = 'src/report.py';
+    const REPORT = 'def build(table):\n    return "SELECT * FROM " + table\n';
+    const suppressions: [string, string][] = [
+      ['# noqa: S608', 'def build(table):\n    return "SELECT * FROM " + table  # noqa: S608\n'],
+      ['# pylint: disable=too-few-public-methods', 'class Report:  # pylint: disable=too-few-public-methods\n    pass\n'],
+      ['# type: ignore[attr-defined]', 'import math\n\nVALUE = math.missing  # type: ignore[attr-defined]\n'],
+    ];
+    for (const [style, content] of suppressions) {
+      it(`passes a fix that adds \`${style}\` and lists it as a flag with its file`, async () => {
+        const { attempt } = await verifyHead({ ...fix, [REPORT_PATH]: content });
+        assert.equal(attempt.result, 'pass', attempt.reason);
+        assert.deepEqual(attempt.evidence?.violations, []);
+        assert.deepEqual(attempt.evidence?.flags, [
+          { check: 'check-silenced', file: REPORT_PATH, detail: '1 suppression comment(s) added; review before merging' },
+        ]);
+        assert.match(attempt.reason, /flagged for review: check-silenced in src\/report\.py: 1 suppression comment\(s\) added/);
+        assert.equal(world.runtime.starts.length, 2);
+      });
+    }
+
+    it('does not flag a fix that removes a suppression that was already there', async () => {
+      const suppressed = await world.repo.head('suppressed', { [REPORT_PATH]: suppressions[0]![1] });
+      const head = await world.repo.head('fix', { ...fix, [REPORT_PATH]: REPORT }, suppressed);
+      const attempt = attemptOf(await world.verifier.verify({ ...request(head), baseSha: suppressed }));
+      assert.equal(attempt.result, 'pass', attempt.reason);
+      assert.deepEqual(attempt.evidence?.violations, []);
+      assert.deepEqual(attempt.evidence?.flags, []);
+      assert.doesNotMatch(attempt.reason, /flagged/);
+    });
+
+    it('counts only suppressions added on net in a file that already had one', async () => {
+      const suppressed = await world.repo.head('suppressed', { [REPORT_PATH]: suppressions[0]![1] });
+      const more = `${suppressions[0]![1]}\n\ndef count(table):\n    return "SELECT COUNT(*) FROM " + table  # noqa: S608\n`;
+      const head = await world.repo.head('fix', { ...fix, [REPORT_PATH]: more }, suppressed);
+      const attempt = attemptOf(await world.verifier.verify({ ...request(head), baseSha: suppressed }));
+      assert.equal(attempt.result, 'pass', attempt.reason);
+      assert.deepEqual(attempt.evidence?.flags.map((flag) => [flag.file, flag.detail]), [[REPORT_PATH, '1 suppression comment(s) added; review before merging']]);
+    });
+
+    const stillFailing: [string, Record<string, string | null>, RegExp][] = [
+      ['a changed CI workflow', { '.github/workflows/ci.yml': 'on: push\njobs: { skip: {} }\n' }, /rules-changed in \.github\/workflows\/ci\.yml/],
+      ['an added lint configuration', { '.flake8': '[flake8]\nignore = S608\n' }, /rules-changed in \.flake8/],
+      ['a deleted test file', { 'test/double.test.mjs': null }, /test-removed in test\/double\.test\.mjs: test file deleted/],
+    ];
+    for (const [name, change, reason] of stillFailing) {
+      it(`still fails a fix that adds a suppression and has ${name}, for that change`, async () => {
+        const { attempt } = await verifyHead({ ...fix, [REPORT_PATH]: suppressions[0]![1], ...change });
+        assert.equal(attempt.result, 'fail');
+        assert.match(attempt.reason, /^Diff checks failed: /);
+        assert.match(attempt.reason, reason);
+        assert.doesNotMatch(attempt.reason, /check-silenced/);
+        assert.equal(attempt.evidence?.violations.length, 1, attempt.reason);
+        assert.deepEqual(attempt.evidence?.flags.map((flag) => flag.check), ['check-silenced']);
+        assert.equal(world.runtime.starts.length, 0);
+      });
+    }
   });
 
   describe('V5: infrastructure problems are errors, never failed proofs', () => {
