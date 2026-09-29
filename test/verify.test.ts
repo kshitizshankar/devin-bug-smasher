@@ -370,6 +370,67 @@ describe('independent verification against fixture repositories', () => {
   });
 });
 
+describe('reproducing the proposed test on the default branch', () => {
+  let world: VerifyWorld;
+  beforeEach(async () => {
+    world = await verifyWorld();
+  });
+  afterEach(async () => {
+    await world.close();
+  });
+
+  function reproduce(sha: string, testFile: string, testCode: string | null = null) {
+    return world.verifier.reproduce({ bugKey: 'acme/widgets#1', sha, testFile, testCode });
+  }
+
+  async function checkOf(sha: string, testFile: string, testCode: string | null = null) {
+    const result = await reproduce(sha, testFile, testCode);
+    assert.equal(result.status, 'completed');
+    if (result.status !== 'completed') assert.fail('not completed');
+    return result.check;
+  }
+
+  it('reproduces with a test committed on the default branch that fails there', async () => {
+    const main = await world.repo.advanceMain({ [ADD_TEST_PATH]: ADD_TEST });
+    const check = await checkOf(main, ADD_TEST_PATH);
+    assert.equal(check.outcome, 'reproduced', check.reason);
+    assert.equal(check.sha, main);
+    assert.deepEqual(check.runs.map((run) => [run.role, run.sha, run.outcome]), [['reproduction', main, 'failed']]);
+  });
+
+  it('reproduces with test code from triage when the file is not on the default branch', async () => {
+    const check = await checkOf(world.repo.base, ADD_TEST_PATH, ADD_TEST);
+    assert.equal(check.outcome, 'reproduced', check.reason);
+  });
+
+  it('reports not reproduced when the proposed test passes on current code', async () => {
+    const check = await checkOf(world.repo.base, 'test/double.test.mjs');
+    assert.equal(check.outcome, 'not-reproduced', check.reason);
+  });
+
+  it('is unknown, running nothing, when the file is missing and there is no test code, or the path is not a safe test path', async () => {
+    const missing = await checkOf(world.repo.base, ADD_TEST_PATH);
+    assert.equal(missing.outcome, 'unknown');
+    assert.match(missing.reason, /not on the default branch/);
+    for (const path of ['../escape.test.mjs', 'src/math.mjs']) assert.equal((await checkOf(world.repo.base, path, ADD_TEST)).outcome, 'unknown', path);
+    assert.equal(world.runtime.starts.length, 0);
+  });
+
+  it('is unknown when the test cannot give a result', async () => {
+    const check = await checkOf(world.repo.base, ADD_TEST_PATH, 'throw new Error("boom");\n');
+    assert.equal(check.outcome, 'unknown', check.reason);
+  });
+
+  it('never runs a command from triage; only the configured runner runs', async () => {
+    const script = `touch ${join(world.root, 'pwned')}`;
+    await checkOf(world.repo.base, ADD_TEST_PATH, `${ADD_TEST}// To reproduce run: ${script}\n`);
+    assert.equal(existsSync(join(world.root, 'pwned')), false);
+    const configured = CHECK_COMMAND.split(' ').slice(0, 5);
+    assert.ok(world.runtime.commands.length > 0);
+    for (const argv of world.runtime.commands) assert.deepEqual(argv.slice(0, 5), configured);
+  });
+});
+
 describe('verifier configuration', () => {
   it('requires {files} and {results} in the check command', () => {
     assert.deepEqual(checkCommandProblems('npm test -- {files} --reporter-output={results}'), []);

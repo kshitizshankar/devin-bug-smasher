@@ -33,6 +33,8 @@ suite finishes.
 | `test/tracker-github.test.ts` | `GitHubTracker` against an offline fake GitHub REST server: the shared tracker contract, headers, Link pagination, page-limit and foreign-link refusal, drift deduplication, timeline filtering, merge `sha` precondition, label ordering, rate-limit/auth/validation/server/network/timeout/malformed-response errors, token redaction | No |
 | `test/verify.test.ts` | Independent verifier against fixture git repositories with a local stand-in runtime: pass/fail/error outcomes, each diff check, path validation, no proposed commands, no credentials (fake Docker CLI); real Docker only with `VERIFY_DOCKER_IMAGE` | No |
 | `test/orchestrator-verification.test.ts` | Orchestrator with the real verifier: commit statuses on exact SHAs, changed head, retry message, handoffs after two failed proofs and three errors, post-merge verification | No |
+| `test/policies.test.ts` | Rule decision (each condition alone, empty class list, reproduction reuse, test code), Automatic decision, CI states, required verification status, Rule/Automatic merge checks including the exact `MERGE_MAX_LINES` boundary and deletion-only exception | No |
+| `test/orchestrator-policies.test.ts` | Orchestrator with scripted verifier/reproducer: Person/Rule/Automatic decisions and comments across restarts, session-start comment once per session, Review request/completion/findings/same-session repair/unavailable/cap, Rule and Automatic merges, CI and Review blockers, expected-head race, direct merge evidence, post-merge failure handoff, one thank-you | No |
 | `test/tracker-memory.test.ts` | `InMemoryTracker` against the same shared tracker contract, plus copy isolation | No |
 
 Run a selected file:

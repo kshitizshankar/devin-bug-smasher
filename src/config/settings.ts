@@ -47,6 +47,8 @@ export interface Settings {
   verify: VerifySettings;
   labels: LabelSettings;
   decision: Policy;
+  /** Class labels the Rule decision may fix (`DECISION_RULE_CLASSES`); empty means every bug waits for a person. */
+  decisionRuleClasses: string[];
   merge: Policy;
   mergeMaxLines: number;
   maxFixRetries: number;
@@ -80,6 +82,8 @@ export interface EffectiveSettings {
   verify: VerifySettings;
   labels: LabelSettings;
   decision: Policy;
+  /** Class labels the Rule decision may fix (`DECISION_RULE_CLASSES`); empty means every bug waits for a person. */
+  decisionRuleClasses: string[];
   merge: Policy;
   mergeMaxLines: number;
   maxFixRetries: number;
@@ -190,6 +194,22 @@ class Reader {
     return new Date(time).toISOString();
   }
 
+  /** Comma-separated GitHub label names; duplicates and blank entries are refused. */
+  labelList(name: string): string[] {
+    const value = this.raw(name);
+    if (value === undefined) return [];
+    const labels = value.split(',').map((label) => label.trim());
+    const seen = new Set<string>();
+    for (const label of labels) {
+      if (label === '' || label.length > 50 || seen.has(label.toLowerCase())) {
+        this.invalid(name, value, 'comma-separated, distinct label names of 1-50 characters');
+        return [];
+      }
+      seen.add(label.toLowerCase());
+    }
+    return labels;
+  }
+
   repo(name: string): GitHubRepo | null {
     const value = this.raw(name);
     if (value === undefined) return null;
@@ -258,6 +278,7 @@ export function loadSettings(env: Env = process.env): Settings {
     },
     labels,
     decision: read.enumeration('DECISION', POLICIES, 'person'),
+    decisionRuleClasses: read.labelList('DECISION_RULE_CLASSES'),
     merge: read.enumeration('MERGE', POLICIES, 'person'),
     mergeMaxLines: read.integer('MERGE_MAX_LINES', 200, 1),
     maxFixRetries: read.integer('MAX_FIX_RETRIES', 1, 0),
@@ -322,6 +343,7 @@ export function effectiveSettings(settings: Settings): EffectiveSettings {
     verify: { ...settings.verify },
     labels: { ...settings.labels },
     decision: settings.decision,
+    decisionRuleClasses: [...settings.decisionRuleClasses],
     merge: settings.merge,
     mergeMaxLines: settings.mergeMaxLines,
     maxFixRetries: settings.maxFixRetries,

@@ -50,6 +50,9 @@ All methods are async and either return complete normalized data or throw `Track
 | `listCheckRuns(ref)` | `GET /commits/{ref}/check-runs` | `totalCount`, `complete` |
 | `getCombinedStatus(ref)` | `GET /commits/{ref}/status` | Latest status per context; `totalCount`, `complete` |
 | `createCommitStatus(sha, status)` | `POST /statuses/{sha}` | Description truncated to 140 characters |
+| `listReviewThreads(n)` | `POST /graphql` (`pullRequest.reviewThreads`, 100 per page) | All pages; `id`, `isResolved`, `isOutdated`, `path`, `line`, `commitSha` (first comment's `originalCommit.oid`), comments (author, body, URL, time) |
+| `getBranch(name)` | `GET /branches/{name}`, `GET /rules/branches/{name}` | `requiredChecks` merges classic protection contexts and ruleset `required_status_checks`; `null` when either could not be read (a protected branch without readable protection, or rules 403/404), never "none required" |
+| `getDefaultBranch()` | `GET /repos/{owner}/{repo}`, then `getBranch` | |
 | `mergePullRequest(n, { expectedHeadSha, method?, commitTitle? })` | `GET /pulls/{n}`, `PUT /pulls/{n}/merge` with `sha` | See below |
 
 Paths above are relative to `/repos/{owner}/{repo}`.

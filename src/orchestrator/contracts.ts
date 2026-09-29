@@ -1,4 +1,11 @@
-import type { BugRecord, VerificationAttempt, VerificationPhase, WorkflowOperation } from '../model/types.ts';
+import type {
+  BugRecord,
+  PolicyEvaluation,
+  ReproductionCheck,
+  VerificationAttempt,
+  VerificationPhase,
+  WorkflowOperation,
+} from '../model/types.ts';
 import type { TrackerIssue } from '../tracker/types.ts';
 
 /** Actor recorded for actions taken through the service's own interface; never an invented person. */
@@ -38,17 +45,38 @@ export interface Verifier {
   verify(request: VerificationRequest): Promise<VerificationOutcome>;
 }
 
+export interface ReproductionRequest {
+  bugKey: string;
+  /** Current default-branch commit the proposed test runs against. */
+  sha: string;
+  testFile: string;
+  /** Proposed test contents (`proposed_check.test_code`); `null` runs the file already committed at `sha`. */
+  testCode: string | null;
+}
+
+export type ReproductionResult =
+  | { status: 'completed'; check: ReproductionCheck }
+  /** Nothing ran; the Rule decision treats reproduction as unknown. */
+  | { status: 'unavailable'; reason: string };
+
+/** Runs a triage's proposed test on current code with the administrator's check command only. */
+export interface Reproducer {
+  readonly live: boolean;
+  reproduce(request: ReproductionRequest): Promise<ReproductionResult>;
+}
+
 export interface DecisionRequest {
   record: BugRecord;
   issue: TrackerIssue;
 }
 
+/** `evaluation` is the evidence to persist; `null` for policies that record none. */
 export type PolicyOutcome =
-  | { status: 'decided'; action: 'fix' | 'engineer'; rule: string; reasons: string[] }
-  | { status: 'wait'; reason: string }
+  | { status: 'decided'; action: 'fix' | 'engineer'; rule: string; reasons: string[]; evaluation: PolicyEvaluation | null }
+  | { status: 'wait'; reason: string; rule: string | null; evaluation: PolicyEvaluation | null }
   | { status: 'unavailable'; reason: string };
 
-/** Automatic repair decision for triaged bugs (`DECISION_POLICY=rule|auto`), implemented by M1.6. */
+/** Automatic repair decision for triaged bugs (`DECISION=rule|auto`). */
 export interface DecisionPolicy {
   readonly live: boolean;
   decide(request: DecisionRequest): Promise<PolicyOutcome>;

@@ -29,8 +29,10 @@ import {
   type PullRequestDiff,
   type PullRequestFile,
   type PullRequestFiles,
+  type Branch,
   type Review,
   type ReviewState,
+  type ReviewThread,
   type Tracker,
   type TrackerComment,
   type TrackerErrorCode,
@@ -113,6 +115,7 @@ interface PullRequestEntry {
   files: PullRequestFile[];
   diff: string | null;
   reviews: Review[];
+  threads: ReviewThread[];
   mergeBlock: string | null;
 }
 
@@ -138,6 +141,8 @@ export class InMemoryTracker implements Tracker {
   readonly #statuses = new Map<string, CommitStatus[]>();
   readonly #checkRuns = new Map<string, CheckRun[]>();
   readonly #failures = new Map<FailurePoint, SimulatedFailure[]>();
+  readonly #branches = new Map<string, Branch>([['main', { name: 'main', sha: '0'.repeat(40), protected: false, requiredChecks: [] }]]);
+  #defaultBranch = 'main';
   #applied: TrackerError | null = null;
   #nextNumber = 1;
   #nextId = 1000;
@@ -213,6 +218,7 @@ export class InMemoryTracker implements Tracker {
       files,
       diff: seed.diff === undefined ? '' : seed.diff,
       reviews: [],
+      threads: [],
       mergeBlock: null,
     });
     for (const issueNumber of seed.references ?? []) this.#issueEntry('findLinkedPullRequests', issueNumber).references.push(number);
@@ -293,6 +299,43 @@ export class InMemoryTracker implements Tracker {
     };
     this.#checkRuns.set(sha, [...(this.#checkRuns.get(sha) ?? []), added]);
     return copy(added);
+  }
+
+  /** Starts a review thread on the PR with one comment by `author`. */
+  addReviewThread(
+    prNumber: number,
+    thread: { author: string; body: string; path?: string; line?: number; commitSha?: string; outdated?: boolean },
+  ): { id: string } {
+    const entry = this.#pullEntry('listReviewThreads', prNumber);
+    const id = `thread-${this.#nextId++}`;
+    entry.threads.push({
+      id,
+      isResolved: false,
+      isOutdated: thread.outdated ?? false,
+      path: thread.path ?? null,
+      line: thread.line ?? null,
+      commitSha: thread.commitSha ?? entry.pr.headSha,
+      comments: [{ authorLogin: thread.author, body: thread.body, url: `${entry.pr.url}#discussion_${id}`, createdAt: this.#now() }],
+    });
+    return { id };
+  }
+
+  resolveReviewThread(prNumber: number, threadId: string): void {
+    const thread = this.#pullEntry('listReviewThreads', prNumber).threads.find((candidate) => candidate.id === threadId);
+    if (thread === undefined) throw new Error(`No review thread ${threadId}`);
+    thread.isResolved = true;
+  }
+
+  /** Creates or replaces a branch; `requiredChecks: null` simulates protection the token cannot read. */
+  setBranch(name: string, branch: { sha: string; protected?: boolean; requiredChecks?: string[] | null; default?: boolean }): void {
+    const requiredChecks = branch.requiredChecks === undefined ? [] : branch.requiredChecks;
+    this.#branches.set(name, {
+      name,
+      sha: branch.sha,
+      protected: branch.protected ?? (requiredChecks === null || requiredChecks.length > 0),
+      requiredChecks: requiredChecks === null ? null : [...requiredChecks],
+    });
+    if (branch.default === true) this.#defaultBranch = name;
   }
 
   // Tracker ------------------------------------------------------------------------------------------------
@@ -427,6 +470,27 @@ export class InMemoryTracker implements Tracker {
     const entry = this.#pullEntry(op, number);
     this.#maybeFail(op);
     return copy(entry.reviews);
+  }
+
+  async listReviewThreads(number: number): Promise<ReviewThread[]> {
+    const op = 'listReviewThreads';
+    const entry = this.#pullEntry(op, number);
+    this.#maybeFail(op);
+    return copy(entry.threads);
+  }
+
+  async getBranch(name: string): Promise<Branch> {
+    const op = 'getBranch';
+    if (name.trim() === '') this.#invalid(op, 'ref must not be empty');
+    this.#maybeFail(op);
+    const branch = this.#branches.get(name);
+    if (branch === undefined) throw new TrackerError({ code: 'not-found', operation: op, status: 404, message: `Branch ${name} was not found` });
+    return copy(branch);
+  }
+
+  async getDefaultBranch(): Promise<Branch> {
+    this.#maybeFail('getDefaultBranch');
+    return this.getBranch(this.#defaultBranch);
   }
 
   async listCheckRuns(ref: string): Promise<CheckRuns> {

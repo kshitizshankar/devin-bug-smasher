@@ -83,6 +83,8 @@ export interface TriageFindings {
     description: string;
     file: string;
     command: string;
+    /** Full contents of the proposed test file when it does not exist yet; data only, never executed as a command. */
+    code?: string;
   };
   recommendation: Recommendation;
   reason: string;
@@ -98,12 +100,16 @@ export interface FixInfo {
   summary: string;
   /** Merge commit reported by GitHub once the PR merged; post-merge verification must target it. */
   mergeCommitSha: string | null;
+  /** Who merged the PR (`github:<login>`) and when, as GitHub reported it; absent on records merged before M1.6. */
+  mergedBy?: string | null;
+  mergedAt?: Timestamp | null;
 }
 
 /** A fix as submitted by a session, before any merge. */
-export type SubmittedFix = Omit<FixInfo, 'mergeCommitSha'>;
+export type SubmittedFix = Omit<FixInfo, 'mergeCommitSha' | 'mergedBy' | 'mergedAt'>;
 
-export const VERIFICATION_RUN_ROLES = ['base', 'head'] as const;
+/** `reproduction` runs a triage's proposed test against the default branch for the Rule decision. */
+export const VERIFICATION_RUN_ROLES = ['base', 'head', 'reproduction'] as const;
 export type VerificationRunRole = (typeof VERIFICATION_RUN_ROLES)[number];
 
 export const VERIFICATION_STEPS = ['setup', 'test'] as const;
@@ -169,6 +175,100 @@ export interface VerificationAttempt {
   evidence?: VerificationEvidence;
 }
 
+export const REVIEW_ROUND_STATUSES = ['pending', 'completed', 'unavailable'] as const;
+export type ReviewRoundStatus = (typeof REVIEW_ROUND_STATUSES)[number];
+
+/** An unresolved Devin Review thread. */
+export interface ReviewFindingRecord {
+  threadId: string;
+  path: string | null;
+  line: number | null;
+  body: string;
+  url: string;
+  outdated: boolean;
+}
+
+/** Devin Review of one PR head. A new head starts a new round after it passes verification. */
+export interface ReviewRound {
+  prNumber: number;
+  headSha: string;
+  status: ReviewRoundStatus;
+  requestedAt: Timestamp;
+  completedAt: Timestamp | null;
+  /** Why the review is unavailable or errored; never read as a pass. */
+  detail: string | null;
+  /** Unresolved Devin Review threads when the round completed. */
+  findings: ReviewFindingRecord[];
+  /** When the findings were sent back to the same session (a repair round). */
+  correctionSentAt: Timestamp | null;
+  /** Set when the findings cannot be repaired automatically, e.g. the repair limit was reached. */
+  blocker: string | null;
+}
+
+export const FINDING_RESOLUTIONS = ['same-session', 'github'] as const;
+export type FindingResolutionVia = (typeof FINDING_RESOLUTIONS)[number];
+
+/** A finding that is no longer open on a later review round. */
+export interface FindingResolution {
+  threadId: string;
+  url: string;
+  foundOnHead: string;
+  resolvedOnHead: string;
+  /** `same-session`: the finding was sent back to the session; `github`: resolved on GitHub without a repair. */
+  via: FindingResolutionVia;
+  at: Timestamp;
+}
+
+export interface ReviewRecord {
+  rounds: ReviewRound[];
+  resolutions: FindingResolution[];
+}
+
+export const REPRODUCTION_OUTCOMES = ['reproduced', 'not-reproduced', 'unknown'] as const;
+export type ReproductionOutcome = (typeof REPRODUCTION_OUTCOMES)[number];
+
+/** Independent run of the triage's proposed test against current default-branch code. */
+export interface ReproductionCheck {
+  sha: string;
+  testFile: string;
+  /** `reproduced` only when the test ran and failed with real test failures. */
+  outcome: ReproductionOutcome;
+  reason: string;
+  at: Timestamp;
+  runs: VerificationRun[];
+}
+
+export const POLICY_KINDS = ['decision', 'merge'] as const;
+export type PolicyKind = (typeof POLICY_KINDS)[number];
+
+export const AUTOMATIC_POLICIES = ['rule', 'auto'] as const;
+export type AutomaticPolicy = (typeof AUTOMATIC_POLICIES)[number];
+
+export const POLICY_OUTCOMES = ['fix', 'engineer', 'merge', 'wait'] as const;
+export type PolicyOutcomeName = (typeof POLICY_OUTCOMES)[number];
+
+/** One condition a policy checked. Non-blocking checks are reported but do not stop the policy. */
+export interface PolicyCheck {
+  name: string;
+  ok: boolean;
+  blocking: boolean;
+  detail: string;
+}
+
+/** Evidence for one Rule or Automatic policy evaluation, kept whether it acted or waited for a person. */
+export interface PolicyEvaluation {
+  kind: PolicyKind;
+  policy: AutomaticPolicy;
+  /** Stable rule name, e.g. `decision-rule`; also the decision actor `policy:<rule>`. */
+  rule: string;
+  /** What was evaluated: the triage session for decisions, the PR head SHA for merges. */
+  subject: string;
+  outcome: PolicyOutcomeName;
+  checks: PolicyCheck[];
+  reproduction: ReproductionCheck | null;
+  at: Timestamp;
+}
+
 export interface Decision {
   action: ActionName;
   outcome: DecisionOutcome;
@@ -227,6 +327,10 @@ export interface BugRecord {
   stageHistory: StageEntry[];
   handoff: Handoff | null;
   insights: SessionInsights | null;
+  /** Devin Review rounds for fix PR heads; absent until the first review is requested. */
+  review?: ReviewRecord;
+  /** Rule and Automatic policy evaluations, oldest first; absent until the first one. */
+  evaluations?: PolicyEvaluation[];
   /** Orchestrator bookkeeping; absent on records the orchestrator has not handled yet. */
   workflow?: WorkflowState;
   createdAt: Timestamp;

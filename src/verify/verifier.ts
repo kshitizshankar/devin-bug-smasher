@@ -2,8 +2,22 @@ import { constants } from 'node:fs';
 import { chmod, lstat, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Settings } from '../config/settings.ts';
-import type { DiffFinding, VerificationEvidence, VerificationResult, VerificationRun, VerificationRunRole } from '../model/types.ts';
-import type { VerificationOutcome, VerificationRequest, Verifier } from '../orchestrator/contracts.ts';
+import type {
+  DiffFinding,
+  ReproductionOutcome,
+  VerificationEvidence,
+  VerificationResult,
+  VerificationRun,
+  VerificationRunRole,
+} from '../model/types.ts';
+import type {
+  Reproducer,
+  ReproductionRequest,
+  ReproductionResult,
+  VerificationOutcome,
+  VerificationRequest,
+  Verifier,
+} from '../orchestrator/contracts.ts';
 import { checkChanges, describeFinding, type FileChange } from './diff.ts';
 import { DockerRuntime, type Sandbox, type SandboxRuntime } from './docker.ts';
 import { GitRepository } from './git.ts';
@@ -102,7 +116,7 @@ interface StepOutcome {
  * test failures, pass on head, and the diff has no violation. Commands proposed by Devin or found in the pull
  * request are never executed; only `checkCommand` (and `setupCommand`) run, with test paths as plain arguments.
  */
-export class CheckedVerifier implements Verifier {
+export class CheckedVerifier implements Verifier, Reproducer {
   readonly live: boolean;
   readonly #options: CheckedVerifierOptions;
   readonly #now: () => Date;
@@ -220,6 +234,53 @@ export class CheckedVerifier implements Verifier {
       );
     } catch (error) {
       return finish('error', `Verification could not run: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      if (root !== null) await rm(root, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+
+  /**
+   * Runs a triage's proposed test on `sha` (current default-branch code): `reproduced` only when it fails with
+   * real test failures. The file is the proposed `testCode`, or the file already committed at `sha`; without
+   * either, or when the run errors, reproduction is `unknown`. Only `checkCommand` runs, as for `verify`.
+   */
+  async reproduce(request: ReproductionRequest): Promise<ReproductionResult> {
+    const runs: VerificationRun[] = [];
+    const file = request.testFile;
+    const finish = (outcome: ReproductionOutcome, reason: string): ReproductionResult => ({
+      status: 'completed',
+      check: { sha: request.sha, testFile: file, outcome, reason: this.#redact(reason), at: this.#now().toISOString(), runs },
+    });
+    const rejected = validateTestPaths([file]);
+    if (rejected.length > 0) return finish('unknown', `Rejected test path ${JSON.stringify(file)}: ${rejected[0]?.problem}; nothing was run`);
+    if (!isTestPath(file)) return finish('unknown', `${JSON.stringify(file)} is not a test file; nothing was run`);
+
+    const repo = this.#options.repository;
+    let committed: string | null;
+    try {
+      await repo.ensure([request.sha]);
+      committed = await repo.show(request.sha, file);
+    } catch (error) {
+      return finish('unknown', `Could not prepare ${short(request.sha)}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (request.testCode === null && committed === null) {
+      return finish('unknown', `${file} is not on the default branch and triage gave no test code; nothing was run`);
+    }
+
+    let root: string | null = null;
+    try {
+      await mkdir(this.#options.workDir, { recursive: true });
+      root = await mkdtemp(join(this.#options.workDir, 'reproduce-'));
+      const step = await this.#runRole('reproduction', request.sha, root, [file], async (workspace) => {
+        await repo.exportTree(request.sha, workspace);
+        if (request.testCode !== null) await writeInside(workspace, file, request.testCode, 0o644);
+      }, runs);
+      const { outcome, reason } = step.classification;
+      if (outcome === 'failed') return finish('reproduced', `The proposed test fails on ${short(request.sha)}: ${reason}`);
+      if (outcome === 'passed') return finish('not-reproduced', `The proposed test passes on ${short(request.sha)}: ${reason}`);
+      return finish('unknown', `The proposed test did not give a result on ${short(request.sha)}: ${reason}`);
+    } catch (error) {
+      return finish('unknown', `Reproduction could not run: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       if (root !== null) await rm(root, { recursive: true, force: true }).catch(() => {});
     }

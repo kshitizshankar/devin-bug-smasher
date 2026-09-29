@@ -96,3 +96,44 @@ export function verificationFlagsComment(prUrl: string, headSha: string, flags: 
     'Some real fixes only delete code; check that this one removes the bug rather than the behaviour under test.',
   ].join('\n');
 }
+
+function greeting(login: string | null): string {
+  return login === null ? 'Hi there' : `Hey @${login}`;
+}
+
+/** Posted once per Devin session; the session URL is how the thread is checked for an earlier one. */
+export function sessionStartedComment(reporter: string | null, sessionUrl: string): string {
+  return `${greeting(reporter)} - I'm picking this up. You can follow along [here](${sessionUrl}).`;
+}
+
+export function thankYouComment(reporter: string | null, prUrl: string, mergeCommitSha: string): string {
+  return [
+    `${greeting(reporter)} - thank you for reporting this. The fix in ${prUrl} was merged as \`${mergeCommitSha.slice(0, 12)}\`.`,
+    '',
+    'The merged code is checked once more; if that check fails, an engineer takes over. This issue is left open for you to close.',
+  ].join('\n');
+}
+
+export function policyWaitComment(rule: string, reasons: readonly string[], labels: LabelSettings): string {
+  return [
+    `**Decision policy \`${rule}\` is waiting for a person.**`,
+    '',
+    bullets(reasons),
+    '',
+    `Add \`${labels.fix}\` to start the fix, \`${labels.engineer}\` to hand it to an engineer, or close the issue.`,
+  ].join('\n');
+}
+
+export function policyMergeComment(rule: string, prUrl: string, headSha: string, reasons: readonly string[]): string {
+  return [`**Merge policy \`${rule}\` merged ${prUrl} at \`${headSha.slice(0, 12)}\`.**`, '', bullets(reasons)].join('\n');
+}
+
+export function reviewBlockerComment(prUrl: string, headSha: string, blocker: string, findingUrls: readonly string[]): string {
+  return [
+    `**Devin Review findings need a person** (${prUrl}, commit \`${headSha.slice(0, 12)}\`)`,
+    '',
+    blocker,
+    '',
+    bullets(findingUrls),
+  ].join('\n');
+}

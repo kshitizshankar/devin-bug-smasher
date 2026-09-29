@@ -203,6 +203,30 @@ export interface CombinedStatus {
   totalCount: number;
 }
 
+/** A review thread on a pull request; its first comment starts it. */
+export interface ReviewThread {
+  id: string;
+  isResolved: boolean;
+  isOutdated: boolean;
+  path: string | null;
+  line: number | null;
+  /** Commit the first comment was made on, if known. */
+  commitSha: string | null;
+  /** Bot logins carry the `[bot]` suffix, as in REST responses. */
+  comments: { authorLogin: string; body: string; url: string; createdAt: Timestamp }[];
+}
+
+export interface Branch {
+  name: string;
+  sha: string;
+  protected: boolean;
+  /**
+   * Status check contexts required before merging (branch protection and rulesets together). `null` when the
+   * requirement could not be read, which is never treated as "none required".
+   */
+  requiredChecks: string[] | null;
+}
+
 export type MergeMethod = 'merge' | 'squash' | 'rebase';
 
 export interface MergeRequest {
@@ -253,6 +277,10 @@ export interface Tracker {
   listPullRequestFiles(number: number): Promise<PullRequestFiles>;
   getPullRequestDiff(number: number): Promise<PullRequestDiff>;
   listReviews(number: number): Promise<Review[]>;
+  /** All review threads on the PR, with their first comment, oldest first. */
+  listReviewThreads(number: number): Promise<ReviewThread[]>;
+  getBranch(name: string): Promise<Branch>;
+  getDefaultBranch(): Promise<Branch>;
   listCheckRuns(ref: string): Promise<CheckRuns>;
   getCombinedStatus(ref: string): Promise<CombinedStatus>;
   createCommitStatus(sha: string, status: NewCommitStatus): Promise<CommitStatus>;

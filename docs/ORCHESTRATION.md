@@ -116,10 +116,17 @@ type VerificationOutcome =
 
 interface DecisionPolicy { live: boolean; decide(request: DecisionRequest): Promise<PolicyOutcome> }
 type PolicyOutcome =
-  | { status: 'decided'; action: 'fix' | 'engineer'; rule: string; reasons: string[] }
-  | { status: 'wait'; reason: string }
+  | { status: 'decided'; action: 'fix' | 'engineer'; rule: string; reasons: string[]; evaluation: PolicyEvaluation | null }
+  | { status: 'wait'; reason: string; rule: string | null; evaluation: PolicyEvaluation | null }
   | { status: 'unavailable'; reason: string };
+
+interface Reproducer { live: boolean; reproduce(request: ReproductionRequest): Promise<ReproductionResult> }
+// request: { bugKey, sha (default-branch head), testFile, testCode: string | null }
+type ReproductionResult = { status: 'completed'; check: ReproductionCheck } | { status: 'unavailable'; reason: string };
 ```
+
+The service wires `CheckedVerifier` as both verifier and reproducer, and builds the decision policy from
+`DECISION` (`decisionPolicy` in `src/orchestrator/policies.ts`) unless one is injected.
 
 `unavailable` is recorded nowhere and never implies success (`verifier-unavailable`, `policy-unavailable`).
 A completed attempt must match the requested phase and SHA (the current head for `pre-merge`, the merge
@@ -128,6 +135,65 @@ commit for `post-merge`), and is recorded through `verification-recorded` togeth
 as the model defines. A failed proof with retries left sends `verification-retry` to the same session for the
 same PR branch. With `requireLiveResults`, non-live verifiers and policies are not called. Policy decisions
 are attributed to `policy:<rule>` and explained in one comment.
+
+## Decision and merge policies
+
+Policies act only through the model's actions (`fix`, `engineer`, `merge`) with actor `policy:<rule>`,
+and every Rule/Automatic evaluation is persisted (`policy-evaluated`) with each check, its detail and any
+reproduction evidence. An evaluation equal to the latest one for the same subject is not recorded again,
+and comments are keyed (`decision:`, `decision-wait:<hash of reasons>`, `merge-decision:<head>`), so
+restarts and repeated cycles post nothing twice. No policy ever closes an issue.
+
+| `DECISION` | Behaviour for a `triaged` bug |
+| --- | --- |
+| `person` (default) | Nothing automatic; a person labels the issue on GitHub (or uses an interface action) |
+| `rule` (`decision-rule`) | Fix only when **all** hold: Devin recommends `devin_fix`; the issue has at least one class label (a label other than the four workflow labels) and every class label is in `DECISION_RULE_CLASSES`; the proposed test **fails** when run independently on the current default-branch head. Otherwise wait for a person, with the failing checks in one comment |
+| `auto` (`decision-auto`) | Apply `devin_fix` (repair) and `needs_engineer` (handoff); `close` always waits for a person |
+
+Reproduction (Rule only, and only when the other checks pass): the reproducer checks out the default
+branch's head, uses `proposed_check.test_code` when triage supplied it (written at `test_file`),
+otherwise the committed `test_file`, and runs only the configured `CHECK_COMMAND` in the verification
+sandbox — never Devin's proposed command. A failing test is `reproduced`; a passing one `not-reproduced`;
+a missing file without test code, an unsafe or non-test path, a setup error or no result is `unknown`.
+Anything but `reproduced` waits. A result is reused for the same default-branch commit.
+
+Once a head is `ready-to-merge`:
+
+1. **Devin Review** (`DEVIN_REVIEW=true`): request a Review once per `{PR, head}`, poll until it
+   completes, then record the unresolved threads `devin-ai-integration[bot]` started on that commit. With
+   findings, the correction is sent once to the same live session (`bug-smasher:review:<head>` marker);
+   the new head is verified afresh and reviewed again. After `maxReviewRepairs` (default 2) correction
+   rounds per PR, or when the session has ended, the round gets a durable `blocker` and one keyed comment.
+   While polling a requested Review, `not-requested` or an earlier commit's Review keeps the round
+   `pending` for up to 30 minutes after the request, then the round is `unavailable`. An error, `forbidden`, `not-requested` (when requesting), `cancelled`, `skipped` or disabled Review is recorded as
+   `unavailable` and never counts as passed. Auto-Fix is never assumed. Resolved or removed finding threads
+   are recorded as `resolutions` (`same-session` when fixed on a later head after a correction).
+2. **Merge policy** (`MERGE`), evaluated on a fresh read of the PR, check runs, commit statuses, Review
+   threads and the base branch:
+
+| Check | `rule` (`merge-rule`) | `auto` (`merge-auto`) |
+| --- | --- | --- |
+| Latest pre-merge verification of the **current** head passed | required | required |
+| No verification violations or flags | required | deletion-only flags allowed |
+| CI green (check runs and commit statuses other than `bug-smasher/verification`) — `pending`, `failing`, `missing` or `unknown` (incomplete listing) refuse | required | required |
+| Devin Review completed for this head and no unresolved Devin Review thread | required | not checked |
+| Additions + deletions `<= MERGE_MAX_LINES` | required | not checked |
+| Base branch requires `bug-smasher/verification` (`required`/`missing`/`unknown`) | reported, not blocking | reported, not blocking |
+
+`person` never merges automatically. A passing evaluation requests `merge-pr` with the evaluated head as
+`expectedHeadSha`; GitHub refuses the merge if the head moved (the model then sees `head-changed` and
+verifies the new head afresh) and branch protection is never bypassed. If GitHub refuses the
+request for a reason other than a moved head (for example a required approval is missing), the next
+cycle re-evaluates the same head and, if it still passes, asks GitHub again (`merge-retried`) without
+recording another decision. Direct merges by a person are detected the same way and record
+`mergedBy`/`mergedAt`/merge commit; a policy merge also gets one `merge-decision` comment. After any merge
+the merge commit is verified (`post-merge`); a failure hands off to an engineer. Exactly one thank-you
+comment (`thanks:<merge commit>`) addresses the reporter; the issue stays open unless GitHub closed it
+through a closing keyword, and the thank-you is posted either way.
+
+When a session starts, one comment addresses the reporter with the session link (key
+`session-started:<session id>`, skipped if any comment already contains the URL). A continuation in the
+same session posts nothing; a new session gets its own comment.
 
 ## Actors
 
@@ -142,7 +208,8 @@ are attributed to `policy:<rule>` and explained in one comment.
 `effect-failed`, `effect-dropped`, `message-already-delivered`, `dispatch-intent`, `session-created`,
 `create-ambiguous`, `create-failed`, `reconcile-not-found`, `create-abandoned`, `waiting-for-capacity`,
 `waiting-for-session-end`, `label-conflict`, `decision-label-ignored`, `structured-output-ignored`, `unexpected-triage-pr`,
-`reply-relayed`, `question-posted`, `verifier-unavailable`, `policy-unavailable`, `cycle-*`, `error`.
+`reply-relayed`, `question-posted`, `verifier-unavailable`, `policy-unavailable`, `policy-waiting`,
+`review-requested`, `review-unavailable`, `merge-waiting`, `merge-already-requested`, `merge-retried`, `cycle-*`, `error`.
 Run the traces with `ORCHESTRATOR_TRACE=1 node --test test/orchestrator.test.ts`; each test prints its
 trace as diagnostics.
 
@@ -179,3 +246,4 @@ Tests are in `test/orchestrator.test.ts` unless noted.
 | Bot labels never approve repair; all undelivered comments reach Devin; stale repair questions do not free capacity; fix PRs must close the issue | `review hardening` |
 | Existing-PR handoff event, workflow validation | `test/transitions.test.ts` › existing pull request handoff |
 | Prompt assets and strict one-pass rendering | `test/orchestrator-prompts.test.ts` |
+| Decision and merge policies, Devin Review, reproduction, session-start and thank-you comments | `test/orchestrator-policies.test.ts`, `test/policies.test.ts`; see the M1.6 table in the PR and `docs/TESTING.md` |

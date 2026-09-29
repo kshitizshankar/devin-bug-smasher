@@ -183,6 +183,52 @@ describe('state/action table', () => {
     }
   });
 
+  it('exposes recorded policy, Review, CI, required-status and blocker evidence for the current head only', () => {
+    assert.deepEqual(presentBug(undefined, facts(['bug']), LABEL).automation, {
+      decision: null,
+      review: null,
+      resolvedFindings: 0,
+      merge: null,
+      ci: null,
+      requiredVerification: null,
+      blockers: [],
+    });
+    const at = '2026-01-01T00:00:00.000Z';
+    let record = event(ready(), {
+      type: 'review-recorded',
+      review: {
+        rounds: [{ prNumber: 7, headSha: HEAD_A, status: 'unavailable', requestedAt: at, completedAt: at, detail: 'forbidden', findings: [], correctionSentAt: null, blocker: null }],
+        resolutions: [],
+      },
+    });
+    record = event(record, {
+      type: 'policy-evaluated',
+      evaluation: {
+        kind: 'merge',
+        policy: 'rule',
+        rule: 'merge-rule',
+        subject: HEAD_A,
+        outcome: 'wait',
+        reproduction: null,
+        at,
+        checks: [
+          { name: 'ci', ok: false, blocking: true, detail: 'CI is pending' },
+          { name: 'branch-protection', ok: false, blocking: false, detail: 'main does not require bug-smasher/verification' },
+        ],
+      },
+    });
+    const shown = presentBug(record, openPr([LABEL.fix]), LABEL).automation;
+    assert.equal(shown.review?.status, 'unavailable');
+    assert.equal(shown.merge?.outcome, 'wait');
+    assert.equal(shown.ci?.detail, 'CI is pending');
+    assert.equal(shown.requiredVerification?.ok, false);
+    assert.deepEqual(shown.blockers, ['CI is pending']);
+    const moved = event(record, { type: 'head-changed', prNumber: 7, headSha: 'f'.repeat(40) });
+    const later = presentBug(moved, facts([LABEL.fix], { pullRequest: { number: 7, state: 'open', headSha: 'f'.repeat(40) } }), LABEL).automation;
+    assert.equal(later.merge, null, 'an older head\'s evaluation is not current');
+    assert.equal(later.review, null);
+  });
+
   it('derives presentation without persisting display strings', () => {
     const record = ready();
     const serialized = JSON.stringify(record);

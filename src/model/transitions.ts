@@ -9,6 +9,8 @@ import type {
   SubmittedFix,
   GitHubFacts,
   HandoffReason,
+  PolicyEvaluation,
+  ReviewRecord,
   SessionInsights,
   SessionLiveState,
   Stage,
@@ -20,6 +22,8 @@ import type {
 import {
   validateBugRecord,
   validateFixInfo,
+  validatePolicyEvaluation,
+  validateReviewRecord,
   validateSessionInsights,
   validateTriageFindings,
   validateVerificationAttempt,
@@ -85,11 +89,16 @@ export type ModelEvent =
   | { type: 'fix-submitted'; fix: SubmittedFix }
   | { type: 'head-changed'; prNumber: number; headSha: string }
   | { type: 'verification-recorded'; attempt: Omit<VerificationAttempt, 'sessionId'> }
-  | { type: 'pr-merged'; prNumber: number; mergeCommitSha: string }
+  /** `mergedBy` is the merging actor (`github:<login>`) and `mergedAt` the merge time, as GitHub reports them. */
+  | { type: 'pr-merged'; prNumber: number; mergeCommitSha: string; mergedBy?: string | null; mergedAt?: Timestamp | null }
   | { type: 'pr-closed'; prNumber: number }
   | { type: 'issue-closed' }
   | { type: 'issue-reopened'; labels: string[] }
   | { type: 'insights-recorded'; insights: SessionInsights }
+  /** Replaces the Devin Review evidence for the current fix; it never changes the stage. */
+  | { type: 'review-recorded'; review: ReviewRecord }
+  /** Appends a Rule or Automatic policy evaluation; acting on it is a separate action. */
+  | { type: 'policy-evaluated'; evaluation: PolicyEvaluation }
   /** The orchestrator found a reason work must not start or continue automatically, e.g. an existing PR. */
   | { type: 'handoff-requested'; reason: 'existing-pr'; detail: string };
 
@@ -480,9 +489,15 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
       if (!['fixing', 'verifying', 'ready-to-merge', 'with-engineer', 'closed'].includes(record.stage)) {
         return fail('invalid-stage', `A merge cannot be recorded in stage ${record.stage}`);
       }
-      const problems = validateFixInfo({ ...record.fix, mergeCommitSha: event.mergeCommitSha }, 'fix');
+      const merged: FixInfo = {
+        ...record.fix,
+        mergeCommitSha: event.mergeCommitSha,
+        mergedBy: event.mergedBy ?? null,
+        mergedAt: event.mergedAt ?? null,
+      };
+      const problems = validateFixInfo(merged, 'fix');
       if (problems.length > 0) return fail('invalid-data', problems.join('; '));
-      record.fix.mergeCommitSha = event.mergeCommitSha;
+      record.fix = merged;
       const effects = stopSessionEffects(record, now);
       moveTo(record, 'merged', now);
       record.route = null;
@@ -528,6 +543,22 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
       const problems = validateSessionInsights(event.insights, 'insights');
       if (problems.length > 0) return fail('invalid-data', problems.join('; '));
       record.insights = structuredClone(event.insights);
+      return done(record, now);
+    }
+
+    case 'review-recorded': {
+      if (record.fix === null) return fail('no-fix', 'Review evidence needs a fix PR');
+      const problems = validateReviewRecord(event.review, 'review');
+      if (problems.length > 0) return fail('invalid-data', problems.join('; '));
+      if (JSON.stringify(record.review) === JSON.stringify(event.review)) return unchanged(current);
+      record.review = structuredClone(event.review);
+      return done(record, now);
+    }
+
+    case 'policy-evaluated': {
+      const problems = validatePolicyEvaluation(event.evaluation, 'evaluation');
+      if (problems.length > 0) return fail('invalid-data', problems.join('; '));
+      record.evaluations = [...(record.evaluations ?? []), structuredClone(event.evaluation)];
       return done(record, now);
     }
 

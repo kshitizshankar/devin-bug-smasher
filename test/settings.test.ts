@@ -137,6 +137,21 @@ describe('settings', () => {
     }
   });
 
+  it('reads DECISION_RULE_CLASSES as a trimmed label list that defaults to empty and is shown in effective settings', () => {
+    assert.deepEqual(loadSettings({}).decisionRuleClasses, []);
+    assert.deepEqual(loadSettings({ DECISION_RULE_CLASSES: '' }).decisionRuleClasses, []);
+    const settings = loadSettings({ ...LIVE, DECISION: 'rule', DECISION_RULE_CLASSES: ' ui , typo,docs ' });
+    assert.deepEqual(settings.decisionRuleClasses, ['ui', 'typo', 'docs']);
+    const effective = effectiveSettings(settings);
+    assert.deepEqual(effective.decisionRuleClasses, ['ui', 'typo', 'docs']);
+    assert.equal(effective.decision, 'rule');
+    assert.doesNotMatch(JSON.stringify(effective), new RegExp(`${TOKEN}|${API_KEY}`));
+    for (const value of ['ui,,docs', 'ui,UI', 'x'.repeat(51)]) {
+      const error = settingsError({ DECISION_RULE_CLASSES: value });
+      assert.ok(error.problems.some((problem) => problem.startsWith('DECISION_RULE_CLASSES')), value);
+    }
+  });
+
   it('requires configured workflow labels to be distinct, ignoring case', () => {
     const error = settingsError({ FIX_LABEL: 'Needs-Triage' });
     assert.match(error.message, /FIX_LABEL must differ from TRIAGE_LABEL/);

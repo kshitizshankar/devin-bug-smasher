@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, type TestContext } from 'node:test';
-import type { VerificationOutcome, Verifier } from '../src/orchestrator/contracts.ts';
+import { UNAVAILABLE_POLICY, type VerificationOutcome, type Verifier } from '../src/orchestrator/contracts.ts';
 import { consumesCapacity } from '../src/orchestrator/orchestrator.ts';
+import type { TrackerComment } from '../src/tracker/types.ts';
 import { Harness, report } from './helpers/orchestrator.ts';
+
+/** Service comments other than the one-per-session greeting. */
+function workflowComment(comment: TrackerComment): boolean {
+  return comment.fromService && !(comment.serviceKey ?? '').startsWith('session-started:');
+}
 
 const HEAD_1 = '1'.repeat(40);
 const HEAD_2 = '2'.repeat(40);
@@ -85,7 +91,7 @@ describe('orchestrator: investigation, question, reply, approval, repair', () =>
     await h.restart();
     await h.cycle();
     assert.equal(h.record(issue.key).stage, 'needs-input');
-    const question = (await h.tracker.listComments(issue.number)).filter((comment) => comment.fromService);
+    const question = (await h.tracker.listComments(issue.number)).filter(workflowComment);
     assert.equal(question.length, 1);
     assert.match(question[0]?.body ?? '', /Which chart library version do you use\?/);
 
@@ -130,7 +136,9 @@ describe('orchestrator: investigation, question, reply, approval, repair', () =>
     await h.restart();
     await h.cycle(3);
     assert.equal(h.messages(id).length, 2, 'restarts repeat no messages');
-    assert.equal((await h.tracker.listComments(issue.number)).filter((c) => c.fromService).length, 2);
+    const comments = await h.tracker.listComments(issue.number);
+    assert.equal(comments.filter(workflowComment).length, 2);
+    assert.equal(comments.filter((c) => c.serviceKey?.startsWith('session-started:')).length, 1, 'repair in the same session posts no second link');
   });
 });
 
@@ -378,7 +386,7 @@ describe('orchestrator: exact-once effects', () => {
     await h.cycle();
     assert.ok(h.types(issue.key).includes('effect-failed'));
     await h.cycle(2);
-    assert.equal((await h.tracker.listComments(issue.number)).filter((c) => c.fromService).length, 1);
+    assert.equal((await h.tracker.listComments(issue.number)).filter(workflowComment).length, 1);
 
     h.tracker.externalComment(issue.number, 'reporter', 'Firefox');
     h.offline.failNext({ method: 'POST', path: '/messages', network: 'reset', applyFirst: true });
@@ -479,7 +487,7 @@ describe('orchestrator: structured output', () => {
     h.offline.updateSession(id, { structured_output: 'Triage complete: devin_fix' as unknown as Record<string, unknown> });
     await h.cycle(2);
     assert.equal(h.record(issue.key).stage, 'triaging');
-    assert.deepEqual((await h.tracker.listComments(issue.number)).filter((c) => c.fromService), []);
+    assert.deepEqual((await h.tracker.listComments(issue.number)).filter(workflowComment), []);
   });
 
   it('refuses a PR opened by an investigation session and posts one notice', async (t) => {
@@ -494,7 +502,7 @@ describe('orchestrator: structured output', () => {
     assert.equal(record.fix, null);
     assert.notEqual(record.stage, 'verifying');
     assert.ok(h.types(issue.key).includes('unexpected-triage-pr'));
-    assert.equal((await h.tracker.listComments(issue.number)).filter((c) => c.fromService).length, 1);
+    assert.equal((await h.tracker.listComments(issue.number)).filter(workflowComment).length, 1);
   });
 });
 
@@ -613,7 +621,7 @@ describe('orchestrator: verification contract', () => {
   });
 
   it('does not decide for a person when the decision policy is unavailable', async (t) => {
-    const h = await setup(t, { env: { DECISION: 'rule' } });
+    const h = await setup(t, { env: { DECISION: 'rule' }, policy: UNAVAILABLE_POLICY });
     const issue = await triaged(h);
     await h.cycle(3);
     assert.equal(h.record(issue.key).stage, 'triaged');
