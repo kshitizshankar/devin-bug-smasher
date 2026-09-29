@@ -1,8 +1,18 @@
 import type { CohortMetrics, Figure, KeyFigure, MetricsReport } from '../metrics/types.ts';
 
-/** Markdown table cell: pipes escaped, newlines flattened. */
+/** Inline Markdown text: HTML and link syntax escaped, newlines flattened. */
+function text(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/[[\]]/g, '\\$&')
+    .replace(/\r?\n/g, ' ');
+}
+
+/** Markdown table cell: inline text with pipes escaped. */
 function cell(value: string): string {
-  return value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+  return text(value).replace(/\|/g, '\\|');
 }
 
 function windowText(figure: Figure): string {
@@ -43,7 +53,7 @@ function cohortSections(lines: string[], cohort: CohortMetrics, heading: string)
   table(lines, keyRows(cohort.keys));
   lines.push(`${heading} Fix throughput, eight weeks`, '');
   table(lines, cohort.keys.trend.map((week) => figureRow(week.figure)));
-  const excluded = cohort.keys.trend.flatMap((week) => week.excluded.map((item) => `- ${item.key} (${item.pullRequest}): ${item.reason}`));
+  const excluded = cohort.keys.trend.flatMap((week) => week.excluded.map((item) => `- ${item.key} (${text(item.pullRequest)}): ${text(item.reason)}`));
   if (excluded.length > 0) lines.push('Merged fixes that did not count:', '', ...excluded, '');
   lines.push(`${heading} Flow and health`, '');
   const { flow, adoption } = cohort;
@@ -79,7 +89,7 @@ export function renderResults(report: MetricsReport, storeLabel: string): string
     '',
     `Written by \`report\` from the bug store (\`${storeLabel}\`) at ${report.generatedAt}. Times are ${report.timezone}; weeks start on ${report.weekStartsOn} 00:00. Every figure comes from the shared metrics calculation the dashboard API reads.`,
     '',
-    `Sources: ${report.sources.github}. ${report.sources.devin}. ${report.sources.orchestrator}.`,
+    `Sources: ${text(report.sources.github)}. ${text(report.sources.devin)}. ${text(report.sources.orchestrator)}.`,
     '',
     '## Bugs',
     '',
@@ -111,7 +121,7 @@ export function renderResults(report: MetricsReport, storeLabel: string): string
 
   lines.push('## Spend', '');
   const { cost } = report;
-  lines.push(`Source: ${cost.sourceLabel}`, '', `Read at: ${cost.readAt ?? 'not read'}`, '', `Scope: ${cost.scope}`, '');
+  lines.push(`Source: ${text(cost.sourceLabel)}`, '', `Read at: ${cost.readAt ?? 'not read'}`, '', `Scope: ${cost.scope}`, '');
   table(lines, [cost.totalSpend, cost.budgetRemaining, cost.costPerFixedBug, cost.costPerSession, ...cost.costPerSessionByRoute, cost.sessionsAtCap].map((figure) => figureRow(figure)));
   if (cost.largestSessions.length > 0) {
     lines.push('Largest sessions:', '', '| Session | Bug | Route | ACUs | Spend |', '| --- | --- | --- | --- | --- |');

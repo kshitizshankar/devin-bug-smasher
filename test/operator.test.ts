@@ -16,7 +16,7 @@ import { GitHubTracker } from '../src/tracker/github.ts';
 import { API_KEY, ORG_ID } from './helpers/devin.ts';
 import { FakeDevinSetup } from './helpers/fake-devin-setup.ts';
 import { FakeGitHub } from './helpers/fake-github.ts';
-import { Bug, input as metricsInput, NO_COST } from './helpers/metrics.ts';
+import { Bug, input as metricsInput, NO_COST, unavailableEvidence } from './helpers/metrics.ts';
 import { fullEvidence, liveBugs, recordSets } from './helpers/metrics-fixture.ts';
 import { enroll, LABEL } from './helpers/model.ts';
 import { repoRoot, startService } from './helpers/service.ts';
@@ -541,6 +541,40 @@ describe('operator report', () => {
     } finally {
       await github.close();
     }
+  });
+
+  it('keeps GitHub evidence for live records when a replay record is not on GitHub', async () => {
+    const github = await FakeGitHub.start({ token: TOKEN });
+    try {
+      const { number } = github.seedIssue({ title: 'Legend overlaps', labels: [LABEL.triage] });
+      const path = join(dir, 'live-with-replay.json');
+      const replayPath = join(dir, 'replay.json');
+      await (await BugStore.open(path)).update(`${TARGET}#${number}`, () => new Bug(number, [LABEL.triage], new Date().toISOString()).record);
+      await (await BugStore.open(replayPath)).update(`${TARGET}#999`, () => new Bug(999, [LABEL.triage], new Date().toISOString()).record);
+      const out = join(dir, 'RESULTS-replay.md');
+      const code = await runCommand(['report', '--store', path, '--replay-store', replayPath, '--out', out], {
+        env: { GITHUB_REPO: TARGET, GITHUB_TOKEN: TOKEN },
+        cwd: dir,
+        out: () => {},
+        err: (line) => assert.fail(line),
+        githubBaseUrl: github.baseUrl,
+      });
+      assert.equal(code, 0);
+      const text = await readFile(out, 'utf8');
+      assert.match(text, /Sources: GitHub acme\/widgets, read \d{4}-/);
+      assert.match(text, /\| acme\/widgets#999 \| acme\/widgets \(replay\) \|/);
+    } finally {
+      await github.close();
+    }
+  });
+
+  it('escapes HTML and link syntax from provider text', () => {
+    const reason = '<img src=x onerror=alert(1)> [click](https://evil.example)';
+    const metrics = calculateMetrics(metricsInput([], { evidence: { ...unavailableEvidence(), github: { status: 'unavailable', reason } } }));
+    const text = renderResults(metrics, 'data/bugs.json');
+    assert.equal(text.includes('<img'), false);
+    assert.equal(text.includes('[click]('), false);
+    assert.ok(text.includes('&lt;img src=x onerror=alert(1)&gt; \\[click\\](https://evil.example)'));
   });
 
   it('shows every figure of the shared calculation with its own value and metadata', () => {

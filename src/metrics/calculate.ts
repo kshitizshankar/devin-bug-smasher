@@ -123,6 +123,8 @@ export interface FixAssessment {
   fix: FixInfo;
   pullRequest: string;
   mergedAt: string | null;
+  /** When post-merge verification proved the fix; `null` while it is not fixed and proven. */
+  provenAt: string | null;
   /** Why the fix does not count in throughput; `null` when it is fixed and proven. */
   unproven: string | null;
   /** Why the fix escaped after the merge; `null` when it held. */
@@ -172,7 +174,8 @@ function assessFix(record: BugRecord, fix: FixInfo, evidence: Evidence): FixAsse
     const reopened = evidence.issues.get(record.key)?.events.find((event) => event.type === 'reopened' && later(event.at, mergedAt));
     if (escaped === null && reopened !== undefined) escaped = `issue reopened ${reopened.at}`;
   }
-  return { record, fix, pullRequest: fix.prUrl, mergedAt, unproven, escaped };
+  const provenAt = unproven === null ? (post.at(-1)?.at ?? null) : null;
+  return { record, fix, pullRequest: fix.prUrl, mergedAt, provenAt, unproven, escaped };
 }
 
 // Cohorts ----------------------------------------------------------------------------------------------------
@@ -480,7 +483,10 @@ function adoptionMetrics(bugs: BugRecord[], evidence: Evidence, now: Date): Coho
       `No person decided ${action} in the window`,
     );
   });
-  const openQuestions = questions.filter((question) => question.answeredAt === null);
+  const openQuestions = bugs
+    .filter((record) => (OPEN_STAGES as readonly Stage[]).includes(record.stage))
+    .flatMap((record) => record.questions)
+    .filter((question) => question.answeredAt === null);
   const unansweredQuestions = count(
     { id: 'unanswered-questions', label: 'Questions unanswered after two days', window: point, source: `${SOURCE.records} (open questions)` },
     openQuestions.filter((question) => now.getTime() - Date.parse(question.askedAt) >= UNANSWERED_AFTER_MS).length,
@@ -548,7 +554,7 @@ function costMetrics(input: MetricsInput, live: CohortMetrics | null, liveFixes:
   const devin = input.evidence.devin;
   const sessions = devin.status === 'available' ? scopedSessions(input, devin.value) : null;
   const scopeName = input.target ?? 'all repositories';
-  const provenBy = (end: string): number => liveFixes.filter((fix) => fix.unproven === null && fix.mergedAt !== null && !later(fix.mergedAt, end)).length;
+  const provenBy = (end: string): number => liveFixes.filter((fix) => fix.provenAt !== null && !later(fix.provenAt, end)).length;
   const fixedNote = live === null ? 'There is no live cohort for the target repository' : 'No bug has been fixed and proven yet';
 
   const acusComplete = sessions !== null && sessions.length > 0 && sessions.every((session) => session.acus !== null);
@@ -786,13 +792,13 @@ function recordRow(record: BugRecord, cohort: Cohort, fixes: FixAssessment[]): R
   const post = currentMergeVerifications(record).at(-1);
   if (post !== undefined) verification.push(`post-merge ${post.result} at ${short(post.headSha)}`);
   let outcome: string;
-  const own = fixes.filter((fix) => fix.record === record);
+  const latest = fixes.filter((fix) => fix.record === record).at(-1);
   if (record.kind === 'feature') outcome = 'feature request (not a bug outcome)';
-  else if (own.some((fix) => fix.escaped !== null)) outcome = `escaped: ${own.find((fix) => fix.escaped !== null)?.escaped}`;
-  else if (own.some((fix) => fix.unproven === null)) outcome = 'fixed and proven';
+  else if (latest !== undefined && latest.escaped !== null) outcome = `escaped: ${latest.escaped}`;
+  else if (latest !== undefined && latest.unproven === null) outcome = 'fixed and proven';
   else if (record.stage === 'with-engineer') outcome = `with engineer (${record.handoff?.reason ?? 'unknown'})`;
   else if (record.stage === 'closed') outcome = 'closed';
-  else if (record.stage === 'merged') outcome = `merged, not proven: ${own.at(-1)?.unproven ?? 'no merged fix'}`;
+  else if (record.stage === 'merged') outcome = `merged, not proven: ${latest?.unproven ?? 'no merged fix'}`;
   else outcome = `open (${record.stage})`;
   return {
     key: record.key,

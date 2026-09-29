@@ -210,7 +210,7 @@ async function reportCommand(args: readonly string[], io: OperatorIO): Promise<n
     const path = parsed.values.get(option);
     if (path !== undefined) recordSets.push({ mode, engine, records: (await BugStore.open(resolve(io.cwd, path))).list() });
   }
-  const records = recordSets.flatMap((set) => set.records);
+  const records = recordSets.filter((set) => set.mode === 'live').flatMap((set) => set.records);
   const now = new Date();
   const github: Sourced<GitHubEvidence> =
     settings.github.repo === null || settings.github.token === null

@@ -3,7 +3,8 @@ import { describe, it } from 'node:test';
 import { calculateMetrics, NOT_REPORTED } from '../src/metrics/calculate.ts';
 import { median, percentile, trendWeeks, weekStart } from '../src/metrics/stats.ts';
 import type { Figure, MetricsReport } from '../src/metrics/types.ts';
-import { input, live, mergedBug, NO_COST, NOW, REPO, unavailableEvidence } from './helpers/metrics.ts';
+import { Bug, input, live, mergedBug, NO_COST, NOW, REPO, unavailableEvidence } from './helpers/metrics.ts';
+import { LABEL } from './helpers/model.ts';
 import { devinSessions, fullEvidence, liveBugs, OWN_REPO, recordSets, session } from './helpers/metrics-fixture.ts';
 
 type Expected = Partial<Pick<Figure, 'status' | 'value' | 'numerator' | 'denominator' | 'samples' | 'display'>> & { start?: string | null; end?: string };
@@ -389,5 +390,28 @@ describe('missing evidence', () => {
       if (figure.status !== 'value') assert.equal(figure.value, null, figure.id);
       if (figure.status === 'no-data') assert.equal(figure.display, 'No data', figure.id);
     }
+  });
+});
+
+describe('points in time', () => {
+  it('leaves questions of closed issues out of the unanswered count', () => {
+    const open = new Bug(20, [LABEL.triage], '2026-03-01T00:00:00.000Z')
+      .session('session-triage-20', '2026-03-01T01:00:00.000Z')
+      .event({ type: 'question-asked', question: { id: 'q20', summary: 'Which OS?' } }, '2026-03-01T02:00:00.000Z');
+    const closed = new Bug(21, [LABEL.triage], '2026-03-01T00:00:00.000Z')
+      .session('session-triage-21', '2026-03-01T01:00:00.000Z')
+      .event({ type: 'question-asked', question: { id: 'q21', summary: 'Which OS?' } }, '2026-03-01T02:00:00.000Z')
+      .event({ type: 'issue-closed' }, '2026-03-02T00:00:00.000Z');
+    const report = calculateMetrics(input([live(open, closed)]));
+    expectFigure(liveOf(report).adoption.unansweredQuestions, { value: 1, numerator: 1, denominator: 1 });
+  });
+
+  it('counts a fix toward a spend reading only once it was proven by the read time', () => {
+    const one = mergedBug(1, { enrolledAt: '2026-03-16T00:00:00.000Z', mergedAt: '2026-03-17T00:00:00.000Z', prNumber: 101 });
+    const at = (spendReadAt: string): Figure =>
+      calculateMetrics(input([live(one)], { settings: { ...NO_COST, spendUsd: 50, spendReadAt } })).cost.costPerFixedBug;
+    // Merged at 00:00:00, passed on the merge commit at 00:01:00.
+    expectFigure(at('2026-03-17T00:00:30.000Z'), { status: 'no-data', value: null });
+    expectFigure(at('2026-03-17T00:02:00.000Z'), { value: 50, numerator: 50, denominator: 1 });
   });
 });
