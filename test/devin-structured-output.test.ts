@@ -79,6 +79,14 @@ describe('structured output validation', () => {
     }
   });
 
+  it('emits question-asked only for triage-phase questions, which the model accepts', () => {
+    for (const status of ['needs_input', 'blocked']) {
+      const fixQuestion = session({ phase: 'fix', status, question: 'Keep the old API?' });
+      assert.equal(fixQuestion.structuredOutput.status, 'valid', 'the signal stays available to the orchestrator');
+      assert.deepEqual(structuredOutputEvents(fixQuestion), []);
+    }
+  });
+
   it('turns a question into a question-asked event with a stable id', () => {
     const raw = { phase: 'triage', status: 'needs_input', question: 'Which browser shows the overlap?' };
     const events = structuredOutputEvents(session(raw));

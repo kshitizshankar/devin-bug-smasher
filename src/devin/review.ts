@@ -71,6 +71,8 @@ export interface ReviewThreadInput {
   isOutdated: boolean;
   path: string | null;
   line: number | null;
+  /** The commit the thread's first comment was made on (GitHub `originalCommit.oid`), if known. */
+  commitSha: string | null;
   comments: { authorLogin: string; body: string; url: string; createdAt: string }[];
 }
 
@@ -85,12 +87,16 @@ export interface ReviewFinding {
 }
 
 export type ReviewFindings =
-  | { status: 'known'; commitSha: string; unresolved: ReviewFinding[] }
+  /**
+   * `unresolved`: open bot threads from the reviewed commit. `earlier`: open bot threads from other or
+   * unknown commits; they do not count against this review.
+   */
+  | { status: 'known'; commitSha: string; unresolved: ReviewFinding[]; earlier: ReviewFinding[] }
   | { status: 'unavailable'; reason: 'review-not-completed' | 'threads-not-supplied'; detail: string };
 
 /**
  * Unresolved Devin Review findings for a completed review. Findings are threads started by the Devin
- * Review bot that nobody has resolved; nothing is inferred from comment wording.
+ * Review bot on the reviewed commit that nobody has resolved; nothing is inferred from comment wording.
  */
 export function reviewFindings(
   review: ReviewState,
@@ -112,10 +118,11 @@ export function reviewFindings(
     };
   }
   const unresolved: ReviewFinding[] = [];
+  const earlier: ReviewFinding[] = [];
   for (const thread of threads) {
     const first = thread.comments[0];
     if (thread.isResolved || first === undefined || first.authorLogin !== botLogin) continue;
-    unresolved.push({
+    (thread.commitSha === review.commitSha ? unresolved : earlier).push({
       threadId: thread.id,
       path: thread.path,
       line: thread.line,
@@ -124,7 +131,7 @@ export function reviewFindings(
       outdated: thread.isOutdated,
     });
   }
-  return { status: 'known', commitSha: review.commitSha, unresolved };
+  return { status: 'known', commitSha: review.commitSha, unresolved, earlier };
 }
 
 /**

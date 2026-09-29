@@ -22,7 +22,8 @@ operations (including the v3beta1 endpoints) are a separate client in `src/devin
 
 All requests use `Authorization: Bearer <DEVIN_API_KEY>` against `https://api.devin.ai`
 ([authentication](https://docs.devin.ai/api-reference/authentication)). Lists use `first`/`after` cursor
-pagination and return `items`, `has_next_page`, `end_cursor`
+pagination and return `items`, `has_next_page`, `end_cursor` (a next page without a cursor is an
+`invalid-response`, never a silently shorter list)
 ([pagination](https://docs.devin.ai/api-reference/concepts/pagination)). Errors are ProblemDetail bodies.
 
 | Operation | Method and path | Documentation |
@@ -122,7 +123,8 @@ No state implies completion. Model events:
 ```ts
 sessionStatusEvent(session)        // { type: 'session-status', sessionId, liveState } | null
 structuredOutputEvents(session)    // [] unless structuredOutput is valid:
-                                   //   needs_input/blocked -> question-asked { id: questionId(sessionId, question), summary }
+                                   //   triage needs_input/blocked -> question-asked { id: questionId(sessionId, question), summary }
+                                   //   (fix-phase questions emit nothing: the model accepts questions only while triaging)
                                    //   triage_complete     -> triage-completed { findings: TriageFindings }
 fixSubmittedEvent(session, headSha) // pr_opened + GitHub head SHA -> fix-submitted | null
 ```
@@ -138,13 +140,15 @@ and `fix_summary` for `pr_opened`. `triage_complete` must be phase `triage` and 
 await devin.requestReview(prUrl, headSha); // ReviewState
 await devin.getReview(prUrl, headSha);     // ReviewState
 // pending(pending|running) | completed | error | unavailable(disabled | not-requested | forbidden | cancelled | skipped | different-commit | unknown-status)
-reviewFindings(review, threads);           // known { unresolved: ReviewFinding[] } | unavailable(review-not-completed | threads-not-supplied)
+reviewFindings(review, threads);           // known { unresolved, earlier: ReviewFinding[] } | unavailable(review-not-completed | threads-not-supplied)
 await devin.sendReviewCorrections(sessionId, findings.unresolved); // same-session correction message
 ```
 
 The Review API reports status per commit only. Findings are the PR review threads that
-`devin-ai-integration[bot]` started and nobody resolved; the orchestrator passes those threads in
-(`ReviewThreadInput`) from the GitHub adapter. `REVIEW_AUTO_FIX` records that Auto-Fix is an admin-only web
+`devin-ai-integration[bot]` started on the reviewed commit and nobody resolved; the orchestrator passes
+those threads in (`ReviewThreadInput`, including the thread's `commitSha`, GitHub `originalCommit.oid`)
+from the GitHub adapter. Open bot threads from other or unknown commits are returned as `earlier` and do
+not count against the review. `REVIEW_AUTO_FIX` records that Auto-Fix is an admin-only web
 app setting (Devin Review sidebar "Enable auto-fix", or Settings > Devin > Pull requests > Responding to
 bots) with no API; the adapter never assumes it is on.
 
@@ -194,7 +198,11 @@ after applying the request (`applyFirst`) to model a lost create answer.
   After an answer, the previous `needs_input` output remains until Devin replaces it; the stable
   `questionId` lets the orchestrator ignore a question it already recorded.
 - **Timestamps.** `created_at`/`updated_at` are documented as Unix timestamps; they are read as seconds
-  (values above 10^12 as milliseconds).
+  (values above 10^12 as milliseconds). Values outside the `Date` range make the response invalid.
+- **Fix-phase questions.** The shared model accepts `question-asked` only in `triaging`, so a fix session's
+  `needs_input`/`blocked` output produces no model event; the orchestrator sees it as
+  `structuredOutput.signal` and decides (e.g. hand off). Supporting fix-phase questions would need a
+  shared-model change.
 - **Model insights.** The shared `SessionInsights` has only `acuUsed` and `notes`; `toModelInsights`
   renders issues, action items, the suggested prompt and Knowledge used into `notes`. Storing them as
   structured fields would need a shared-model change for the orchestrator task.

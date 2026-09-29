@@ -182,7 +182,10 @@ export class DevinSetupClient {
         throw this.#transport.invalidResponse(operation, 'expected a paginated response', false);
       }
       items.push(...(body.items as T[]));
-      if (body.has_next_page !== true || typeof body.end_cursor !== 'string') return items;
+      if (body.has_next_page !== true) return items;
+      if (typeof body.end_cursor !== 'string' || body.end_cursor === '') {
+        throw this.#transport.invalidResponse(operation, 'has_next_page is true but end_cursor is missing', false);
+      }
       after = body.end_cursor;
     }
     throw this.#transport.invalidResponse(operation, 'too many pages', false);

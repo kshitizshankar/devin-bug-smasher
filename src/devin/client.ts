@@ -242,12 +242,13 @@ export class DevinClient {
         !isRecord(item) ||
         typeof item.event_id !== 'string' ||
         (item.source !== 'devin' && item.source !== 'user') ||
-        typeof item.message !== 'string' ||
-        typeof item.created_at !== 'number'
+        typeof item.message !== 'string'
       ) {
         throw this.#transport.invalidResponse('list-messages', 'message item does not match SessionMessage', false);
       }
-      return { id: item.event_id, source: item.source, text: item.message, createdAt: unixToIso(item.created_at) };
+      const createdAt = unixToIso(item.created_at);
+      if (createdAt === null) throw this.#transport.invalidResponse('list-messages', 'created_at must be a valid Unix timestamp', false);
+      return { id: item.event_id, source: item.source, text: item.message, createdAt };
     });
   }
 
@@ -320,13 +321,13 @@ export class DevinClient {
       query: this.#windowQuery('get-session-usage', window),
     }, (body) => {
       if (!isRecord(body) || !Array.isArray(body.consumption_by_date)) return null;
-      return {
-        total: acuReading(body.total_acus),
-        byDate: body.consumption_by_date.filter(isRecord).map((day) => ({
-          date: typeof day.date === 'number' ? unixToIso(day.date) : '',
-          acus: acuReading(day.acus),
-        })),
-      };
+      const byDate: SessionUsage['byDate'] = [];
+      for (const day of body.consumption_by_date) {
+        const date = isRecord(day) ? unixToIso(day.date) : null;
+        if (date === null || !isRecord(day)) return null;
+        byDate.push({ date, acus: acuReading(day.acus) });
+      }
+      return { total: acuReading(body.total_acus), byDate };
     });
   }
 
@@ -404,7 +405,10 @@ export class DevinClient {
       const body = (await this.#transport.request({ operation, method: 'GET', path, query: { ...query, first: PAGE_SIZE, after } })) as Partial<WirePage<unknown>> | null;
       if (!isRecord(body) || !Array.isArray(body.items)) throw this.#transport.invalidResponse(operation, 'expected a paginated response with items', false);
       items.push(...body.items);
-      if (body.has_next_page !== true || typeof body.end_cursor !== 'string') return items;
+      if (body.has_next_page !== true) return items;
+      if (typeof body.end_cursor !== 'string' || body.end_cursor === '') {
+        throw this.#transport.invalidResponse(operation, 'has_next_page is true but end_cursor is missing', false);
+      }
       after = body.end_cursor;
     }
     throw this.#transport.invalidResponse(operation, `more than ${MAX_PAGES * PAGE_SIZE} items; narrow the query`, false);

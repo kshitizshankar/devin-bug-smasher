@@ -207,6 +207,34 @@ describe('Devin client: ambiguous creation and tag reconciliation', () => {
   });
 });
 
+describe('Devin client: malformed provider answers', () => {
+  it('fails lookups instead of truncating when a page promises more results without a cursor', async () => {
+    const { offline, client } = offlineClient();
+    await client.createSession(INPUT);
+    offline.failNext({ method: 'GET', path: '/sessions', status: 200, body: { items: [], has_next_page: true, end_cursor: null } });
+    const error = await devinError(client.findBugSessions(BUG));
+    assert.equal(error.kind, 'invalid-response');
+    assert.match(error.message, /end_cursor/);
+  });
+
+  it('treats out-of-range timestamps as an unusable create answer, not a crash', async () => {
+    const { offline, client } = offlineClient();
+    const created = await client.createSession(INPUT);
+    assert.ok(created.outcome === 'created');
+    const session = offline.sessions.get(created.session.id);
+    assert.ok(session);
+    for (const created_at of [1e20, Number.MAX_SAFE_INTEGER]) {
+      offline.failNext({ method: 'POST', path: '/sessions', status: 200, body: { ...session, created_at } });
+      const result = await client.createSession(INPUT);
+      assert.ok(result.outcome === 'ambiguous');
+      assert.equal(result.error.kind, 'invalid-response');
+      assert.match(result.error.message, /created_at/);
+    }
+    offline.failNext({ path: `/sessions/${created.session.id}`, status: 200, body: { ...session, updated_at: 1e20 } });
+    assert.equal((await devinError(client.getSession(created.session.id))).kind, 'invalid-response');
+  });
+});
+
 describe('Devin client: provider errors and redaction', () => {
   it('maps authentication, permission, rate-limit and provider errors to typed kinds', async () => {
     const { offline, client } = offlineClient();

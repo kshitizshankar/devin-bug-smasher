@@ -132,10 +132,11 @@ export interface DevinSession {
   structuredOutput: StructuredOutputResult;
 }
 
-export function unixToIso(value: number): Timestamp {
-  // Documented as a Unix timestamp; accept milliseconds too rather than produce a 1970 date.
-  const ms = value > 1e12 ? value : value * 1000;
-  return new Date(ms).toISOString();
+/** ISO form of a documented Unix timestamp (milliseconds accepted too), or null if it is not a valid date. */
+export function unixToIso(value: unknown): Timestamp | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const date = new Date(value > 1e12 ? value : value * 1000);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -151,11 +152,13 @@ export function parseSession(value: unknown): { session: DevinSession } | { prob
   if (typeof wire.url !== 'string') problems.push('url must be a string');
   if (typeof wire.status !== 'string') problems.push('status must be a string');
   if (!Array.isArray(wire.tags) || !wire.tags.every((tag) => typeof tag === 'string')) problems.push('tags must be strings');
-  if (typeof wire.created_at !== 'number') problems.push('created_at must be a number');
-  if (typeof wire.updated_at !== 'number') problems.push('updated_at must be a number');
+  const createdAt = unixToIso(wire.created_at);
+  const updatedAt = unixToIso(wire.updated_at);
+  if (createdAt === null) problems.push('created_at must be a valid Unix timestamp');
+  if (updatedAt === null) problems.push('updated_at must be a valid Unix timestamp');
   const detail = wire.status_detail ?? null;
   if (detail !== null && typeof detail !== 'string') problems.push('status_detail must be a string or null');
-  if (problems.length > 0) return { problems };
+  if (problems.length > 0 || createdAt === null || updatedAt === null) return { problems };
   const id = wire.session_id as string;
   const activity = classifySession(wire.status as string, detail);
   const pullRequests = Array.isArray(wire.pull_requests)
@@ -173,8 +176,8 @@ export function parseSession(value: unknown): { session: DevinSession } | { prob
       statusDetail: detail,
       activity,
       liveState: liveStateFor(activity),
-      createdAt: unixToIso(wire.created_at as number),
-      updatedAt: unixToIso(wire.updated_at as number),
+      createdAt,
+      updatedAt,
       isArchived: wire.is_archived === true,
       acus: acuReading(wire.acus_consumed),
       pullRequests,
@@ -192,6 +195,8 @@ export function sessionStatusEvent(session: DevinSession): ModelEvent | null {
 /**
  * Model events justified by a session's structured output alone. `pr-opened` produces none: a
  * `fix-submitted` event needs the PR head SHA, which comes from GitHub (see `fixSubmittedEvent`).
+ * Questions become `question-asked` only in the triage phase, the one stage where the model accepts them;
+ * a fix-phase `needs_input`/`blocked` stays visible as `structuredOutput.signal` for the orchestrator.
  */
 export function structuredOutputEvents(session: DevinSession): ModelEvent[] {
   const result = session.structuredOutput;
@@ -200,6 +205,7 @@ export function structuredOutputEvents(session: DevinSession): ModelEvent[] {
   switch (signal.type) {
     case 'needs-input':
     case 'blocked':
+      if (signal.phase !== 'triage') return [];
       return [{ type: 'question-asked', question: { id: signal.questionId, summary: signal.question } }];
     case 'triage-complete':
       return [{ type: 'triage-completed', findings: structuredClone(signal.findings) }];

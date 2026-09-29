@@ -14,6 +14,7 @@ function thread(id: string, author: string, overrides: Partial<ReviewThreadInput
     isOutdated: false,
     path: 'src/chart/legend.ts',
     line: 12,
+    commitSha: HEAD_SHA,
     comments: [{ authorLogin: author, body: `Finding ${id}`, url: `${PR_URL}#discussion_${id}`, createdAt: '2026-09-29T10:00:00Z' }],
     ...overrides,
   };
@@ -118,9 +119,27 @@ describe('Devin Review', () => {
     assert.ok(findings.status === 'known');
     assert.equal(findings.commitSha, HEAD_SHA);
     assert.deepEqual(findings.unresolved.map((finding) => [finding.threadId, finding.outdated]), [['1', false], ['4', true]]);
+    assert.deepEqual(findings.earlier, []);
 
     const clean = reviewFindings(review, [thread('2', DEVIN_REVIEW_BOT_LOGIN, { isResolved: true })]);
-    assert.deepEqual(clean, { status: 'known', commitSha: HEAD_SHA, unresolved: [] });
+    assert.deepEqual(clean, { status: 'known', commitSha: HEAD_SHA, unresolved: [], earlier: [] });
+  });
+
+  it('does not count open threads from earlier commits against a clean review of the new head', async () => {
+    const { offline, client } = offlineClient();
+    offline.pullRequestHeads.set(PR_URL, HEAD_SHA);
+    await client.requestReview(PR_URL, HEAD_SHA);
+    const stored = offline.reviews.get(PR_URL);
+    assert.ok(stored);
+    stored.status = 'completed';
+    const review = await client.getReview(PR_URL, HEAD_SHA);
+    const findings = reviewFindings(review, [
+      thread('old', DEVIN_REVIEW_BOT_LOGIN, { commitSha: 'f'.repeat(40), isOutdated: true }),
+      thread('unknown', DEVIN_REVIEW_BOT_LOGIN, { commitSha: null }),
+    ]);
+    assert.ok(findings.status === 'known');
+    assert.deepEqual(findings.unresolved, []);
+    assert.deepEqual(findings.earlier.map((finding) => finding.threadId), ['old', 'unknown']);
   });
 
   it('sends findings back to the same session as a separate corrective capability', async () => {
