@@ -660,10 +660,12 @@ export class Orchestrator {
         await this.#tracker.closeIssue(number);
         return;
       case 'stop-session':
+        // Archived so a later comment on the session's pull request cannot wake it. A session that is
+        // already archived or ended (409) or gone (404) counts as stopped.
         try {
-          await this.#devin.terminateSession(op.sessionId);
+          await this.#devin.terminateSession(op.sessionId, { archive: true });
         } catch (error) {
-          if (!(error instanceof DevinError && error.kind === 'not-found')) throw error;
+          if (!(error instanceof DevinError && (error.kind === 'not-found' || error.kind === 'conflict'))) throw error;
         }
         return;
       case 'post-comment':

@@ -220,6 +220,36 @@ describe('orchestrator: close, handoff and reopen', () => {
     assert.equal(h.createRequests().length, 2);
   });
 
+  it('archives the session it stops, and tolerates one that is already archived or not found', async (t) => {
+    const h = await setup(t);
+    const terminations = () => h.offline.requests.filter((request) => request.method === 'DELETE' && request.path.includes('/sessions/'));
+
+    const closed = h.tracker.seedIssue({ title: 'Closed while fixing', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const first = h.sessionId(closed.key);
+    h.working(first);
+    h.tracker.externalCloseIssue(closed.number, 'maintainer');
+    await h.cycle();
+    assert.equal(h.record(closed.key).stage, 'closed');
+    assert.equal(terminations().at(-1)?.query.get('archive'), 'true', 'stop asks Devin to archive');
+    assert.equal(h.session(first).status, 'exit');
+    assert.equal(h.session(first).is_archived, true, 'the stopped session is archived');
+
+    for (const status of [409, 404]) {
+      const issue = h.tracker.seedIssue({ title: `Stop answered ${status}`, labels: ['bug-smasher'] });
+      await h.cycle(2);
+      h.working(h.sessionId(issue.key));
+      h.offline.failNext({ method: 'DELETE', path: '/sessions/', status });
+      h.tracker.externalCloseIssue(issue.number, 'maintainer');
+      await h.cycle();
+      assert.equal(h.record(issue.key).stage, 'closed');
+      assert.equal(terminations().at(-1)?.query.get('archive'), 'true');
+      assert.deepEqual(h.record(issue.key).workflow?.outbox ?? [], [], `a ${status} stop is not retried`);
+      assert.ok(!h.types(issue.key).includes('effect-dropped'), `a ${status} stop is handled like a missing session`);
+      assert.ok(!h.types(issue.key).includes('effect-failed'));
+    }
+  });
+
   it('hands off instead of restarting when a session ends unexpectedly', async (t) => {
     const h = await setup(t);
     const issue = h.tracker.seedIssue({ title: 'Legend overlaps axis', labels: ['bug-smasher'] });

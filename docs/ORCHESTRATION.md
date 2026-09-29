@@ -72,7 +72,9 @@ operation that was in flight, and each is idempotent:
 - `post-comment` uses tracker **keyed comments** (`question:<id>`, `triage:<session>`, `existing-pr:<n>`, …).
 - `send-message` carries a `Reference: bug-smasher:…` marker; before sending, the session's messages are
   read and an already-delivered marker is skipped (`message-already-delivered`).
-- Labels are add-before-remove and no-ops when already applied; `stop-session` tolerates ended sessions;
+- Labels are add-before-remove and no-ops when already applied; `stop-session` terminates
+  and archives the session (so a later pull request comment cannot wake it) and treats not-found (404) or
+  already archived or ended (409) as stopped;
   `merge-pr` uses the expected head SHA. Permanent failures (`not-found`, `validation`, …) are dropped with
   `effect-dropped`, retryable ones stay queued (`effect-failed`).
 
@@ -229,6 +231,7 @@ Tests are in `test/orchestrator.test.ts` unless noted.
 | Exact-once question/reply delivery across restart; bot comments not relayed; reply unchanged | same test (restart before every step) |
 | New session after the investigation session ended, with findings and human context | `repair after the investigation session ended` |
 | Close stops work, reopen reroutes, engineer label hands off, service never closes issues | `close, handoff and reopen` › stops active work… |
+| Stopping a session archives it; 404/409 on stop count as stopped | `close, handoff and reopen` › archives the session it stops… |
 | Unexpected session end hands off instead of restarting | `close, handoff and reopen` › hands off instead of restarting… |
 | Unknown unlabelled issue untouched | `labels` › leaves an unknown unlabelled issue untouched |
 | Conflicting labels start no work | `labels` › does not start work for conflicting… |
