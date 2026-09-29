@@ -416,7 +416,9 @@ describe('operator mirror', () => {
       const issue = await new GitHubTracker({ repo: h.github.repo, token: TOKEN, baseUrl: h.github.baseUrl }).getIssue(1);
       assert.equal(issue.title, 'Parser drops trailing commas');
       assert.deepEqual(issue.labels, []);
-      assert.match(issue.body, /Mirrored from \[upstream\/lib#12\]\(https:\/\/github\.com\/upstream\/lib\/issues\/12\) \(opened by @reporter/);
+      assert.match(issue.body, /^> Mirrored from `upstream\/lib#12` \(opened on \d{4}-\d{2}-\d{2}\)\. /);
+      assert.ok(!issue.body.includes('https://github.com/upstream/lib/issues/12'));
+      assert.ok(!issue.body.includes('reporter'));
       assert.match(issue.body, /Steps: parse "\[1,\]"/);
       assert.match(issue.body, /<!-- bug-smasher mirror-of=upstream\/lib#12 -->/);
       const writes = h.github.writes();
@@ -458,6 +460,51 @@ describe('operator mirror', () => {
       assert.equal(result.code, 0, result.err);
       assert.match(result.out, /Dry run: would create an issue in the target from upstream\/lib#12, titled "Parser drops trailing commas", labels: needs-triage/);
       assert.equal(h.github.writes().length, 0);
+    });
+  });
+
+  it('puts mentions, issue URLs and issue references from the source text in code formatting', async () => {
+    await withHarness(async (h) => {
+      h.github.seedForeignIssue(SOURCE, {
+        number: 12,
+        title: 'Parser drops trailing commas',
+        author: 'reporter',
+        body: [
+          'Reported with @someone, see https://github.com/upstream/lib/issues/7 and #123.',
+          'Related: [the fix](https://github.com/upstream/lib/pull/9), upstream/other#4 and a@example.com.',
+          '```',
+          'log: @kept #1',
+          '```',
+        ].join('\n'),
+      });
+      const result = await h.run(['mirror', 'upstream/lib#12', '--fix']);
+      assert.equal(result.code, 0, result.err);
+      const issue = await new GitHubTracker({ repo: h.github.repo, token: TOKEN, baseUrl: h.github.baseUrl }).getIssue(1);
+      assert.match(
+        issue.body,
+        /Reported with `@someone`, see `https:\/\/github\.com\/upstream\/lib\/issues\/7` and `#123`\./,
+      );
+      assert.match(issue.body, /Related: the fix \(`https:\/\/github\.com\/upstream\/lib\/pull\/9`\), `upstream\/other#4` and a@example\.com\./);
+      assert.match(issue.body, /```\nlog: @kept #1\n```/);
+      assert.match(issue.body, /^> Mirrored from `upstream\/lib#12` \(opened on \d{4}-\d{2}-\d{2}\)\. /);
+      assert.ok(!/\]\(https?:/.test(issue.body), 'no Markdown links remain');
+      assert.ok(!issue.body.includes('@reporter'));
+      assert.match(issue.body, /<!-- bug-smasher mirror-of=upstream\/lib#12 -->/);
+      assert.deepEqual(issue.labels, [LABEL.fix]);
+    });
+  });
+
+  it('prints in a dry run exactly the body a real run creates', async () => {
+    await withHarness(async (h) => {
+      h.github.seedForeignIssue(SOURCE, { number: 12, title: 'Parser drops trailing commas', body: 'Ping @someone about #123', author: 'reporter' });
+      const planned = await h.run(['mirror', 'upstream/lib#12', '--dry-run']);
+      assert.equal(planned.code, 0, planned.err);
+      assert.equal(h.github.writes().length, 0);
+      const created = await h.run(['mirror', 'upstream/lib#12']);
+      assert.equal(created.code, 0, created.err);
+      const issue = await new GitHubTracker({ repo: h.github.repo, token: TOKEN, baseUrl: h.github.baseUrl }).getIssue(1);
+      assert.ok(issue.body.includes('Ping `@someone` about `#123`'));
+      assert.equal(planned.out.split('\nBody:\n')[1], issue.body);
     });
   });
 

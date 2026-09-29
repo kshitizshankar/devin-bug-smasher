@@ -190,6 +190,8 @@ async function mirrorCommand(args: readonly string[], settings: Settings, io: Op
     );
   } else if (result.kind === 'planned') {
     io.out(`Dry run: would create an issue in the target from ${result.source.key}, titled ${JSON.stringify(result.title)}, labels: ${shownLabels}`);
+    io.out('Body:');
+    io.out(result.body);
   } else {
     io.out(`Created ${result.issue.key} (${result.issue.url}) from ${result.source.key}, labels: ${shownLabels}`);
   }
