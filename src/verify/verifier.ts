@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { lstat, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Settings } from '../config/settings.ts';
 import type { DiffFinding, VerificationEvidence, VerificationResult, VerificationRun, VerificationRunRole } from '../model/types.ts';
@@ -201,7 +201,10 @@ export class CheckedVerifier implements Verifier {
 
       const base = await this.#runRole('base', baseSha, root, files, async (workspace) => {
         await repo.exportTree(baseSha, workspace);
-        for (const change of testChanges) await writeInside(workspace, change.path, change.head ?? '');
+        for (const change of testChanges) {
+          const mode = (await repo.executable(headSha, change.path)) ? 0o755 : 0o644;
+          await writeInside(workspace, change.path, change.head ?? '', mode);
+        }
       }, evidence.runs);
       if (base.classification.outcome === 'error') return finish('error', `Base ${short(baseSha)}: ${base.classification.reason}`);
       if (base.classification.outcome === 'passed') {
@@ -314,7 +317,7 @@ export class CheckedVerifier implements Verifier {
 }
 
 /** Writes `path` under `root` without following links the exported tree may contain. */
-async function writeInside(root: string, path: string, content: string): Promise<void> {
+async function writeInside(root: string, path: string, content: string, mode: number): Promise<void> {
   const parts = path.split('/');
   let current = root;
   for (const part of parts.slice(0, -1)) {
@@ -329,7 +332,8 @@ async function writeInside(root: string, path: string, content: string): Promise
     if (existing.isDirectory()) throw new Error(`${path} cannot be written: it is a directory in the base tree`);
     await rm(target);
   }
-  await writeFile(target, content, { flag: 'wx' });
+  await writeFile(target, content, { flag: 'wx', mode });
+  await chmod(target, mode);
 }
 
 /** Reads the runner's report only if it is a regular file (never a link planted by the tests) of bounded size. */

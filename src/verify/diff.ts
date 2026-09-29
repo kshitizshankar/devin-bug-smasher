@@ -86,7 +86,18 @@ function manifestRules(text: string | null): string {
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return `unparseable:${text}`;
   const manifest = new Map(Object.entries(parsed));
-  return JSON.stringify(MANIFEST_RULE_KEYS.map((key) => [key, manifest.get(key) ?? null]));
+  return JSON.stringify(MANIFEST_RULE_KEYS.map((key) => [key, canonical(manifest.get(key) ?? null)]));
+}
+
+/** `value` with object keys sorted, so reordering alone is not a change. */
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (typeof value !== 'object' || value === null) return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, entry]) => [key, canonical(entry)]),
+  );
 }
 
 function testNames(text: string | null): Set<string> {

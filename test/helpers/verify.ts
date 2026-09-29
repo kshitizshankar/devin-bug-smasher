@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { runProcess, type ProcessResult } from '../../src/verify/process.ts';
@@ -98,6 +98,13 @@ export class FixtureRepo {
     await mkdir(dirname(link), { recursive: true });
     await symlink(target, link);
     return commitFiles(this.dir, {}, `link ${path}`);
+  }
+
+  /** Makes `path` executable on `branch` and commits it; returns the new SHA. */
+  async makeExecutable(branch: string, path: string): Promise<string> {
+    git(this.dir, ['checkout', '--quiet', branch]);
+    await chmod(join(this.dir, path), 0o755);
+    return commitFiles(this.dir, {}, `make ${path} executable`);
   }
 
   /** Commits `files` directly on main and returns the new main SHA. */

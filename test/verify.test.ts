@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { chmod, readFile, writeFile } from 'node:fs/promises';
+import { chmod, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { loadSettings } from '../src/config/settings.ts';
@@ -231,6 +232,31 @@ describe('independent verification against fixture repositories', () => {
       assert.equal(attempt.result, 'pass', attempt.reason);
     });
 
+    it('gives the copied test on base the mode it has on head', async () => {
+      const runner = join(tmpdir(), `exec-runner-${process.pid}.mjs`);
+      await writeFile(
+        runner,
+        [
+          "import { accessSync, constants } from 'node:fs';",
+          "import { spawnSync } from 'node:child_process';",
+          'const [results, ...files] = process.argv.slice(2);',
+          'try { for (const file of files) accessSync(file, constants.X_OK); } catch { process.exit(126); }',
+          "const args = ['--test', '--test-reporter=junit', `--test-reporter-destination=${results}`, ...files];",
+          "process.exit(spawnSync(process.execPath, args, { stdio: 'inherit' }).status ?? 1);",
+        ].join('\n'),
+      );
+      try {
+        await world.close();
+        world = await verifyWorld({ checkCommand: `${NODE} ${runner} {results} {files}` });
+        await world.repo.head('fix', { 'src/math.mjs': FIXED_MATH, [ADD_TEST_PATH]: ADD_TEST });
+        const head = await world.repo.makeExecutable('fix', ADD_TEST_PATH);
+        const attempt = attemptOf(await world.verifier.verify(request(head)));
+        assert.equal(attempt.result, 'pass', attempt.reason);
+      } finally {
+        await rm(runner, { force: true });
+      }
+    });
+
     it('treats commits that cannot be fetched as an error', async () => {
       const outcome = await world.verifier.verify(request('0'.repeat(40)));
       const attempt = attemptOf(outcome);
@@ -281,6 +307,22 @@ describe('independent verification against fixture repositories', () => {
         assert.equal(testPathProblem(path), null, path);
       }
     });
+  });
+
+  it('accepts reordered package.json scripts as unchanged rules', async () => {
+    const withScripts = '{ "name": "fixture", "type": "module", "scripts": { "lint": "eslint .", "test": "node --test" } }\n';
+    const base = await world.repo.advanceMain({ 'package.json': withScripts });
+    const head = await world.repo.head(
+      'fix',
+      {
+        'package.json': '{ "type": "module", "name": "fixture", "scripts": { "test": "node --test", "lint": "eslint ." } }\n',
+        'src/math.mjs': FIXED_MATH,
+        [ADD_TEST_PATH]: ADD_TEST,
+      },
+      base,
+    );
+    const attempt = attemptOf(await world.verifier.verify({ ...request(head), baseSha: base }));
+    assert.equal(attempt.result, 'pass', attempt.reason);
   });
 
   it('G7: never runs a command proposed in the pull request; only the configured runner runs', async () => {

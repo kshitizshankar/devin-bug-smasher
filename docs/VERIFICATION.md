@@ -84,7 +84,7 @@ recorded merge commit and the base is its first parent.
   (also on timeout). Workspaces are deleted after each attempt.
 - The workspace and results mounts are writable (tests and setup need to write) but are disposable
   directories under `VERIFY_WORK_DIR`. The host never follows links there: the base copy replaces a link
-  at a test path instead of writing through it, and the report is read only as a regular file (no link,
+  at a test path instead of writing through it (with the file mode the test has on head), and the report is read only as a regular file (no link,
   at most 16 MiB).
 
 ## Orchestration
@@ -111,7 +111,8 @@ recorded merge commit and the base is its first parent.
 | V4: each diff violation fails on its own reason, nothing runs | `test/verify.test.ts` › V4 › rejects … (9 cases) |
 | V4: deletion-only is a flag, not a failure; flag comment | `test/verify.test.ts` › V4 flags…; `test/orchestrator-verification.test.ts` › comments the deletion-only flag… |
 | V5: setup failure, missing module, timeout, crashed test file, crashed runner, missing/unreadable/linked results, unfetchable commits → `error` | `test/verify.test.ts` › V5 (7 tests) |
-| Base test copy never writes through a link in the base tree | `test/verify.test.ts` › V5 › replaces a link in the base tree… |
+| Base test copy never writes through a link in the base tree, and keeps the head's file mode | `test/verify.test.ts` › V5 › replaces a link in the base tree…, gives the copied test on base the mode… |
+| Reordering `package.json` scripts is not a rule change | `test/verify.test.ts` › accepts reordered package.json scripts… |
 | V6: unsafe paths, non-test and unchanged files, empty selection refused before anything runs | `test/verify.test.ts` › V6 |
 | G7: proposed commands (PR files, issue comments) never run; only the configured runner; changed package scripts rejected | `test/verify.test.ts` › G7; `test/orchestrator-verification.test.ts` › G7 |
 | G9: no credentials in Docker CLI/container environment or records; network cut before tests | `test/verify.test.ts` › G9 (2 tests); real Docker with `VERIFY_DOCKER_IMAGE` |

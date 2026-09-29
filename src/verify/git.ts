@@ -139,6 +139,12 @@ export class GitRepository {
     }
   }
 
+  /** Whether `path` is committed as an executable file at `sha`. */
+  async executable(sha: string, path: string): Promise<boolean> {
+    const entry = await this.#git(['ls-tree', sha, '--', path]).catch(() => '');
+    return entry.startsWith('100755 ');
+  }
+
   /** Writes the tree of `sha` into `dest` (an existing empty directory). */
   async exportTree(sha: string, dest: string): Promise<void> {
     const env = this.#env(false);
