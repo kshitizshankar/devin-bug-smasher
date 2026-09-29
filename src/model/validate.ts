@@ -114,6 +114,7 @@ export function validateFixInfo(value: unknown, path: string): Problems {
   checkSha(value.headSha, `${path}.headSha`, problems);
   checkArray(value.testFiles, `${path}.testFiles`, problems, checkStringItem);
   checkString(value.summary, `${path}.summary`, problems);
+  if (value.mergeCommitSha !== null) checkSha(value.mergeCommitSha, `${path}.mergeCommitSha`, problems);
   return problems;
 }
 
@@ -155,6 +156,9 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
   }
   if (value.triage !== null) problems.push(...validateTriageFindings(value.triage, `${path}.triage`));
   if (value.fix !== null) problems.push(...validateFixInfo(value.fix, `${path}.fix`));
+  checkArray(value.priorFixes, `${path}.priorFixes`, problems, (item, itemPath, list) => {
+    list.push(...validateFixInfo(item, itemPath));
+  });
   checkArray(value.verifications, `${path}.verifications`, problems, (item, itemPath, list) => {
     list.push(...validateVerificationAttempt(item, itemPath));
   });
@@ -190,6 +194,7 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
     checkOneOf(value.handoff.reason, HANDOFF_REASONS, `${path}.handoff.reason`, problems);
     checkNullableString(value.handoff.detail, `${path}.handoff.detail`, problems);
     checkTimestamp(value.handoff.at, `${path}.handoff.at`, problems);
+    checkBoolean(value.handoff.engineerLabelSeen, `${path}.handoff.engineerLabelSeen`, problems);
   }
   if (value.insights !== null && checkObject(value.insights, `${path}.insights`, problems)) {
     const acu = value.insights.acuUsed;

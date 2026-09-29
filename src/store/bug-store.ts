@@ -99,6 +99,8 @@ async function writeAtomically(path: string, contents: string): Promise<void> {
  * (temporary file + rename) and are serialized within the process, so overlapping updates are not lost.
  * In-memory state only changes after a successful write.
  */
+const openStores = new Map<string, Promise<BugStore>>();
+
 export class BugStore {
   readonly path: string;
   #records: Map<string, BugRecord>;
@@ -109,9 +111,22 @@ export class BugStore {
     this.#records = records;
   }
 
-  /** Loads the store. A missing file is an empty store; unreadable or invalid data throws `BugStoreError`. */
-  static async open(path: string = DEFAULT_BUG_STORE_PATH): Promise<BugStore> {
+  /**
+   * Loads the store. A missing file is an empty store; unreadable or invalid data throws `BugStoreError`.
+   * Within one process every `open` of the same resolved path returns the same instance, so all callers
+   * share one snapshot and one write queue. Multi-process access is not supported.
+   */
+  static open(path: string = DEFAULT_BUG_STORE_PATH): Promise<BugStore> {
     const absolute = resolve(path);
+    const existing = openStores.get(absolute);
+    if (existing !== undefined) return existing;
+    const loading = BugStore.#load(absolute);
+    openStores.set(absolute, loading);
+    loading.catch(() => openStores.delete(absolute));
+    return loading;
+  }
+
+  static async #load(absolute: string): Promise<BugStore> {
     let text: string;
     try {
       text = await readFile(absolute, 'utf8');

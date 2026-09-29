@@ -33,12 +33,13 @@ The store keeps only orchestration and evidence data (`BugRecord` in `src/model/
 | `route`         | Work queued or running: `triage`, `fix` or `null`                                                  |
 | `session`       | Devin session `id`, `url`, `route`, `liveState` (`starting`/`running`/`blocked`/`ended`), timestamps, `stopRequestedAt` |
 | `triage`        | Findings: title, summary, reproduction steps, expected/actual, suspected cause, affected files, reproduced + notes, proposed test (description, file, command — **data only, never executed**), recommendation (`devin_fix`/`needs_engineer`/`close`), reason, confidence |
-| `fix`           | PR number/URL, current head SHA, test files, summary                                              |
+| `fix`           | PR number/URL, current head SHA, test files, summary, `mergeCommitSha` (set by `pr-merged`)        |
+| `priorFixes`    | Earlier fix PRs, moved here when work is returned to investigation or repair                      |
 | `verifications` | Attempts: phase (`pre-merge`/`post-merge`), base and head SHAs, `pass`/`fail`/`error`, reason, output tail, time, session ID |
 | `decisions`     | Person actions: action, outcome (`applied`/`requested`), actor, time, context                      |
 | `questions`     | id, summary, asked time, answered time (`null` while outstanding)                                  |
 | `stageHistory`  | One `{ stage, at }` entry per actual stage change                                                  |
-| `handoff`       | Latest reason, detail and time work was handed to an engineer                                      |
+| `handoff`       | Latest reason, detail and time work was handed to an engineer, and `engineerLabelSeen`             |
 | `insights`      | Optional session insights (`acuUsed` — `null` when unknown, never zero — and notes)                |
 
 Display strings (status labels, groups, actions) are **not** persisted.
@@ -117,19 +118,28 @@ Events (`ModelEvent`): `labels-changed`, `session-started`, `session-status`, `q
 `reply-received`, `triage-completed`, `fix-submitted`, `head-changed`, `verification-recorded`,
 `pr-merged`, `pr-closed`, `issue-closed`, `issue-reopened`, `insights-recorded`.
 
-Effects (`Effect`), to be applied in order by an adapter: `add-label`, `remove-label`, `close-issue`,
-`stop-session` (emitted once per session; recorded as `stopRequestedAt`), `post-comment`,
-`merge-pr { prNumber, expectedHeadSha }`. The `merge` action records a `requested` decision and emits
-`merge-pr`; the record only becomes `merged` on a later `pr-merged` event.
+Effects (`Effect`), to be applied in order by an adapter: `add-label`, `remove-label` (a no-op when the
+label is absent), `close-issue`, `stop-session` (emitted once per session; recorded as `stopRequestedAt`),
+`post-comment`, `merge-pr { prNumber, expectedHeadSha }`. The `merge` action records a `requested` decision and emits
+`merge-pr`; the record only becomes `merged` on a later `pr-merged { mergeCommitSha }` event, which is
+also accepted after `issue-closed` (GitHub may close the issue before reporting the merge).
+
+A new session is refused (`session-active`) until the previous session has reported `ended`, even when a
+stop was requested, so a stopping session and its replacement never overlap.
 
 Main flows:
 
 - `queued` → `triaging` (session started; labels must match the queued route; closed issues refused) →
   `needs-input` ⇄ `triaging` (questions / replies) → `triaged` (findings) → person `fix` → `queued` →
   `fixing` → `verifying` (fix submitted) → `ready-to-merge` (current-head pass) → `merged`.
-- Session ended while `triaging`/`needs-input`/`fixing`, PR closed unmerged, or the engineer label/action
-  → `with-engineer`, with reason and time recorded and any running session stopped. `triage`/`fix` from
-  `with-engineer` return the work to `queued` with the person's context.
+- Session ended while `triaging`/`needs-input`/`fixing`, PR closed unmerged, failed or errored
+  verification, or the engineer label/action → `with-engineer`, with reason and time recorded and any
+  running session stopped. Automatic handoffs also emit `add-label` engineer and `remove-label` for the
+  work labels. Work labels in label snapshots are ignored until a snapshot has shown the engineer label
+  (`engineerLabelSeen`), so a snapshot taken before the label effects applied cannot requeue the work.
+- `triage`/`fix` actions from `with-engineer` (or replacing the engineer label with a work label) return the
+  work to `queued` with the person's context. The previous fix PR moves to `priorFixes`, so its closed or
+  merged state no longer affects the new work.
 - Issue closed → `closed` (running session stopped). Reopened → `triaged` if a bug has findings, otherwise
   label routing (or `with-engineer` for the engineer label).
 
@@ -143,6 +153,7 @@ Counts are per fix session, so a new session after a handoff starts with fresh b
 | `fail` (failed proof)           | Back to `fixing` for a retry while fails ≤ `MAX_FIX_RETRIES` (default 1); the next fail hands off (`verification-failed`) |
 | `error` (infrastructure)        | Separate counter; stays `verifying` to retry; the 3rd error hands off (`verification-error`). Never counts as a failed-fix attempt |
 | PR head changes                 | Back to `verifying`; earlier proof no longer applies; attempts for an old head are refused (`stale-head`) |
+| Post-merge attempt              | Must target `fix.mergeCommitSha`; any other commit is refused (`stale-head`)             |
 | Post-merge `fail`               | Hands off (`post-merge-verification-failed`); the record stays merged but `postMergeVerified` is `false` |
 
 ## Persistence
@@ -156,6 +167,8 @@ Counts are per fix session, so a new session after a handoff starts with fresh b
   it over the store. Updates are serialized in-process; in-memory state changes only after a successful
   write. A failed write throws `write-failed` and leaves the previous file and state intact.
 - `get` / `list` return copies.
+- Within one process, `open` of the same resolved path returns the same instance (one snapshot, one write
+  queue); a store that failed to open is not cached. Access from several processes is not supported.
 
 ## Settings
 

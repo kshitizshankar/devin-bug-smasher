@@ -1,11 +1,12 @@
 import type { LabelSettings } from '../config/settings.ts';
 import { formatBugKey } from './keys.ts';
 import { intakeEligibility, resolveLabels } from './labels.ts';
-import { outstandingQuestion, presentBug, wasMerged } from './presentation.ts';
+import { outstandingQuestion, presentBug } from './presentation.ts';
 import type {
   ActionName,
   BugRecord,
   FixInfo,
+  SubmittedFix,
   GitHubFacts,
   HandoffReason,
   SessionInsights,
@@ -74,10 +75,10 @@ export type ModelEvent =
   | { type: 'question-asked'; question: { id: string; summary: string } }
   | { type: 'reply-received'; questionId: string }
   | { type: 'triage-completed'; findings: TriageFindings }
-  | { type: 'fix-submitted'; fix: FixInfo }
+  | { type: 'fix-submitted'; fix: SubmittedFix }
   | { type: 'head-changed'; headSha: string }
   | { type: 'verification-recorded'; attempt: Omit<VerificationAttempt, 'sessionId'> }
-  | { type: 'pr-merged' }
+  | { type: 'pr-merged'; mergeCommitSha: string }
   | { type: 'pr-closed' }
   | { type: 'issue-closed' }
   | { type: 'issue-reopened'; labels: string[] }
@@ -124,17 +125,37 @@ function stopSessionEffects(record: BugRecord, now: Timestamp): Effect[] {
   return [{ type: 'stop-session', sessionId: record.session.id }];
 }
 
+/**
+ * Hands work to an engineer and stops any running session. Automatic handoffs also move the issue to the
+ * engineer label; a person's `engineer` action moves labels itself, and `engineer-label` is already there.
+ */
 function handOff(
   record: BugRecord,
   reason: HandoffReason,
   detail: string | null,
+  options: ModelOptions,
   now: Timestamp,
 ): Effect[] {
-  const effects = stopSessionEffects(record, now);
+  const { triage, fix, feature, engineer } = options.labels;
+  const labelEffects: Effect[] =
+    reason === 'engineer-label' || reason === 'person'
+      ? []
+      : [
+          { type: 'add-label', label: engineer },
+          ...[triage, fix, feature].map((label): Effect => ({ type: 'remove-label', label })),
+        ];
+  const effects = [...labelEffects, ...stopSessionEffects(record, now)];
   moveTo(record, 'with-engineer', now);
   record.route = null;
-  record.handoff = { reason, detail, at: now };
+  record.handoff = { reason, detail, at: now, engineerLabelSeen: reason === 'engineer-label' };
   return effects;
+}
+
+/** Moves the current fix PR to history when work restarts, so a closed or merged old PR no longer applies. */
+function archiveFix(record: BugRecord): void {
+  if (record.fix === null) return;
+  record.priorFixes.push(record.fix);
+  record.fix = null;
 }
 
 function newRecord(facts: GitHubFacts, now: Timestamp): BugRecord {
@@ -146,6 +167,7 @@ function newRecord(facts: GitHubFacts, now: Timestamp): BugRecord {
     session: null,
     triage: null,
     fix: null,
+    priorFixes: [],
     verifications: [],
     decisions: [],
     questions: [],
@@ -165,6 +187,7 @@ function routeFromLabels(record: BugRecord, labels: string[], options: ModelOpti
   const kind = route === 'feature' ? 'feature' : 'bug';
 
   if (record.stage === 'with-engineer' || (record.stage === 'queued' && record.route === null)) {
+    if (record.stage === 'with-engineer') archiveFix(record);
     record.kind = kind;
     record.route = workRoute;
     moveTo(record, 'queued', now);
@@ -194,7 +217,7 @@ export function enrollBug(facts: GitHubFacts, options: ModelOptions, now: Timest
   const record = newRecord(facts, now);
   const { route } = resolveLabels(facts.issue.labels, options.labels);
   if (route === 'engineer') {
-    handOff(record, 'engineer-label', null, now);
+    handOff(record, 'engineer-label', null, options, now);
   } else {
     routeFromLabels(record, facts.issue.labels, options, now);
   }
@@ -225,8 +248,15 @@ export function applyEvent(
       if (record.stage === 'closed' || record.stage === 'merged') return unchanged(current);
       const { route } = resolveLabels(event.labels, options.labels);
       if (route === 'engineer') {
-        if (record.stage === 'with-engineer') return unchanged(current);
-        return done(record, now, handOff(record, 'engineer-label', null, now));
+        if (record.stage !== 'with-engineer') {
+          return done(record, now, handOff(record, 'engineer-label', null, options, now));
+        }
+        if (record.handoff === null || record.handoff.engineerLabelSeen) return unchanged(current);
+        record.handoff.engineerLabelSeen = true;
+        return done(record, now);
+      }
+      if (record.stage === 'with-engineer' && record.handoff !== null && !record.handoff.engineerLabelSeen) {
+        return unchanged(current);
       }
       return routeFromLabels(record, event.labels, options, now) ? done(record, now) : unchanged(current);
     }
@@ -236,8 +266,12 @@ export function applyEvent(
       if (record.stage !== 'queued' || record.route === null) {
         return fail('invalid-stage', `A session can only start from a routed queued record (stage ${record.stage})`);
       }
-      if (record.session !== null && sessionRunning(record)) {
-        return fail('session-active', `Session ${record.session.id} is still ${record.session.liveState}`);
+      if (record.session !== null && record.session.liveState !== 'ended') {
+        const stopping = record.session.stopRequestedAt === null ? '' : ' (stop requested)';
+        return fail(
+          'session-active',
+          `Session ${record.session.id} is still ${record.session.liveState}${stopping}; wait until it has ended`,
+        );
       }
       const labels = resolveLabels(event.labels, options.labels);
       if (labels.conflict !== null) return fail('label-conflict', labels.conflict);
@@ -269,7 +303,7 @@ export function applyEvent(
       record.session.liveState = event.liveState;
       record.session.updatedAt = now;
       if (event.liveState === 'ended' && ACTIVE_WORK_STAGES.includes(record.stage)) {
-        handOff(record, 'session-ended', `Session ended while ${record.stage}`, now);
+        return done(record, now, handOff(record, 'session-ended', `Session ended while ${record.stage}`, options, now));
       }
       return done(record, now);
     }
@@ -313,9 +347,10 @@ export function applyEvent(
       if (record.stage !== 'fixing') {
         return fail('invalid-stage', `A fix can only be submitted while fixing (stage ${record.stage})`);
       }
-      const problems = validateFixInfo(event.fix, 'fix');
+      const fix: FixInfo = { ...structuredClone(event.fix), mergeCommitSha: null };
+      const problems = validateFixInfo(fix, 'fix');
       if (problems.length > 0) return fail('invalid-data', problems.join('; '));
-      record.fix = structuredClone(event.fix);
+      record.fix = fix;
       moveTo(record, 'verifying', now);
       return done(record, now);
     }
@@ -340,16 +375,20 @@ export function applyEvent(
         if (record.stage !== 'merged') {
           return fail('invalid-stage', `Post-merge verification requires a merged record (stage ${record.stage})`);
         }
+        const mergeCommit = record.fix?.mergeCommitSha ?? null;
+        if (attempt.headSha !== mergeCommit) {
+          return fail('stale-head', `Post-merge attempt is for ${attempt.headSha} but the merge commit is ${mergeCommit}`);
+        }
         record.verifications.push(attempt);
         if (attempt.result === 'fail') {
-          return done(record, now, handOff(record, 'post-merge-verification-failed', attempt.reason, now));
+          return done(record, now, handOff(record, 'post-merge-verification-failed', attempt.reason, options, now));
         }
         if (attempt.result === 'error') {
           const errors = record.verifications.filter(
             (candidate) => candidate.phase === 'post-merge' && candidate.result === 'error',
           ).length;
           if (errors >= options.maxVerificationErrors) {
-            return done(record, now, handOff(record, 'verification-error', attempt.reason, now));
+            return done(record, now, handOff(record, 'verification-error', attempt.reason, options, now));
           }
         }
         return done(record, now);
@@ -368,12 +407,12 @@ export function applyEvent(
       }
       if (attempt.result === 'error') {
         if (countSessionAttempts(record, 'error') >= options.maxVerificationErrors) {
-          return done(record, now, handOff(record, 'verification-error', attempt.reason, now));
+          return done(record, now, handOff(record, 'verification-error', attempt.reason, options, now));
         }
         return done(record, now);
       }
       if (countSessionAttempts(record, 'fail') > options.maxFixRetries) {
-        return done(record, now, handOff(record, 'verification-failed', attempt.reason, now));
+        return done(record, now, handOff(record, 'verification-failed', attempt.reason, options, now));
       }
       moveTo(record, 'fixing', now);
       return done(record, now);
@@ -381,10 +420,14 @@ export function applyEvent(
 
     case 'pr-merged': {
       if (record.fix === null) return fail('no-fix', 'No fix PR is recorded');
-      if (wasMerged(record)) return fail('already-merged', 'The fix PR was already recorded as merged');
-      if (!['fixing', 'verifying', 'ready-to-merge', 'with-engineer'].includes(record.stage)) {
+      if (record.fix.mergeCommitSha !== null) return fail('already-merged', 'The fix PR was already recorded as merged');
+      // `closed` is accepted because GitHub may report the issue closed (e.g. "Closes #N") before the merge.
+      if (!['fixing', 'verifying', 'ready-to-merge', 'with-engineer', 'closed'].includes(record.stage)) {
         return fail('invalid-stage', `A merge cannot be recorded in stage ${record.stage}`);
       }
+      const problems = validateFixInfo({ ...record.fix, mergeCommitSha: event.mergeCommitSha }, 'fix');
+      if (problems.length > 0) return fail('invalid-data', problems.join('; '));
+      record.fix.mergeCommitSha = event.mergeCommitSha;
       const effects = stopSessionEffects(record, now);
       moveTo(record, 'merged', now);
       record.route = null;
@@ -393,7 +436,7 @@ export function applyEvent(
 
     case 'pr-closed': {
       if (!['fixing', 'verifying', 'ready-to-merge'].includes(record.stage)) return unchanged(current);
-      return done(record, now, handOff(record, 'pr-closed-unmerged', null, now));
+      return done(record, now, handOff(record, 'pr-closed-unmerged', null, options, now));
     }
 
     case 'issue-closed': {
@@ -407,7 +450,8 @@ export function applyEvent(
     case 'issue-reopened': {
       if (record.stage !== 'closed') return unchanged(current);
       const { route } = resolveLabels(event.labels, options.labels);
-      if (route === 'engineer') return done(record, now, handOff(record, 'engineer-label', null, now));
+      if (route === 'engineer') return done(record, now, handOff(record, 'engineer-label', null, options, now));
+      archiveFix(record);
       if (record.triage !== null && record.kind === 'bug') {
         moveTo(record, 'triaged', now);
         return done(record, now);
@@ -477,6 +521,7 @@ export function applyAction(
         ),
         ...stopSessionEffects(record, now),
       ];
+      archiveFix(record);
       moveTo(record, 'queued', now);
       record.route = request.name;
       decide('applied');
@@ -485,7 +530,7 @@ export function applyAction(
 
     case 'engineer': {
       const labelEffects = labelMoveEffects(options.labels.engineer, facts, options);
-      const effects = [...labelEffects, ...handOff(record, 'person', context, now)];
+      const effects = [...labelEffects, ...handOff(record, 'person', context, options, now)];
       decide('applied');
       return done(record, now, effects);
     }

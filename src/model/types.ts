@@ -94,7 +94,12 @@ export interface FixInfo {
   headSha: string;
   testFiles: string[];
   summary: string;
+  /** Merge commit reported by GitHub once the PR merged; post-merge verification must target it. */
+  mergeCommitSha: string | null;
 }
+
+/** A fix as submitted by a session, before any merge. */
+export type SubmittedFix = Omit<FixInfo, 'mergeCommitSha'>;
 
 export interface VerificationAttempt {
   phase: VerificationPhase;
@@ -133,6 +138,11 @@ export interface Handoff {
   reason: HandoffReason;
   detail: string | null;
   at: Timestamp;
+  /**
+   * True once a label snapshot showed the engineer label. Until then work labels in snapshots are treated
+   * as stale (the adapter may not have applied the handoff's label effects yet) and do not return the work.
+   */
+  engineerLabelSeen: boolean;
 }
 
 export interface SessionInsights {
@@ -154,6 +164,8 @@ export interface BugRecord {
   session: SessionInfo | null;
   triage: TriageFindings | null;
   fix: FixInfo | null;
+  /** Earlier fix PRs replaced when work was returned to investigation or repair. */
+  priorFixes: FixInfo[];
   verifications: VerificationAttempt[];
   decisions: Decision[];
   questions: Question[];

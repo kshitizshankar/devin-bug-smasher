@@ -179,6 +179,32 @@ describe('JSON bug store', () => {
     assert.deepEqual(store.get(KEY)?.decisions.map((decision) => decision.actor), ['ana', 'carol']);
   });
 
+  it('shares one instance per path within the process so separate handles cannot lose records', async () => {
+    const path = await freshPath();
+    const [first, second] = await Promise.all([BugStore.open(path), BugStore.open(path)]);
+    assert.equal(first, second);
+    assert.equal(await BugStore.open(join(path, '..', '.', 'bugs.json')), first, 'paths are resolved');
+    assert.notEqual(await BugStore.open(await freshPath()), first);
+
+    await Promise.all([
+      first.update(KEY, withDecision('ana')),
+      second.update('acme/widgets#43', () => ({ ...enroll([LABEL.triage]), key: 'acme/widgets#43' })),
+      second.update(KEY, withDecision('bob')),
+    ]);
+    const file = JSON.parse(await readFile(path, 'utf8'));
+    assert.deepEqual(Object.keys(file.bugs), [KEY, 'acme/widgets#43']);
+    assert.deepEqual(file.bugs[KEY].decisions.map((decision: { actor: string }) => decision.actor), ['ana', 'bob']);
+  });
+
+  it('does not cache a store that failed to open', async () => {
+    const path = await freshPath();
+    await mkdir(join(path, '..'), { recursive: true });
+    await writeFile(path, 'not json');
+    await rejectsWith(BugStore.open(path), 'corrupt');
+    await writeFile(path, JSON.stringify({ schemaVersion: SCHEMA_VERSION, bugs: {} }));
+    assert.deepEqual((await BugStore.open(path)).list(), []);
+  });
+
   it('returns copies so callers cannot mutate stored state', async () => {
     const store = await BugStore.open(await freshPath());
     await store.update(KEY, withDecision('ana'));

@@ -10,7 +10,7 @@ import {
   type ModelOptions,
   type ModelResult,
 } from '../../src/model/transitions.ts';
-import type { BugRecord, FixInfo, GitHubFacts, TriageFindings, VerificationAttempt } from '../../src/model/types.ts';
+import type { BugRecord, GitHubFacts, SubmittedFix, TriageFindings, VerificationAttempt } from '../../src/model/types.ts';
 
 export const settings = loadSettings({});
 
@@ -42,6 +42,7 @@ export function facts(
 export const HEAD_A = 'a'.repeat(40);
 export const HEAD_B = 'b'.repeat(40);
 export const BASE = 'c'.repeat(40);
+export const MERGE_SHA = 'e'.repeat(40);
 
 export function findings(overrides: Partial<TriageFindings> = {}): TriageFindings {
   return {
@@ -62,7 +63,7 @@ export function findings(overrides: Partial<TriageFindings> = {}): TriageFinding
   };
 }
 
-export function fixInfo(headSha = HEAD_A): FixInfo {
+export function fixInfo(headSha = HEAD_A): SubmittedFix {
   return {
     prNumber: 7,
     prUrl: 'https://github.com/acme/widgets/pull/7',
