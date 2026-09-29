@@ -11,6 +11,7 @@ import {
   VERIFICATION_PHASES,
   VERIFICATION_RESULTS,
   WORK_ROUTES,
+  WORKFLOW_OPERATION_TYPES,
 } from './types.ts';
 
 type Problems = string[];
@@ -144,6 +145,60 @@ export function validateSessionInsights(value: unknown, path: string): Problems 
   return problems;
 }
 
+export function validateWorkflowState(value: unknown, path: string): Problems {
+  const problems: Problems = [];
+  if (!checkObject(value, path, problems)) return problems;
+  if (value.dispatch !== null && checkObject(value.dispatch, `${path}.dispatch`, problems)) {
+    checkOneOf(value.dispatch.route, WORK_ROUTES, `${path}.dispatch.route`, problems);
+    checkTimestamp(value.dispatch.requestedAt, `${path}.dispatch.requestedAt`, problems);
+    checkNullableString(value.dispatch.attemptTag, `${path}.dispatch.attemptTag`, problems);
+    const checks = value.dispatch.checks;
+    if (typeof checks !== 'number' || !Number.isSafeInteger(checks) || checks < 0) {
+      problems.push(`${path}.dispatch.checks must be an integer >= 0`);
+    }
+    checkArray(value.dispatch.commentIds, `${path}.dispatch.commentIds`, problems, checkStringItem);
+  }
+  checkArray(value.outbox, `${path}.outbox`, problems, (item, itemPath, list) => {
+    if (!checkObject(item, itemPath, list)) return;
+    checkOneOf(item.type, WORKFLOW_OPERATION_TYPES, `${itemPath}.type`, list);
+    switch (item.type) {
+      case 'add-label':
+      case 'remove-label':
+        checkString(item.label, `${itemPath}.label`, list, { nonEmpty: true });
+        break;
+      case 'stop-session':
+        checkString(item.sessionId, `${itemPath}.sessionId`, list, { nonEmpty: true });
+        break;
+      case 'post-comment':
+        checkString(item.key, `${itemPath}.key`, list, { nonEmpty: true });
+        checkString(item.body, `${itemPath}.body`, list, { nonEmpty: true });
+        break;
+      case 'send-message':
+        checkString(item.sessionId, `${itemPath}.sessionId`, list, { nonEmpty: true });
+        checkString(item.marker, `${itemPath}.marker`, list, { nonEmpty: true });
+        checkString(item.message, `${itemPath}.message`, list, { nonEmpty: true });
+        if (typeof item.message === 'string' && typeof item.marker === 'string' && !item.message.includes(item.marker)) {
+          list.push(`${itemPath}.message must contain its marker`);
+        }
+        break;
+      case 'merge-pr':
+        checkPositiveInteger(item.prNumber, `${itemPath}.prNumber`, list);
+        checkSha(item.expectedHeadSha, `${itemPath}.expectedHeadSha`, list);
+        break;
+    }
+  });
+  checkArray(value.relayedCommentIds, `${path}.relayedCommentIds`, problems, checkStringItem);
+  checkArray(value.handledEventIds, `${path}.handledEventIds`, problems, checkStringItem);
+  if (value.workQuestion !== null && checkObject(value.workQuestion, `${path}.workQuestion`, problems)) {
+    checkString(value.workQuestion.id, `${path}.workQuestion.id`, problems, { nonEmpty: true });
+    checkString(value.workQuestion.sessionId, `${path}.workQuestion.sessionId`, problems, { nonEmpty: true });
+    checkString(value.workQuestion.summary, `${path}.workQuestion.summary`, problems);
+    checkTimestamp(value.workQuestion.askedAt, `${path}.workQuestion.askedAt`, problems);
+  }
+  checkArray(value.notices, `${path}.notices`, problems, checkStringItem);
+  return problems;
+}
+
 export function validateBugRecord(value: unknown, path = 'record'): Problems {
   const problems: Problems = [];
   if (!checkObject(value, path, problems)) return problems;
@@ -208,6 +263,7 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
     checkBoolean(value.handoff.engineerLabelSeen, `${path}.handoff.engineerLabelSeen`, problems);
   }
   if (value.insights !== null) problems.push(...validateSessionInsights(value.insights, `${path}.insights`));
+  if (value.workflow !== undefined) problems.push(...validateWorkflowState(value.workflow, `${path}.workflow`));
   checkTimestamp(value.createdAt, `${path}.createdAt`, problems);
   checkTimestamp(value.updatedAt, `${path}.updatedAt`, problems);
   return problems;

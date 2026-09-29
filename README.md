@@ -3,27 +3,25 @@
 Bug Smasher will investigate reported bugs with Devin, ask people for missing context or decisions, verify
 proposed fixes, and track pull requests through merge.
 
-**This repository is currently an unfinished scaffold.** It contains only the project foundation: a small
-Node.js service that serves a placeholder React frontend and a health endpoint, plus build, typecheck,
-test and CI tooling.
+**This repository is currently an unfinished scaffold.** It contains a small Node.js service that serves a
+placeholder React frontend and a health endpoint, the workflow orchestrator (which polls GitHub and drives
+Devin sessions only when live GitHub and Devin settings are complete), plus build, typecheck, test and CI
+tooling.
 
 ## Not yet implemented
 
 None of the following exists yet:
 
-- **Workflow** – running bug intake, triage, investigation, repair and pull request tracking. The shared
-  bug model, label routing, pure transitions and settings are defined (see [`docs/MODEL.md`](docs/MODEL.md)),
-  but no service drives them.
-- **Integrations** – the GitHub tracker adapter exists (see [`docs/TRACKER.md`](docs/TRACKER.md)) but
-  nothing in the running service uses it yet; there is no Devin or other provider integration.
-- **Verification** – independent regression verification of proposed fixes.
+- **Decision and merge policies** – automatic repair decisions and merging. The workflow orchestrator
+  (see [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md)) consumes an injected decision-policy contract, but
+  none is implemented yet, so a person decides.
+- **Verification** – independent regression verification of proposed fixes. The orchestrator consumes an
+  injected verifier contract; without one, nothing is reported as verified.
 - **Dashboard** – the frontend is a placeholder page only.
-- **Persistence wiring** – the atomically written JSON store (`src/store/bug-store.ts`) exists but nothing
-  in the running service reads or writes it yet.
 - **Docker packaging** – there is no Dockerfile or container image.
 
-The `devin-builds-feature` label is reserved for future feature work; it does not currently trigger any
-automation.
+With complete live settings, a `devin-builds-feature` issue is routed to a feature implementation session
+specified by the issue's acceptance criteria (see [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md)).
 
 ## Prerequisites
 
@@ -114,6 +112,8 @@ src/store/       Atomic JSON bug store (data/bugs.json)
 src/config/      Typed environment settings
 src/devin/       Devin API v3 adapter and offline stand-in (see docs/DEVIN.md)
 src/tracker/     GitHub tracker interface, REST adapter and in-memory stand-in
+src/orchestrator/ Polling workflow: dispatch, questions, repair, prompts (see docs/ORCHESTRATION.md)
+prompts/         Repository-owned Devin prompt templates
 web/             React + Vite frontend source
 test/            Smoke and behaviour tests (node:test)
 dist/web/        Generated frontend build output (git-ignored)

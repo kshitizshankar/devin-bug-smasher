@@ -89,7 +89,9 @@ export type ModelEvent =
   | { type: 'pr-closed'; prNumber: number }
   | { type: 'issue-closed' }
   | { type: 'issue-reopened'; labels: string[] }
-  | { type: 'insights-recorded'; insights: SessionInsights };
+  | { type: 'insights-recorded'; insights: SessionInsights }
+  /** The orchestrator found a reason work must not start or continue automatically, e.g. an existing PR. */
+  | { type: 'handoff-requested'; reason: 'existing-pr'; detail: string };
 
 export interface ActionRequest {
   name: ActionName;
@@ -527,6 +529,13 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
       if (problems.length > 0) return fail('invalid-data', problems.join('; '));
       record.insights = structuredClone(event.insights);
       return done(record, now);
+    }
+
+    case 'handoff-requested': {
+      if (!['queued', 'triaging', 'needs-input', 'triaged', 'fixing'].includes(record.stage)) {
+        return fail('invalid-stage', `Automatic handoff does not apply in stage ${record.stage}`);
+      }
+      return done(record, now, handOff(record, event.reason, event.detail, options, now));
     }
   }
 }
