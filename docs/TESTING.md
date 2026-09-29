@@ -20,6 +20,12 @@ suite finishes.
 | `test/health.test.ts`   | `GET /api/health` returns `200` with the ok payload; non-GET is `405`; unknown API route is `404`   | No                    |
 | `test/frontend.test.ts` | `/` serves the built `index.html`; every referenced JS/CSS asset is served byte-for-byte; SPA fallback; missing asset `404`; path traversal blocked | Yes |
 | `test/static-read-failure.test.ts` | An asset that cannot be opened (mode `000`) returns `500`; a read that fails after headers are committed (Linux `/proc/self/mem` symlink) ends the response; `/api/health` still returns `200` after each | No |
+| `test/service-settings.test.ts` | Service starts without provider credentials; an invalid setting stops startup with a clear, secret-free error | No |
+| `test/labels-intake.test.ts` | Label precedence (engineer, repair over triage, feature/bug conflict), case-insensitivity, custom labels, known vs. unknown unlabelled intake | No |
+| `test/transitions.test.ts` | Pure transitions: questions/replies, decisions and repair, verification retry vs. infrastructure-error counters, changed-head invalidation, merge vs. merged, post-merge proof, close, handoff/return, reopen, stage timestamps, invalid input leaves records unchanged | No |
+| `test/presentation.test.ts` | The documented state/action table in `docs/MODEL.md`: status, group and permitted actions per row, and that `applyAction` accepts exactly those actions | No |
+| `test/bug-store.test.ts` | JSON store: missing file, restart read-back in a separate process, overlapping updates, corrupt/invalid data refused, failed write preserves prior file and state | No |
+| `test/settings.test.ts` | Defaults, `PORT=0`, invalid inputs rejected, distinct labels, live-mode credentials and `CHECK_COMMAND`, secret redaction, unknown costs stay `null` | No |
 
 Run a selected file:
 
@@ -43,9 +49,9 @@ If `dist/web/index.html` is missing, `test/frontend.test.ts` fails with a messag
    npm start
    ```
 
-   The service logs `Bug Smasher scaffold listening on http://127.0.0.1:3000`.
+   The service logs `Bug Smasher scaffold listening on http://127.0.0.1:8080`.
 
-2. Open <http://127.0.0.1:3000/> in a browser and confirm:
+2. Open <http://127.0.0.1:8080/> in a browser and confirm:
    - The page title is **Bug Smasher (scaffold)** and the heading reads **Bug Smasher**.
    - An **Unfinished scaffold** notice explains that workflows, integrations, verification, the dashboard
      and persistence are not implemented.
@@ -53,7 +59,7 @@ If `dist/web/index.html` is missing, `test/frontend.test.ts` fails with a messag
      `/api/health`; if the service is unreachable it shows **Service health endpoint unavailable** instead.
    - The browser devtools console shows no errors.
 
-3. Optionally confirm the health endpoint directly: `curl http://127.0.0.1:3000/api/health`.
+3. Optionally confirm the health endpoint directly: `curl http://127.0.0.1:8080/api/health`.
 
 To check the development build instead, run `npm start` and `npm run dev:web` in two terminals and open
 <http://localhost:5173/>; the same content should appear, with `/api` proxied to the service.
@@ -75,9 +81,9 @@ Checked by Devin while preparing the initial scaffold commit, on Linux with Node
 - `node --test test/health.test.ts` ran only the health suite (3 tests passed).
 - With `dist/` removed, `node --test test/frontend.test.ts` exited non-zero with the "Run `npm run build`"
   message.
-- `npm start` then `curl http://127.0.0.1:3000/api/health` returned HTTP 200 with
+- `npm start` then `curl http://127.0.0.1:8080/api/health` returned HTTP 200 with
   `{"status":"ok","service":"bug-smasher","stage":"scaffold"}`.
-- Opened <http://127.0.0.1:3000/> in Chrome (driven through Playwright over CDP): title
+- Opened <http://127.0.0.1:8080/> in Chrome (driven through Playwright over CDP): title
   "Bug Smasher (scaffold)", heading "Bug Smasher", the "Unfinished scaffold" notice, the status line
   "Service health endpoint responded: ok", three Lucide icons rendered, and no console errors.
 - With `npm start` and `npm run dev:web` running, <http://localhost:5173/> showed the same content and

@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
-const servicePort = process.env.PORT ?? '3000';
+const servicePort = process.env.PORT || '8080';
 
 export default defineConfig({
   root: fileURLToPath(new URL('./web', import.meta.url)),
