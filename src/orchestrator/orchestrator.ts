@@ -416,8 +416,10 @@ export class Orchestrator {
       return;
     }
     if ((record.workflow?.outbox.length ?? 0) > 0) {
+      const movesLabels = record.workflow?.outbox.some((op) => op.type === 'add-label' || op.type === 'remove-label');
       if (!(await this.#drain(key))) return;
       record = this.#store.get(key) as BugRecord;
+      if (movesLabels === true) issue = await this.#tracker.getIssue(issue.number);
     }
 
     if (record.fix !== null && record.fix.mergeCommitSha === null) {

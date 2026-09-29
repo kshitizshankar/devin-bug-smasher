@@ -66,6 +66,8 @@ export interface SessionInfo {
   updatedAt: Timestamp;
   /** Set when the model asked the adapter to stop this session (a `stop-session` effect). */
   stopRequestedAt: Timestamp | null;
+  /** Why the stop was requested, e.g. `labels-removed`; absent on records stopped before it was recorded. */
+  stopReason?: string | null;
 }
 
 export interface TriageFindings {

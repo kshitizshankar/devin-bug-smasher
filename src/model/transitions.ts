@@ -112,6 +112,7 @@ export interface ActionRequest {
 }
 
 const ACTIVE_WORK_STAGES: readonly Stage[] = ['triaging', 'needs-input', 'fixing'];
+const RUNNING_FIX_STAGES: readonly Stage[] = ['fixing', 'verifying'];
 
 function fail(code: ModelError['code'], message: string): ModelResult {
   return { ok: false, error: { code, message } };
@@ -136,10 +137,11 @@ function sessionRunning(record: BugRecord): boolean {
   return record.session !== null && record.session.liveState !== 'ended' && record.session.stopRequestedAt === null;
 }
 
-/** Requests a stop for a running session once; later calls emit nothing. */
-function stopSessionEffects(record: BugRecord, now: Timestamp): Effect[] {
+/** Requests a stop for a running session once, recording why; later calls emit nothing. */
+function stopSessionEffects(record: BugRecord, now: Timestamp, reason: string): Effect[] {
   if (record.session === null || !sessionRunning(record)) return [];
   record.session.stopRequestedAt = now;
+  record.session.stopReason = reason;
   return [{ type: 'stop-session', sessionId: record.session.id }];
 }
 
@@ -162,7 +164,7 @@ function handOff(
           { type: 'add-label', label: engineer },
           ...[triage, fix, feature].map((label): Effect => ({ type: 'remove-label', label })),
         ];
-  const effects = [...labelEffects, ...stopSessionEffects(record, now)];
+  const effects = [...labelEffects, ...stopSessionEffects(record, now, reason)];
   moveTo(record, 'with-engineer', now);
   record.route = null;
   record.handoff = { reason, detail, at: now, engineerLabelSeen: reason === 'engineer-label' };
@@ -245,6 +247,22 @@ function routeFromLabels(record: BugRecord, labels: string[], options: ModelOpti
 }
 
 /**
+ * Stops a running fix whose labels no longer request it: without workflow labels the record returns to an
+ * unrouted `queued`; relabelled for investigation it is queued for triage. Returns null otherwise.
+ */
+function cancelFromLabels(record: BugRecord, labels: string[], options: ModelOptions, now: Timestamp): Effect[] | null {
+  if (!RUNNING_FIX_STAGES.includes(record.stage)) return null;
+  const { route, conflict } = resolveLabels(labels, options.labels);
+  if (conflict !== null || (route !== null && route !== 'triage')) return null;
+  const effects = stopSessionEffects(record, now, route === null ? 'labels-removed' : 'returned-to-triage');
+  archiveFix(record);
+  if (route === 'triage') record.kind = 'bug';
+  record.route = route;
+  moveTo(record, 'queued', now);
+  return effects;
+}
+
+/**
  * Classifies a PR event: `current` for the recorded fix PR, `stale` for an earlier fix PR (to be ignored),
  * otherwise a failure result.
  */
@@ -316,7 +334,7 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
       if (record.stage === 'with-engineer' && record.handoff !== null && !record.handoff.engineerLabelSeen) {
         return unchanged(current);
       }
-      const effects = routeFromLabels(record, event.labels, options, now);
+      const effects = cancelFromLabels(record, event.labels, options, now) ?? routeFromLabels(record, event.labels, options, now);
       return effects === null ? unchanged(current) : done(record, now, effects);
     }
 
@@ -498,7 +516,7 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
       const problems = validateFixInfo(merged, 'fix');
       if (problems.length > 0) return fail('invalid-data', problems.join('; '));
       record.fix = merged;
-      const effects = stopSessionEffects(record, now);
+      const effects = stopSessionEffects(record, now, 'pr-merged');
       moveTo(record, 'merged', now);
       record.route = null;
       return done(record, now, effects);
@@ -516,7 +534,7 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
       if (record.stage === 'closed' || record.stage === 'merged' || mergedFixHandedOff(record)) {
         return unchanged(current);
       }
-      const effects = stopSessionEffects(record, now);
+      const effects = stopSessionEffects(record, now, 'issue-closed');
       moveTo(record, 'closed', now);
       record.route = null;
       return done(record, now, effects);
@@ -634,7 +652,7 @@ export function applyAction(
           facts,
           options,
         ),
-        ...stopSessionEffects(record, now),
+        ...stopSessionEffects(record, now, `person-${request.name}`),
       ];
       archiveFix(record);
       moveTo(record, 'queued', now);
@@ -651,7 +669,7 @@ export function applyAction(
     }
 
     case 'close': {
-      const effects: Effect[] = [...stopSessionEffects(record, now), { type: 'close-issue' }];
+      const effects: Effect[] = [...stopSessionEffects(record, now, 'person-close'), { type: 'close-issue' }];
       if (record.stage !== 'merged') {
         moveTo(record, 'closed', now);
         record.route = null;
