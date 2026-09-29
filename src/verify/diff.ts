@@ -114,7 +114,8 @@ function testNames(text: string | null): Set<string> {
 
 /**
  * Checks a pull request's changes for ways a test run can pass while the bug survives. Each violation fails
- * verification with its own reason; a change outside tests that only deletes lines is a flag, not a failure.
+ * verification with its own reason. Added suppression comments and a change outside tests that only deletes
+ * lines are flags for a person, not failures.
  */
 export function checkChanges(changes: readonly FileChange[]): DiffReport {
   const violations: DiffFinding[] = [];
@@ -133,7 +134,7 @@ export function checkChanges(changes: readonly FileChange[]): DiffReport {
 
     const silenced = count(change.head, SUPPRESSIONS) - count(change.base, SUPPRESSIONS);
     if (silenced > 0) {
-      violations.push({ check: 'check-silenced', file, detail: `${silenced} suppression comment(s) added` });
+      flags.push({ check: 'check-silenced', file, detail: `${silenced} suppression comment(s) added; review before merging` });
     }
 
     if (isTestPath(file)) {

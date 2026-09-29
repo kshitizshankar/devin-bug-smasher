@@ -47,16 +47,18 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
 2. **Resolve exact commits** in a local bare mirror (fetched only when a SHA is missing; the GitHub token is
    passed as an HTTP header through the environment, never stored or logged). Failure → `error`.
 3. **Check the diff** (merge base → head). Every violation fails verification with its own reason, and
-   nothing runs:
+   nothing runs. Flags never fail verification: they are recorded in `evidence.flags`, listed in the
+   verification summary and commit status (`[flagged]`), and posted in one comment for the person deciding
+   the merge:
 
    | Check | Fails on |
    | --- | --- |
    | `test-removed` | A deleted test file, or a test (`it`/`test`/`describe`…, `def test_*`, `func Test*`) no longer present |
    | `test-disabled` | Added skip, expected-failure or only markers: `it.skip`, `describe.only`, `xit`, `pytest.mark.skip`/`skipif`/`xfail`, `unittest.skip`, `@Disabled`, `t.Skip`, `{ skip: … }` … |
    | `test-weakened` | A changed test file with fewer assertions than before |
-   | `check-silenced` | Added suppressions: `# noqa`, `# type: ignore`, `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `pylint: disable`, `nolint`, coverage pragmas … |
+   | `check-silenced` (flag) | Added suppressions (`# noqa`, `# type: ignore`, `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `pylint: disable`, `nolint`, coverage pragmas …) are flagged for review, not rejected: one flag per file with the number added. Only net additions count; suppressions already in the file before the change never do |
    | `rules-changed` | Test, lint, type-check or CI configuration: `pytest.ini`, `conftest.py`, `tox.ini`, `setup.cfg`, lint and `tsconfig*.json` files, test-runner configs, `.github/workflows/`, other CI files; `package.json` `scripts` or test/lint config keys (`jest`, `mocha`, `vitest`, `eslintConfig` …) |
-   | `deletion-only` (flag) | The change outside tests only deletes lines. Recorded in `evidence.flags`, noted in the status and one issue comment; never fails verification |
+   | `deletion-only` (flag) | The change outside tests only deletes lines |
 
 4. **Run head, then base**, each in a fresh workspace exported with `git archive` (no `.git`, remote or
    credential) and a fresh container. The base workspace gets the PR's test files (every added or changed
@@ -109,7 +111,7 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
   (missing file and no code, rejected path, setup error, no result) → `unknown`, which never counts as
   reproduced.
 - Merge policies require the latest pre-merge `pass` for the current head (Rule also requires no
-  violations or flags; Automatic allows deletion-only flags). Branch protection requiring
+  violations or flags; Automatic allows flags). Under `person`, a flagged fix waits for a person like any other. Branch protection requiring
   `bug-smasher/verification` is reported in every merge evaluation (`required`, `missing`, or `unknown`
   when the token cannot read the protection).
 - `merged`: the merge commit is verified (`post-merge`) until it has a `pass` or `fail`, or three errors.
@@ -122,7 +124,10 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
 | V1: base fails with a real assertion, head passes → `pass`; exact SHAs, commands, timestamps, outputs for both runs | `test/verify.test.ts` › V1 |
 | V2: passes on both → `fail` | `test/verify.test.ts` › V2 |
 | V3: fails on head → `fail` | `test/verify.test.ts` › V3 |
-| V4: each diff violation fails on its own reason, nothing runs | `test/verify.test.ts` › V4 › rejects … (9 cases) |
+| V4: each diff violation fails on its own reason, nothing runs | `test/verify.test.ts` › V4 › rejects … (8 cases) |
+| Added suppressions (`# noqa: S608`, `# pylint: disable=…`, `# type: ignore[…]`) pass and are flagged with their file and count; removed or pre-existing suppressions are not flagged; configuration changes and deleted test files still fail | `test/verify.test.ts` › added suppression comments are flagged for a person… (8 tests) |
+| A flagged suppression waits for a person under `MERGE=person`; the flag comment names the file and count | `test/orchestrator-verification.test.ts` › passes a fix with an added suppression… |
+| Rule refuses and Automatic merges an added-suppression flag | `test/orchestrator-policies.test.ts` › Rule refuses an added-suppression flag…, Automatic merges an added-suppression flag… |
 | V4: deletion-only is a flag, not a failure; flag comment | `test/verify.test.ts` › V4 flags…; `test/orchestrator-verification.test.ts` › comments the deletion-only flag… |
 | V5: setup failure, missing module, timeout, crashed test file, crashed runner, missing/unreadable/linked results, unfetchable commits → `error` | `test/verify.test.ts` › V5 (7 tests) |
 | Base test copy never writes through a link in the base tree, and keeps the head's file mode | `test/verify.test.ts` › V5 › replaces a link in the base tree…, gives the copied test on base the mode… |

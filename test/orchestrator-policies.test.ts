@@ -19,6 +19,7 @@ const HEAD_2 = '2'.repeat(40);
 const HEAD_3 = '3'.repeat(40);
 const BOT = 'devin-ai-integration[bot]';
 const DELETION_ONLY: DiffFinding = { check: 'deletion-only', file: 'src/legend.ts', detail: 'the change outside tests only deletes lines' };
+const SILENCED: DiffFinding = { check: 'check-silenced', file: 'src/legend.py', detail: '1 suppression comment(s) added; review before merging' };
 
 /** Passes pre-merge verification (optionally with flags) and returns scripted post-merge results. */
 class World implements Verifier, Reproducer {
@@ -453,6 +454,33 @@ describe('merge policies in the orchestrator', () => {
     assert.equal(evaluation?.rule, 'merge-auto');
     assert.equal(evaluation?.subject, HEAD_3);
     assert.ok(evaluation?.checks.some((check) => check.name === 'diff-checks' && !check.blocking));
+  });
+
+  it('Rule refuses an added-suppression flag, naming its file', async (t) => {
+    const rule = await readyFix(t, { MERGE: 'rule' }, { maxReviewRepairs: 0 });
+    rule.world.flags = [SILENCED];
+    rule.h.tracker.pushHead(rule.pr.number, HEAD_2);
+    rule.h.offline.pullRequestHeads.set(rule.pr.url, HEAD_2);
+    await until(rule.h, rule.key, (record) => record.fix?.headSha === HEAD_2 && record.stage === 'ready-to-merge');
+    greenCi(rule.h, HEAD_2);
+    await reviewed(rule, HEAD_2);
+    await rule.h.cycle(2);
+    const refused = mergeEvaluations(rule.h.record(rule.key)).at(-1);
+    assert.equal(refused?.outcome, 'wait');
+    assert.equal(refused?.checks.find((check) => check.name === 'diff-checks')?.detail, 'Verification flagged: check-silenced in src/legend.py');
+    assert.equal((await rule.h.tracker.getPullRequest(rule.pr.number)).state, 'open');
+  });
+
+  it('Automatic merges an added-suppression flag as a non-blocking finding', async (t) => {
+    const auto = await readyFix(t, { MERGE: 'auto' }, { review: false });
+    auto.world.flags = [SILENCED];
+    auto.h.tracker.pushHead(auto.pr.number, HEAD_2);
+    await until(auto.h, auto.key, (record) => record.fix?.headSha === HEAD_2 && record.stage === 'ready-to-merge');
+    greenCi(auto.h, HEAD_2);
+    const merged = await until(auto.h, auto.key, (record) => record.stage === 'merged');
+    const evaluation = mergeEvaluations(merged).at(-1);
+    assert.equal(evaluation?.subject, HEAD_2);
+    assert.ok(evaluation?.checks.some((check) => check.name === 'diff-checks' && !check.blocking && /check-silenced in src\/legend\.py/.test(check.detail)));
   });
 
   it('asks GitHub again for the same head after it refused the merge, without another decision', async (t) => {

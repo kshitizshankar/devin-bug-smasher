@@ -184,6 +184,26 @@ describe('orchestrator with the independent verifier', () => {
     assert.ok(comments.some((comment) => /flag for review/.test(comment.body) && /deletion-only/.test(comment.body)));
   });
 
+  it('passes a fix with an added suppression and, under the person policy, waits for a person with the file and count', async (t) => {
+    const w = await start(t);
+    const { pr, head } = await openPr(w, { ...FIX, 'src/report.py': 'QUERY = "SELECT * FROM " + TABLE  # noqa: S608\n' });
+    await until(w.h, w.key, (record) => record.stage === 'ready-to-merge');
+    await w.h.cycle(3);
+    const record = w.h.record(w.key);
+    assert.equal(record.stage, 'ready-to-merge');
+    assert.deepEqual(record.decisions.filter((decision) => decision.action === 'merge'), []);
+    assert.equal((await w.h.tracker.getPullRequest(pr.number)).state, 'open');
+    const attempt = record.verifications.at(-1);
+    assert.equal(attempt?.result, 'pass', attempt?.reason);
+    assert.deepEqual(attempt?.evidence?.flags.map((flag) => [flag.check, flag.file]), [['check-silenced', 'src/report.py']]);
+    assert.match((await statusOf(w.h, head))?.description ?? '', /\[flagged\]/);
+    const flagged = (await w.h.tracker.listComments(w.issueNumber)).filter((comment) => /flag for review/.test(comment.body));
+    assert.equal(flagged.length, 1);
+    assert.match(flagged[0]!.body, /check-silenced in `src\/report\.py`: 1 suppression comment\(s\) added/);
+    assert.match(flagged[0]!.body, /A person should look at each added suppression comment/);
+    assert.doesNotMatch(flagged[0]!.body, /only delete code/);
+  });
+
   it('G7: relays a command proposed in an issue comment as text and never runs it', async (t) => {
     const w = await start(t);
     const marker = join(w.world.root, 'pwned');

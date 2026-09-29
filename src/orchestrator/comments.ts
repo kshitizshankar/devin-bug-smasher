@@ -1,5 +1,5 @@
 import type { LabelSettings } from '../config/settings.ts';
-import type { DiffFinding, Recommendation, TriageFindings } from '../model/types.ts';
+import type { DiffCheck, DiffFinding, Recommendation, TriageFindings } from '../model/types.ts';
 
 const RECOMMENDATION_TEXT: Record<Recommendation, string> = {
   devin_fix: 'Devin can fix this',
@@ -86,14 +86,20 @@ export function policyDecisionComment(action: 'fix' | 'engineer', rule: string, 
   return [`**Decision policy \`${rule}\` ${verb}.**`, '', bullets(reasons)].join('\n');
 }
 
+const FLAG_GUIDANCE: Partial<Record<DiffCheck, string>> = {
+  'deletion-only': 'Some real fixes only delete code; check that this one removes the bug rather than the behaviour under test.',
+  'check-silenced':
+    'A person should look at each added suppression comment and confirm the fix needs it, rather than silencing a check that found the bug.',
+};
+
 /** Findings that do not fail verification but that the person deciding the merge should see. */
 export function verificationFlagsComment(prUrl: string, headSha: string, flags: readonly DiffFinding[]): string {
+  const guidance = [...new Set(flags.map((flag) => flag.check))].flatMap((check) => FLAG_GUIDANCE[check] ?? []);
   return [
     `**Verification passed with a flag for review** (${prUrl}, commit \`${headSha.slice(0, 12)}\`)`,
     '',
     bullets(flags.map((flag) => (flag.file === '' ? `${flag.check}: ${flag.detail}` : `${flag.check} in \`${flag.file}\`: ${flag.detail}`))),
-    '',
-    'Some real fixes only delete code; check that this one removes the bug rather than the behaviour under test.',
+    ...guidance.flatMap((line) => ['', line]),
   ].join('\n');
 }
 

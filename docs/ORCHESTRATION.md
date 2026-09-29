@@ -174,7 +174,7 @@ Once a head is `ready-to-merge`:
 | Check | `rule` (`merge-rule`) | `auto` (`merge-auto`) |
 | --- | --- | --- |
 | Latest pre-merge verification of the **current** head passed | required | required |
-| No verification violations or flags | required | deletion-only flags allowed |
+| No verification violations or flags (`deletion-only`, `check-silenced`) | required | flags allowed |
 | CI green (check runs and commit statuses other than `bug-smasher/verification`) — `pending`, `failing`, `missing` or `unknown` (incomplete listing) refuse | required | required |
 | Devin Review completed for this head and no unresolved Devin Review thread | required | not checked |
 | Additions + deletions `<= MERGE_MAX_LINES` | required | not checked |
