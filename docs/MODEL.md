@@ -35,7 +35,7 @@ The store keeps only orchestration and evidence data (`BugRecord` in `src/model/
 | `triage`        | Findings: title, summary, reproduction steps, expected/actual, suspected cause, affected files, reproduced + notes, proposed test (description, file, command — **data only, never executed**), recommendation (`devin_fix`/`needs_engineer`/`close`), reason, confidence |
 | `fix`           | PR number/URL, current head SHA, test files, summary, `mergeCommitSha` (set by `pr-merged`)        |
 | `priorFixes`    | Earlier fix PRs, moved here when work is returned to investigation or repair                      |
-| `verifications` | Attempts: phase (`pre-merge`/`post-merge`), base and head SHAs, `pass`/`fail`/`error`, reason, output tail, time, session ID |
+| `verifications` | Attempts: phase (`pre-merge`/`post-merge`), base and head SHAs, `pass`/`fail`/`error`, reason, output tail, time, session ID, optional `evidence` (per-run role/step/SHA/command/times/exit/outcome/output, diff `violations` and `flags`) |
 | `decisions`     | Person actions: action, outcome (`applied`/`requested`), actor, time, context                      |
 | `questions`     | id, summary, asked time, answered time (`null` while outstanding)                                  |
 | `stageHistory`  | One `{ stage, at }` entry per actual stage change                                                  |
@@ -198,7 +198,10 @@ Counts are per fix session, so a new session after a handoff starts with fresh b
 | `GITHUB_TOKEN`         | —                       | Live: required; secret                                   |
 | `DEVIN_API_KEY`        | —                       | Live: required; secret                                   |
 | `DEVIN_ORG_ID`         | —                       | Live: required                                           |
-| `CHECK_COMMAND`        | —                       | Live: required, must contain `{files}`                   |
+| `CHECK_COMMAND`        | —                       | Live: required, must contain `{files}`; verification also needs `{results}` (`docs/VERIFICATION.md`) |
+| `VERIFY_IMAGE`, `VERIFY_SETUP_COMMAND` | unset | Verification test image and optional setup (`docs/VERIFICATION.md`) |
+| `VERIFY_TIMEOUT_SECONDS` | `600`                 | Positive integer, per setup/test step                    |
+| `VERIFY_WORK_DIR`      | `<repo>/data/verify`    | Mirror and disposable workspaces                         |
 | `TRIAGE_LABEL`         | `needs-triage`          | Workflow labels must be distinct (case-insensitive)      |
 | `FIX_LABEL`            | `bug-smasher`           |                                                          |
 | `ENGINEER_LABEL`       | `needs-engineer`        |                                                          |

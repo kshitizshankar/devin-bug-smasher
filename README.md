@@ -8,6 +8,11 @@ placeholder React frontend and a health endpoint, the workflow orchestrator (whi
 Devin sessions only when live GitHub and Devin settings are complete), plus build, typecheck, test and CI
 tooling.
 
+## Verification
+
+Fixes are verified independently in Docker against exact base and head commits; see
+[`docs/VERIFICATION.md`](docs/VERIFICATION.md). Without `VERIFY_IMAGE`, nothing is reported as verified.
+
 ## Not yet implemented
 
 None of the following exists yet:
@@ -15,8 +20,6 @@ None of the following exists yet:
 - **Decision and merge policies** – automatic repair decisions and merging. The workflow orchestrator
   (see [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md)) consumes an injected decision-policy contract, but
   none is implemented yet, so a person decides.
-- **Verification** – independent regression verification of proposed fixes. The orchestrator consumes an
-  injected verifier contract; without one, nothing is reported as verified.
 - **Dashboard** – the frontend is a placeholder page only.
 - **Docker packaging** – there is no Dockerfile or container image.
 

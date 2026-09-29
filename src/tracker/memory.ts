@@ -237,9 +237,12 @@ export class InMemoryTracker implements Tracker {
     this.#applyIssueState(this.#issueEntry('reopenIssue', issueNumber), 'open', null, user(login));
   }
 
-  /** A person merges the PR on GitHub; issues it closes are closed as GitHub would. */
-  externalMerge(prNumber: number, login: string): string {
-    return this.#applyMerge(this.#pullEntry('mergePullRequest', prNumber), user(login));
+  /**
+   * A person merges the PR on GitHub; issues it closes are closed as GitHub would. `mergeCommitSha` sets the
+   * resulting commit (for example a real commit in a fixture repository); otherwise one is derived.
+   */
+  externalMerge(prNumber: number, login: string, mergeCommitSha?: string): string {
+    return this.#applyMerge(this.#pullEntry('mergePullRequest', prNumber), user(login), mergeCommitSha);
   }
 
   externalClosePullRequest(prNumber: number): void {
@@ -621,11 +624,11 @@ export class InMemoryTracker implements Tracker {
     this.#event(entry, state === 'closed' ? 'closed' : 'reopened', null, actor);
   }
 
-  #applyMerge(entry: PullRequestEntry, actor: Actor): string {
+  #applyMerge(entry: PullRequestEntry, actor: Actor, mergeCommitSha?: string): string {
     const pr = entry.pr;
     if (pr.state === 'merged' && pr.mergeCommitSha !== null) return pr.mergeCommitSha;
     const at = this.#now();
-    const sha = createHash('sha1').update(`merge:${pr.number}:${pr.headSha}`).digest('hex');
+    const sha = mergeCommitSha ?? createHash('sha1').update(`merge:${pr.number}:${pr.headSha}`).digest('hex');
     Object.assign(pr, {
       state: 'merged',
       mergeCommitSha: sha,

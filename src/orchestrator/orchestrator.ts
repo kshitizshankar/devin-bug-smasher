@@ -13,7 +13,7 @@ import {
 import type { StructuredSignal } from '../devin/structured-output.ts';
 import { parseBugKey } from '../model/keys.ts';
 import { resolveLabels } from '../model/labels.ts';
-import { outstandingQuestion } from '../model/presentation.ts';
+import { currentMergeVerifications, outstandingQuestion } from '../model/presentation.ts';
 import {
   applyAction,
   applyEvent,
@@ -25,7 +25,16 @@ import {
   type ModelOptions,
   type ModelResult,
 } from '../model/transitions.ts';
-import type { ActionName, BugRecord, Stage, WorkflowOperation, WorkflowState, WorkRoute } from '../model/types.ts';
+import type {
+  ActionName,
+  BugRecord,
+  Stage,
+  VerificationAttempt,
+  VerificationPhase,
+  WorkflowOperation,
+  WorkflowState,
+  WorkRoute,
+} from '../model/types.ts';
 import type { BugStore } from '../store/bug-store.ts';
 import { hasLabel, toGitHubFacts } from '../tracker/common.ts';
 import {
@@ -43,6 +52,7 @@ import {
   questionComment,
   triageComment,
   triagePullRequestNotice,
+  verificationFlagsComment,
 } from './comments.ts';
 import {
   githubActor,
@@ -50,6 +60,7 @@ import {
   policyActor,
   UNAVAILABLE_POLICY,
   UNAVAILABLE_VERIFIER,
+  verificationStatus,
   type DecisionPolicy,
   type Verifier,
 } from './contracts.ts';
@@ -338,6 +349,10 @@ export class Orchestrator {
     if (record.fix !== null && record.fix.mergeCommitSha === null) {
       if (await this.#observePullRequest(issue, record)) return;
     }
+    if (this.#needsMergeVerification(record)) {
+      await this.#verifyMerge(issue, record);
+      return;
+    }
 
     if (issue.state === 'closed') {
       const closed = this.#event(record, { type: 'issue-closed' });
@@ -547,6 +562,8 @@ export class Orchestrator {
         return { sessionId: op.sessionId, marker: op.marker };
       case 'merge-pr':
         return { prNumber: op.prNumber };
+      case 'set-commit-status':
+        return { sha: op.sha, state: op.state, context: op.context };
       case 'close-issue':
         return {};
     }
@@ -585,6 +602,9 @@ export class Orchestrator {
       }
       case 'merge-pr':
         await this.#tracker.mergePullRequest(op.prNumber, { expectedHeadSha: op.expectedHeadSha });
+        return;
+      case 'set-commit-status':
+        await this.#tracker.createCommitStatus(op.sha, { state: op.state, context: op.context, description: op.description });
         return;
     }
   }
@@ -1112,29 +1132,8 @@ export class Orchestrator {
   async #verify(issue: TrackerIssue, record: BugRecord): Promise<void> {
     const fix = record.fix;
     if (fix === null) return;
-    if (this.#requireLive && !this.#verifier.live) {
-      this.#emit(record.key, 'verifier-unavailable', { reason: 'The configured verifier is not live' });
-      return;
-    }
-    const pr = await this.#tracker.getPullRequest(fix.prNumber);
-    const outcome = await this.#verifier.verify({
-      bugKey: record.key,
-      phase: 'pre-merge',
-      prNumber: fix.prNumber,
-      prUrl: fix.prUrl,
-      headSha: fix.headSha,
-      baseSha: pr.baseSha,
-      testFiles: [...fix.testFiles],
-    });
-    if (outcome.status === 'unavailable') {
-      this.#emit(record.key, 'verifier-unavailable', { reason: outcome.reason });
-      return;
-    }
-    const attempt = outcome.attempt;
-    if (attempt.phase !== 'pre-merge' || attempt.headSha !== fix.headSha) {
-      this.#emit(record.key, 'refused', { what: 'verification-recorded', code: 'stale-verification', message: `Result for ${attempt.phase} ${attempt.headSha} does not match head ${fix.headSha}` });
-      return;
-    }
+    const attempt = await this.#runVerifier(record, 'pre-merge', fix.headSha);
+    if (attempt === null) return;
     const result = this.#event(record, { type: 'verification-recorded', attempt });
     const ops: WorkflowOperation[] = [];
     if (result.ok && result.record.stage === 'fixing' && attempt.result === 'fail') {
@@ -1155,7 +1154,66 @@ export class Orchestrator {
         });
       }
     }
-    await this.#commit(issue, record, result, `verification-${attempt.result}`, { ops });
+    const flags = attempt.evidence?.flags ?? [];
+    if (attempt.result === 'pass' && flags.length > 0) {
+      ops.push({
+        type: 'post-comment',
+        key: commentKey(`verification-flags:${record.key}:${fix.headSha}`),
+        body: verificationFlagsComment(fix.prUrl, fix.headSha, flags),
+      });
+    }
+    await this.#commit(issue, record, result, `verification-${attempt.result}`, { first: [verificationStatus(attempt)], ops });
+  }
+
+  /** Post-merge verification is due until the merge commit has a pass or a failure, or errors ran out. */
+  #needsMergeVerification(record: BugRecord): boolean {
+    if (record.stage !== 'merged' || record.fix === null || record.fix.mergeCommitSha === null) return false;
+    const attempts = currentMergeVerifications(record);
+    if (attempts.some((attempt) => attempt.result !== 'error')) return false;
+    return attempts.length < this.#model.maxVerificationErrors;
+  }
+
+  async #verifyMerge(issue: TrackerIssue, record: BugRecord): Promise<void> {
+    const mergeCommitSha = record.fix?.mergeCommitSha ?? null;
+    if (mergeCommitSha === null) return;
+    const attempt = await this.#runVerifier(record, 'post-merge', mergeCommitSha);
+    if (attempt === null) return;
+    const result = this.#event(record, { type: 'verification-recorded', attempt });
+    await this.#commit(issue, record, result, `post-merge-verification-${attempt.result}`, { first: [verificationStatus(attempt)] });
+  }
+
+  /** Runs the injected verifier for `sha`; `null` when nothing usable was verified (never a pass). */
+  async #runVerifier(
+    record: BugRecord,
+    phase: VerificationPhase,
+    sha: string,
+  ): Promise<Omit<VerificationAttempt, 'sessionId'> | null> {
+    const fix = record.fix;
+    if (fix === null) return null;
+    if (this.#requireLive && !this.#verifier.live) {
+      this.#emit(record.key, 'verifier-unavailable', { reason: 'The configured verifier is not live' });
+      return null;
+    }
+    const pr = await this.#tracker.getPullRequest(fix.prNumber);
+    const outcome = await this.#verifier.verify({
+      bugKey: record.key,
+      phase,
+      prNumber: fix.prNumber,
+      prUrl: fix.prUrl,
+      headSha: sha,
+      baseSha: pr.baseSha,
+      testFiles: [...fix.testFiles],
+    });
+    if (outcome.status === 'unavailable') {
+      this.#emit(record.key, 'verifier-unavailable', { reason: outcome.reason });
+      return null;
+    }
+    const attempt = outcome.attempt;
+    if (attempt.phase !== phase || attempt.headSha !== sha) {
+      this.#emit(record.key, 'refused', { what: 'verification-recorded', code: 'stale-verification', message: `Result for ${attempt.phase} ${attempt.headSha} does not match ${phase} ${sha}` });
+      return null;
+    }
+    return attempt;
   }
 
   async #decide(issue: TrackerIssue, record: BugRecord): Promise<void> {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   assertLiveSettings,
+  DEFAULT_VERIFY_DIR,
   effectiveSettings,
   liveSettingsProblems,
   loadSettings,
@@ -78,6 +79,28 @@ describe('settings', () => {
       budgetUsd: null,
     });
     assert.equal(settings.baselineFilter, 'unit');
+  });
+
+  it('loads verification defaults and overrides', () => {
+    const defaults = loadSettings({}).verify;
+    assert.equal(defaults.image, null);
+    assert.equal(defaults.setupCommand, null);
+    assert.equal(defaults.timeoutSeconds, 600);
+    assert.equal(defaults.workDir, DEFAULT_VERIFY_DIR);
+    const settings = loadSettings({
+      VERIFY_IMAGE: 'node:22.18.0-alpine',
+      VERIFY_SETUP_COMMAND: 'npm ci',
+      VERIFY_TIMEOUT_SECONDS: '90',
+      VERIFY_WORK_DIR: '/srv/verify',
+    });
+    assert.deepEqual(settings.verify, {
+      image: 'node:22.18.0-alpine',
+      setupCommand: 'npm ci',
+      timeoutSeconds: 90,
+      workDir: '/srv/verify',
+    });
+    assert.deepEqual(effectiveSettings(settings).verify, settings.verify);
+    assert.match(settingsError({ VERIFY_TIMEOUT_SECONDS: '0' }).message, /VERIFY_TIMEOUT_SECONDS/);
   });
 
   it('rejects invalid enum, boolean, numeric, repo and timestamp values instead of coercing them', () => {

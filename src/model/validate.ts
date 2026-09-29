@@ -3,13 +3,17 @@ import {
   ACTION_NAMES,
   CONFIDENCES,
   DECISION_OUTCOMES,
+  DIFF_CHECKS,
   HANDOFF_REASONS,
   RECOMMENDATIONS,
+  RUN_OUTCOMES,
   SESSION_LIVE_STATES,
   STAGES,
   TASK_KINDS,
   VERIFICATION_PHASES,
   VERIFICATION_RESULTS,
+  VERIFICATION_RUN_ROLES,
+  VERIFICATION_STEPS,
   WORK_ROUTES,
   WORKFLOW_OPERATION_TYPES,
 } from './types.ts';
@@ -130,6 +134,37 @@ export function validateVerificationAttempt(value: unknown, path: string): Probl
   checkString(value.outputTail, `${path}.outputTail`, problems);
   checkTimestamp(value.at, `${path}.at`, problems);
   checkNullableString(value.sessionId, `${path}.sessionId`, problems);
+  if (value.evidence !== undefined) problems.push(...validateVerificationEvidence(value.evidence, `${path}.evidence`));
+  return problems;
+}
+
+function checkFinding(item: unknown, path: string, problems: Problems): void {
+  if (!checkObject(item, path, problems)) return;
+  checkOneOf(item.check, DIFF_CHECKS, `${path}.check`, problems);
+  checkString(item.file, `${path}.file`, problems);
+  checkString(item.detail, `${path}.detail`, problems);
+}
+
+export function validateVerificationEvidence(value: unknown, path: string): Problems {
+  const problems: Problems = [];
+  if (!checkObject(value, path, problems)) return problems;
+  checkArray(value.runs, `${path}.runs`, problems, (item, itemPath, list) => {
+    if (!checkObject(item, itemPath, list)) return;
+    checkOneOf(item.role, VERIFICATION_RUN_ROLES, `${itemPath}.role`, list);
+    checkOneOf(item.step, VERIFICATION_STEPS, `${itemPath}.step`, list);
+    checkSha(item.sha, `${itemPath}.sha`, list);
+    checkArray(item.command, `${itemPath}.command`, list, checkStringItem);
+    checkTimestamp(item.startedAt, `${itemPath}.startedAt`, list);
+    checkTimestamp(item.endedAt, `${itemPath}.endedAt`, list);
+    if (item.exitCode !== null && (typeof item.exitCode !== 'number' || !Number.isSafeInteger(item.exitCode))) {
+      list.push(`${itemPath}.exitCode must be null or an integer`);
+    }
+    checkOneOf(item.outcome, RUN_OUTCOMES, `${itemPath}.outcome`, list);
+    checkString(item.reason, `${itemPath}.reason`, list);
+    checkString(item.outputTail, `${itemPath}.outputTail`, list);
+  });
+  checkArray(value.violations, `${path}.violations`, problems, checkFinding);
+  checkArray(value.flags, `${path}.flags`, problems, checkFinding);
   return problems;
 }
 
@@ -184,6 +219,12 @@ export function validateWorkflowState(value: unknown, path: string): Problems {
       case 'merge-pr':
         checkPositiveInteger(item.prNumber, `${itemPath}.prNumber`, list);
         checkSha(item.expectedHeadSha, `${itemPath}.expectedHeadSha`, list);
+        break;
+      case 'set-commit-status':
+        checkSha(item.sha, `${itemPath}.sha`, list);
+        checkOneOf(item.state, ['success', 'failure', 'error'], `${itemPath}.state`, list);
+        checkString(item.context, `${itemPath}.context`, list, { nonEmpty: true });
+        checkString(item.description, `${itemPath}.description`, list);
         break;
     }
   });

@@ -17,6 +17,18 @@ export interface GitHubRepo {
   name: string;
 }
 
+/** Independent verification (M1.5); see docs/VERIFICATION.md. */
+export interface VerifySettings {
+  /** The target repository's test image; verification is unavailable until it is set. */
+  image: string | null;
+  /** Optional dependency preparation run before the tests, e.g. `npm ci`. */
+  setupCommand: string | null;
+  /** Time limit for each setup and test step. */
+  timeoutSeconds: number;
+  /** Repository mirror and disposable workspaces. */
+  workDir: string;
+}
+
 /** Fully parsed settings. Holds secrets; never serialize it directly, use `effectiveSettings`. */
 export interface Settings {
   github: {
@@ -32,6 +44,7 @@ export interface Settings {
   };
   checkCommand: string | null;
   baselineFilter: string | null;
+  verify: VerifySettings;
   labels: LabelSettings;
   decision: Policy;
   merge: Policy;
@@ -64,6 +77,7 @@ export interface EffectiveSettings {
   };
   checkCommand: string | null;
   baselineFilter: string | null;
+  verify: VerifySettings;
   labels: LabelSettings;
   decision: Policy;
   merge: Policy;
@@ -75,6 +89,8 @@ export interface EffectiveSettings {
 }
 
 export const DEFAULT_STATIC_DIR = fileURLToPath(new URL('../../dist/web', import.meta.url));
+
+export const DEFAULT_VERIFY_DIR = fileURLToPath(new URL('../../data/verify', import.meta.url));
 
 export const FILES_PLACEHOLDER = '{files}';
 
@@ -234,6 +250,12 @@ export function loadSettings(env: Env = process.env): Settings {
     },
     checkCommand: read.optionalString('CHECK_COMMAND'),
     baselineFilter: read.optionalString('BASELINE_FILTER'),
+    verify: {
+      image: read.optionalString('VERIFY_IMAGE'),
+      setupCommand: read.optionalString('VERIFY_SETUP_COMMAND'),
+      timeoutSeconds: read.integer('VERIFY_TIMEOUT_SECONDS', 600, 1),
+      workDir: read.string('VERIFY_WORK_DIR', DEFAULT_VERIFY_DIR),
+    },
     labels,
     decision: read.enumeration('DECISION', POLICIES, 'person'),
     merge: read.enumeration('MERGE', POLICIES, 'person'),
@@ -297,6 +319,7 @@ export function effectiveSettings(settings: Settings): EffectiveSettings {
     },
     checkCommand: settings.checkCommand,
     baselineFilter: settings.baselineFilter,
+    verify: { ...settings.verify },
     labels: { ...settings.labels },
     decision: settings.decision,
     merge: settings.merge,
