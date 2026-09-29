@@ -82,7 +82,7 @@ export function parseBuildLog(text: string): BuildLog {
     const key = path.join('\u0000');
     const existing = byPath.get(key);
     if (existing === undefined) byPath.set(key, { path, outcome, exitCode, line });
-    else Object.assign(existing, { outcome, exitCode: exitCode ?? existing.exitCode, line });
+    else Object.assign(existing, { outcome, exitCode: exitCode ?? (outcome === existing.outcome ? existing.exitCode : null), line });
   };
   const fromJson = (item: Record<string, unknown>, parent: string[], line: number): void => {
     const name = [item.step, item.name, item.title].find((value): value is string => typeof value === 'string' && value.trim() !== '');

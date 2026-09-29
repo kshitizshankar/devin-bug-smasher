@@ -146,6 +146,28 @@ describe('operator setup', () => {
     });
   });
 
+  it('triggers the build a failed setup run left out, and re-enables a disabled note', async () => {
+    await withHarness(async (h) => {
+      h.devin.failNext((call) => call.method === 'POST' && call.path.endsWith('/snapshot-setup/builds'), 500, { detail: 'unavailable' });
+      const interrupted = await h.run(['setup']);
+      assert.equal(interrupted.code, 1);
+      assert.equal(h.devin.builds.length, 0);
+      const note = h.devin.notes.find((candidate) => candidate.name === 'Bug Smasher: verification image');
+      assert.ok(note);
+      note.is_enabled = false;
+      const devinBefore = h.devin.writes().length;
+
+      const resumed = await h.run(['setup']);
+      assert.equal(resumed.code, 0, resumed.err);
+      assert.deepEqual(
+        h.devin.writes().slice(devinBefore).map((call) => `${call.method} ${call.path}`),
+        [`PUT /v3/organizations/${ORG_ID}/knowledge/notes/${note.note_id}`, `POST /v3beta1/organizations/${ORG_ID}/snapshot-setup/builds`],
+      );
+      assert.equal(note.is_enabled, true);
+      assert.match((await h.run(['setup'])).out, /Nothing to change/);
+    });
+  });
+
   it('stops before any change when Devin cannot reach the target, naming the web-app setting', async () => {
     await withHarness(
       async (h) => {
@@ -323,6 +345,38 @@ describe('operator env-status', () => {
       ],
     );
     assert.deepEqual(failedSteps(log).map((step) => step.path.join(' > ')), ['setup > deps']);
+  });
+
+  it('prints step names without terminal control characters', async () => {
+    await withHarness(async (h) => {
+      h.devin.seedBuild({ build_id: 'build-1' }, 'step \u001b[31minstall\u001b]8;;https://evil.test\u0007: failed\n');
+      const result = await h.run(['env-status']);
+      assert.equal(result.code, 1);
+      assert.match(result.out, /install/);
+      assert.ok(!/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/.test(result.out));
+    });
+  });
+
+  it('clears a failed exit code when the step later passes', () => {
+    const log = parseBuildLog('step deps: failed exit code 3\nstep deps: passed\n');
+    assert.deepEqual(log.steps.map((step) => [step.outcome, step.exitCode]), [['passed', null]]);
+  });
+
+  it('refuses a presigned download that redirects to plain http', async () => {
+    const fetched: string[] = [];
+    const client = new DevinSetupClient({
+      apiKey: API_KEY,
+      orgId: ORG_ID,
+      fetch: async (url, init) => {
+        fetched.push(url);
+        assert.equal(init.redirect, 'manual');
+        if (url.startsWith('https://files.devin.test/a')) return new Response(null, { status: 302, headers: { location: 'https://files.devin.test/b' } });
+        if (url.startsWith('https://files.devin.test/b')) return new Response(null, { status: 302, headers: { location: 'http://files.devin.test/c' } });
+        return new Response('leaked');
+      },
+    });
+    await assert.rejects(client.fetchDownload('get-build-logs', { url: 'https://files.devin.test/a?X-Signature=s', expires_at: 1 }), /not https/);
+    assert.deepEqual(fetched, ['https://files.devin.test/a?X-Signature=s', 'https://files.devin.test/b']);
   });
 
   it('downloads presigned links without the Devin key and refuses non-https links', async () => {

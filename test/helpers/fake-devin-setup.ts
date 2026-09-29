@@ -32,6 +32,8 @@ export class FakeDevinSetup {
   readonly logs = new Map<string, string>();
   readonly #failures: { match: (call: DevinCall) => boolean; status: number; body: unknown }[] = [];
   #next = 1;
+  /** Seconds; advances on every blueprint or build change so that ordering is observable. */
+  #clock = 1_000;
 
   constructor(orgId: string) {
     this.orgId = orgId;
@@ -68,6 +70,11 @@ export class FakeDevinSetup {
     if (removed !== undefined) return json(removed.status, removed.body);
     return this.#route(call);
   };
+
+  #tick(): number {
+    this.#clock += 1;
+    return this.#clock;
+  }
 
   #id(prefix: string): string {
     const id = `${prefix}-${this.#next}`;
@@ -131,7 +138,13 @@ export class FakeDevinSetup {
     if ((match = /^knowledge\/notes\/([^/]+)$/.exec(route)) && call.method === 'PUT') {
       const note = this.notes.find((candidate) => candidate.note_id === match?.[1]);
       if (note === undefined) return json(404, { detail: 'not found' });
-      Object.assign(note, { name: body.name, body: body.body, trigger: body.trigger, pinned_repo: body.pinned_repo ?? note.pinned_repo });
+      Object.assign(note, {
+        name: body.name,
+        body: body.body,
+        trigger: body.trigger,
+        pinned_repo: body.pinned_repo ?? note.pinned_repo,
+        is_enabled: typeof body.is_enabled === 'boolean' ? body.is_enabled : note.is_enabled,
+      });
       return json(200, note);
     }
     if ((match = /^repositories\/(.+)\/indexing$/.exec(route))) {
@@ -153,8 +166,8 @@ export class FakeDevinSetup {
         type: body.repo_name === null ? 'org' : 'repo',
         repo_name: (body.repo_name as string | null) ?? null,
         contents: String(body.contents),
-        created_at: 1,
-        updated_at: 1,
+        created_at: this.#tick(),
+        updated_at: this.#clock,
       };
       this.blueprints.push(blueprint);
       const { contents: _contents, ...shown } = blueprint;
@@ -164,6 +177,7 @@ export class FakeDevinSetup {
       const blueprint = this.blueprints.find((candidate) => candidate.blueprint_id === match?.[1]);
       if (blueprint === undefined) return json(404, { detail: 'not found' });
       blueprint.contents = String(body.contents);
+      blueprint.updated_at = this.#tick();
       const { contents: _contents, ...shown } = blueprint;
       return json(200, shown);
     }
@@ -172,7 +186,7 @@ export class FakeDevinSetup {
     }
     if (route === 'snapshot-setup/builds' && call.method === 'GET') return page(this.builds);
     if (route === 'snapshot-setup/builds' && call.method === 'POST') {
-      const build: SnapshotBuild = { build_id: this.#id('build'), status: 'pending', pinned: false, started_at: null, completed_at: null, created_at: null };
+      const build: SnapshotBuild = { build_id: this.#id('build'), status: 'pending', pinned: false, started_at: null, completed_at: null, created_at: this.#tick() };
       this.builds.push(build);
       return json(200, build);
     }

@@ -204,6 +204,11 @@ async function reportCommand(args: readonly string[], io: OperatorIO): Promise<n
   return 0;
 }
 
+/** Replaces terminal control characters (other than tab and newline), which provider data may contain. */
+function printable(text: string): string {
+  return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '\uFFFD');
+}
+
 /**
  * Runs one operator command and returns its exit code, or null for `run`, which keeps the process serving.
  * Everything written to `out`/`err` is redacted of the configured credentials and credential-shaped values.
@@ -212,8 +217,8 @@ export async function runCommand(argv: readonly string[], io: OperatorIO): Promi
   const secrets = [io.env.GITHUB_TOKEN, io.env.DEVIN_API_KEY].map((value) => value?.trim() ?? '').filter((value) => value !== '');
   const safe: OperatorIO = {
     ...io,
-    out: (line) => io.out(redact(line, secrets)),
-    err: (line) => io.err(redact(line, secrets)),
+    out: (line) => io.out(printable(redact(line, secrets))),
+    err: (line) => io.err(printable(redact(line, secrets))),
   };
   const [command, ...args] = argv;
   try {

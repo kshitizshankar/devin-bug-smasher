@@ -78,6 +78,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const MAX_DOWNLOAD_REDIRECTS = 5;
+
+/** `https` only; plain `http` is allowed for loopback addresses (tests). */
+function downloadAllowed(url: URL): boolean {
+  const loopback = url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]';
+  return url.protocol === 'https:' || (url.protocol === 'http:' && loopback);
+}
+
 export class DevinSetupClient {
   readonly #transport: DevinTransport;
   readonly #org: string;
@@ -133,11 +141,20 @@ export class DevinSetupClient {
     }, 'note_id');
   }
 
-  updateKnowledgeNote(noteId: string, input: { name: string; body: string; trigger: string; pinnedRepo?: string | null }): Promise<KnowledgeNote> {
+  updateKnowledgeNote(
+    noteId: string,
+    input: { name: string; body: string; trigger: string; pinnedRepo?: string | null; isEnabled?: boolean },
+  ): Promise<KnowledgeNote> {
     return this.#object('update-knowledge-note', {
       method: 'PUT',
       path: `/v3/organizations/${this.#org}/knowledge/notes/${encodeURIComponent(noteId)}`,
-      body: { name: input.name, body: input.body, trigger: input.trigger, pinned_repo: input.pinnedRepo ?? null },
+      body: {
+        name: input.name,
+        body: input.body,
+        trigger: input.trigger,
+        pinned_repo: input.pinnedRepo ?? null,
+        ...(input.isEnabled === undefined ? {} : { is_enabled: input.isEnabled }),
+      },
     }, 'note_id');
   }
 
@@ -198,10 +215,7 @@ export class DevinSetupClient {
     } catch {
       throw this.#transport.invalidResponse(operation, 'download url is not a URL', false);
     }
-    const loopback = url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]';
-    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
-      throw this.#transport.invalidResponse(operation, 'download url must use https', false);
-    }
+    if (!downloadAllowed(url)) throw this.#transport.invalidResponse(operation, 'download url must use https', false);
     const failure = (kind: 'network' | 'timeout' | 'provider', status: number | null, detail: string): DevinError =>
       new DevinError({
         kind,
@@ -211,12 +225,29 @@ export class DevinSetupClient {
         retryAfterSeconds: null,
         ambiguous: false,
       });
+    const signal = AbortSignal.timeout(this.#timeoutMs);
+    let current = url;
     let response: Response;
-    try {
-      response = await this.#fetch(url.toString(), { method: 'GET', signal: AbortSignal.timeout(this.#timeoutMs) });
-    } catch (error) {
-      const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
-      throw failure(timedOut ? 'timeout' : 'network', null, timedOut ? 'timed out' : 'network error');
+    // Redirects are followed by hand so that every hop is held to the same https rule.
+    for (let hops = 0; ; hops += 1) {
+      try {
+        response = await this.#fetch(current.toString(), { method: 'GET', redirect: 'manual', signal });
+      } catch (error) {
+        const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+        throw failure(timedOut ? 'timeout' : 'network', null, timedOut ? 'timed out' : 'network error');
+      }
+      const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+      if (location === null) break;
+      await response.body?.cancel();
+      if (hops >= MAX_DOWNLOAD_REDIRECTS) throw failure('provider', response.status, 'too many redirects');
+      let next: URL;
+      try {
+        next = new URL(location, current);
+      } catch {
+        throw failure('provider', response.status, 'redirect location is not a URL');
+      }
+      if (!downloadAllowed(next)) throw failure('provider', response.status, 'redirected to a link that is not https');
+      current = next;
     }
     if (!response.ok) {
       await response.body?.cancel();

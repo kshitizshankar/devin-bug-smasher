@@ -53,7 +53,8 @@ In order:
    `prompts/investigation-playbook.md`. Playbooks are organization objects in Devin; setup only ever
    considers the one with this exact title and stops if there are several.
 5. **Knowledge notes pinned to the target** (`pinned_repo`), matched by name among the target's pinned
-   notes only; unpinned notes and notes pinned to other repositories are never considered:
+   notes only (a disabled note is re-enabled); unpinned notes and notes pinned to other repositories are
+   never considered:
    - `Bug Smasher: fast tests` – `CHECK_COMMAND` and `VERIFY_SETUP_COMMAND` as configured.
    - `Bug Smasher: verification image` – `VERIFY_IMAGE` and how the independent verifier runs tests
      ([`docs/VERIFICATION.md`](VERIFICATION.md)).
@@ -67,8 +68,9 @@ In order:
    The current blueprint's YAML is downloaded and compared; it is created (which also adds the repository to
    the Devin environment) or updated only when different. Only a `repo` blueprint whose `repo_name` is the
    target is considered; organization and enterprise blueprints are never changed.
-8. **Environment build**, triggered only when the blueprint was created or updated (updating a blueprint
-   does not start a build by itself). Check it with `env-status`.
+8. **Environment build**, triggered when the blueprint was created or updated (updating a blueprint does
+   not start a build by itself), or when no build has started since the blueprint was last updated (for
+   example, a previous run failed before triggering it). Check it with `env-status`.
 
 If a step fails part-way, the steps already printed as `done` stay applied; fix the cause and run setup
 again: it continues from the current state.
@@ -81,7 +83,8 @@ key). The log is read step by step (`src/operator/build-log.ts`) and every recog
 its outcome, nesting and exit code. A nested step that failed is reported even when Devin reports the build
 as `succeeded`, because a build can produce a usable snapshot while repository setup steps fail. The command
 exits `0` only for a succeeded build whose log shows recognised steps and none failed; a log with no
-recognised steps is reported as unknown, never as clean.
+recognised steps is reported as unknown, never as clean. Redirects from a presigned link are followed only
+to `https` links, and terminal control characters in log text are replaced before printing.
 
 ## mirror
 
@@ -145,7 +148,8 @@ CI never runs setup against live providers. After configuring credentials, an op
   recognises JSON Lines step records and `step <name>: <outcome>` text lines; if Devin's log uses neither,
   the steps are reported as unknown (exit `1`) and the log must be read in the web app.
 - **Builds are organization-wide.** The build endpoint takes no repository, so a triggered build rebuilds
-  the organization's environment snapshot. Setup triggers one only when the target's blueprint changed.
+  the organization's environment snapshot. Setup triggers one only when the target's blueprint changed or
+  has not been built since its last update.
 - **Blueprint listing filter.** Whether `repo_name` filters the list is not documented, so setup filters the
   result itself.
 - **Nothing is deleted.** Renamed labels, notes or Playbooks created under other names are left in place.

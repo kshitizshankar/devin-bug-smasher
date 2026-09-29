@@ -168,7 +168,7 @@ export async function planSetup(inputs: SetupInputs): Promise<SetupPlan> {
       throw new SetupStopped(`Several Knowledge notes pinned to ${target} are named "${wanted.name}"; remove the extras and run setup again. No changes were made.`);
     }
     const current: KnowledgeNote | undefined = matches[0];
-    if (current !== undefined && sameText(current.body, wanted.body) && current.trigger === wanted.trigger) {
+    if (current !== undefined && current.is_enabled && sameText(current.body, wanted.body) && current.trigger === wanted.trigger) {
       unchanged.push(`Devin ${resource}`);
       continue;
     }
@@ -177,10 +177,10 @@ export async function planSetup(inputs: SetupInputs): Promise<SetupPlan> {
       system: 'Devin',
       resource,
       action: current === undefined ? 'create' : 'update',
-      reason: current === undefined ? `missing (pinned to ${target})` : `${sameText(current.body, wanted.body) ? 'trigger' : 'body'} differs`,
+      reason: current === undefined ? `missing (pinned to ${target})` : noteDrift(current, wanted),
       apply: async () => {
         if (current === undefined) await devin.createKnowledgeNote(input);
-        else await devin.updateKnowledgeNote(current.note_id, input);
+        else await devin.updateKnowledgeNote(current.note_id, { ...input, isEnabled: true });
         return null;
       },
     });
@@ -221,8 +221,27 @@ export async function planSetup(inputs: SetupInputs): Promise<SetupPlan> {
     const current = await devin.fetchDownload('get-blueprint-contents', await devin.getBlueprintContents(blueprint.blueprint_id));
     blueprintMatches = sameText(current, inputs.blueprint);
   }
-  if (blueprintMatches) {
+  const buildChange = (reason: string): PlannedChange => ({
+    system: 'Devin',
+    resource: 'environment build',
+    action: 'trigger',
+    reason,
+    apply: async () => {
+      const build = await devin.triggerBuild();
+      return `build ${build.build_id} is ${build.status}; check it with: npm run env-status -- ${build.build_id}`;
+    },
+  });
+  if (blueprint !== undefined && blueprintMatches) {
     unchanged.push(`Devin blueprint for ${target}`);
+    const blueprintUpdated = toMillis(blueprint.updated_at);
+    const builtSince =
+      blueprintUpdated === null ||
+      (await devin.listBuilds()).some((build) => {
+        const created = toMillis(build.created_at ?? build.started_at);
+        return created !== null && created >= blueprintUpdated;
+      });
+    if (builtSince) unchanged.push('Devin environment build');
+    else changes.push(buildChange('no build has started since the blueprint was last updated'));
   } else {
     changes.push({
       system: 'Devin',
@@ -235,19 +254,26 @@ export async function planSetup(inputs: SetupInputs): Promise<SetupPlan> {
         return null;
       },
     });
-    changes.push({
-      system: 'Devin',
-      resource: 'environment build',
-      action: 'trigger',
-      reason: 'the blueprint changed (updates never start a build by themselves)',
-      apply: async () => {
-        const build = await devin.triggerBuild();
-        return `build ${build.build_id} is ${build.status}; check it with: npm run env-status -- ${build.build_id}`;
-      },
-    });
+    changes.push(buildChange('the blueprint changed (updates never start a build by themselves)'));
   }
 
   return { target, changes, unchanged };
+}
+
+function noteDrift(current: KnowledgeNote, wanted: { body: string; trigger: string }): string {
+  if (!sameText(current.body, wanted.body)) return 'body differs';
+  if (current.trigger !== wanted.trigger) return 'trigger differs';
+  return 'disabled';
+}
+
+/** Devin timestamps: Unix seconds (values above 10^12 as milliseconds) or ISO strings. */
+function toMillis(value: string | number | null | undefined): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) ? (value > 1e12 ? value : value * 1000) : null;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = /^\d+(\.\d+)?$/.test(value.trim()) ? toMillis(Number(value)) : Date.parse(value);
+    return parsed !== null && Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
 export function describeChange(change: PlannedChange): string {
