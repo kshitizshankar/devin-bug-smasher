@@ -7,12 +7,17 @@ import { loadSettings } from '../src/config/settings.ts';
 import { DevinSetupClient } from '../src/devin/setup.ts';
 import { desiredLabels, desiredNotes, ISSUE_FORM_PATH, playbookTitle } from '../src/operator/assets.ts';
 import { failedSteps, parseBuildLog } from '../src/operator/build-log.ts';
+import { calculateMetrics } from '../src/metrics/calculate.ts';
+import type { Figure } from '../src/metrics/types.ts';
 import { runCommand } from '../src/operator/cli.ts';
+import { FIGURE_HEADER, renderResults } from '../src/operator/report.ts';
 import { BugStore } from '../src/store/bug-store.ts';
 import { GitHubTracker } from '../src/tracker/github.ts';
 import { API_KEY, ORG_ID } from './helpers/devin.ts';
 import { FakeDevinSetup } from './helpers/fake-devin-setup.ts';
 import { FakeGitHub } from './helpers/fake-github.ts';
+import { Bug, input as metricsInput, NO_COST, unavailableEvidence } from './helpers/metrics.ts';
+import { fullEvidence, liveBugs, recordSets } from './helpers/metrics-fixture.ts';
 import { enroll, LABEL } from './helpers/model.ts';
 import { repoRoot, startService } from './helpers/service.ts';
 
@@ -478,32 +483,129 @@ describe('operator report', () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  async function report(store: string): Promise<string> {
+  async function report(store: string, env: Record<string, string> = {}, githubBaseUrl?: string): Promise<string> {
     const out = join(dir, 'RESULTS.md');
-    const code = await runCommand(['report', '--store', store, '--out', out], { env: {}, cwd: dir, out: () => {}, err: (line) => assert.fail(line) });
+    const code = await runCommand(['report', '--store', store, '--out', out], {
+      env,
+      cwd: dir,
+      out: () => {},
+      err: (line) => assert.fail(line),
+      ...(githubBaseUrl === undefined ? {} : { githubBaseUrl }),
+    });
     assert.equal(code, 0);
-    // The store path is the caller's own input, not a figure.
-    return (await readFile(out, 'utf8')).split(store).join('STORE');
+    return readFile(out, 'utf8');
   }
 
-  it('writes no figures at all from an empty store', async () => {
+  function values(text: string): string[] {
+    return text
+      .split('\n')
+      .filter((line) => line.startsWith('| ') && !line.startsWith(FIGURE_HEADER) && !line.startsWith('| ---') && text.includes(FIGURE_HEADER))
+      .filter((line) => !line.startsWith('| Issue |'))
+      .map((line) => line.split(' | ')[1] ?? '');
+  }
+
+  it('writes no figures from an empty store, only No data and Unavailable', async () => {
     const text = await report(join(dir, 'empty.json'));
-    assert.match(text, /no records yet/);
-    assert.doesNotMatch(text, /\d/);
+    assert.match(text, /The bug store has no records yet/);
+    assert.match(text, /GITHUB_REPO is not set, so no records count as live outcomes/);
+    assert.ok(text.indexOf('## Bugs') < text.indexOf('## Headline numbers'));
+    assert.ok(text.indexOf('## Headline numbers') < text.indexOf('## Spend'));
+    assert.match(text, /Read at: not read/);
+    const shown = new Set(values(text));
+    assert.deepEqual([...shown].sort(), ['No data', 'Unavailable']);
   });
 
-  it('lists only values present in the records', async () => {
+  it('lists a row per record from the store before the headline numbers', async () => {
     const path = join(dir, 'bugs.json');
     const store = await BugStore.open(path);
     await store.update('acme/widgets#42', () => enroll([LABEL.triage]));
-    const text = await report(path);
+    const text = await report(path, { GITHUB_REPO: TARGET });
     const row = text.split('\n').find((line) => line.startsWith('| acme/widgets#42 |'));
-    assert.ok(row, text);
-    const record = store.get('acme/widgets#42');
-    assert.ok(record);
-    assert.equal(row, `| acme/widgets#42 | bug | ${record.stage} | ${record.route ?? ''} |  |  | ${record.updatedAt} |`);
-    const digits = text.replace(row, '').match(/\d/g);
-    assert.equal(digits, null, 'no figures outside the record row');
+    assert.equal(row, '| acme/widgets#42 | acme/widgets (live) | bug | queued | none | none | none | open (queued) |');
+    assert.ok(text.indexOf(row) < text.indexOf('## Headline numbers'));
+    assert.match(text, /Live bugs of acme\/widgets: 1 bugs, 0 feature requests/);
+    assert.match(text, /\| Time to fix \(median\) \| Unavailable \|/, 'filing time needs GitHub');
+  });
+
+  it('reads GitHub for the target records and never writes the token', async () => {
+    const github = await FakeGitHub.start({ token: TOKEN });
+    try {
+      const { number } = github.seedIssue({ title: 'Legend overlaps', labels: [LABEL.triage] });
+      const path = join(dir, 'github.json');
+      const store = await BugStore.open(path);
+      await store.update(`${TARGET}#${number}`, () => new Bug(number, [LABEL.triage], new Date().toISOString()).record);
+      const text = await report(path, { GITHUB_REPO: TARGET, GITHUB_TOKEN: TOKEN }, github.baseUrl);
+      assert.match(text, /Sources: GitHub acme\/widgets, read \d{4}-/);
+      assert.equal(text.includes(TOKEN), false);
+      assert.equal(github.writes().length, 0, 'the report only reads');
+    } finally {
+      await github.close();
+    }
+  });
+
+  it('keeps GitHub evidence for live records when a replay record is not on GitHub', async () => {
+    const github = await FakeGitHub.start({ token: TOKEN });
+    try {
+      const { number } = github.seedIssue({ title: 'Legend overlaps', labels: [LABEL.triage] });
+      const path = join(dir, 'live-with-replay.json');
+      const replayPath = join(dir, 'replay.json');
+      await (await BugStore.open(path)).update(`${TARGET}#${number}`, () => new Bug(number, [LABEL.triage], new Date().toISOString()).record);
+      await (await BugStore.open(replayPath)).update(`${TARGET}#999`, () => new Bug(999, [LABEL.triage], new Date().toISOString()).record);
+      const out = join(dir, 'RESULTS-replay.md');
+      const code = await runCommand(['report', '--store', path, '--replay-store', replayPath, '--out', out], {
+        env: { GITHUB_REPO: TARGET, GITHUB_TOKEN: TOKEN },
+        cwd: dir,
+        out: () => {},
+        err: (line) => assert.fail(line),
+        githubBaseUrl: github.baseUrl,
+      });
+      assert.equal(code, 0);
+      const text = await readFile(out, 'utf8');
+      assert.match(text, /Sources: GitHub acme\/widgets, read \d{4}-/);
+      assert.match(text, /\| acme\/widgets#999 \| acme\/widgets \(replay\) \|/);
+    } finally {
+      await github.close();
+    }
+  });
+
+  it('escapes HTML and link syntax from provider text', () => {
+    const reason = '<img src=x onerror=alert(1)> [click](https://evil.example)';
+    const metrics = calculateMetrics(metricsInput([], { evidence: { ...unavailableEvidence(), github: { status: 'unavailable', reason } } }));
+    const text = renderResults(metrics, 'data/<b>bugs</b>.json');
+    assert.equal(text.includes('<b>'), false);
+    assert.ok(text.includes('data/&lt;b&gt;bugs&lt;/b&gt;.json'));
+    assert.equal(text.includes('<img'), false);
+    assert.equal(text.includes('[click]('), false);
+    assert.ok(text.includes('&lt;img src=x onerror=alert(1)&gt; \\[click\\](https://evil.example)'));
+  });
+
+  it('shows every figure of the shared calculation with its own value and metadata', () => {
+    const bugs = liveBugs();
+    const metrics = calculateMetrics(
+      metricsInput(recordSets(bugs), { settings: { ...NO_COST, acuPriceUsd: 2 }, evidence: fullEvidence(bugs) }),
+    );
+    const text = renderResults(metrics, 'data/bugs.json');
+    const cell = (value: string): string => value.replace(/\|/g, '\\|');
+    const figures: Figure[] = [];
+    const walk = (value: unknown): void => {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (typeof value === 'object' && value !== null) {
+        if ('display' in value && 'samples' in value && 'window' in value) figures.push(value as Figure);
+        else Object.values(value).forEach(walk);
+      }
+    };
+    walk(metrics);
+    assert.ok(figures.length > 100, `found ${figures.length} figures`);
+    for (const figure of figures) {
+      const asRow = `| ${cell(figure.label)} | ${cell(figure.display)} |`;
+      const asReference = `| ${cell(figure.label)}: ${cell(figure.display)} (samples ${figure.samples}; source: ${cell(figure.source)}) |`;
+      assert.ok(text.includes(asRow) || text.includes(asReference), `${figure.id} (${figure.label}: ${figure.display}) is not rendered`);
+      assert.ok(text.includes(cell(figure.source)), `${figure.id} source is not rendered`);
+    }
+    for (const row of metrics.rows) assert.ok(text.includes(`| ${row.key} | ${cell(row.cohort)} |`), row.key);
+    assert.ok(text.indexOf('## Headline numbers') < text.indexOf('## Spend'));
+    assert.match(text, /## Other cohorts/);
+    assert.match(text, /Largest sessions:/);
   });
 });
 

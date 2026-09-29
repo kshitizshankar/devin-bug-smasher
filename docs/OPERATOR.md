@@ -14,7 +14,7 @@ npm run mirror -- owner/repo#N              # copy an issue into the target, no 
 npm run mirror -- owner/repo#N --triage     # ... and add TRIAGE_LABEL (needs-triage)
 npm run mirror -- owner/repo#N --fix        # ... and add FIX_LABEL (bug-smasher)
 npm run report                              # write RESULTS.md from data/bugs.json
-npm run report -- --store FILE --out FILE
+npm run report -- --store FILE --out FILE [--replay-store FILE] [--v1-store FILE]
 ```
 
 All commands are also available as `node src/operator/main.ts <command>`; `run` there is the same as
@@ -97,9 +97,12 @@ only read; the target is the only repository written.
 
 ## report
 
-Writes `RESULTS.md` from the bug store records: one row per record with its key, kind, stage, route, fix
-pull request, verification results and last update. It calculates no metrics and prints no figures that are
-not in a record; an empty store says there is nothing to report.
+Writes `RESULTS.md` from the shared metrics calculation ([`docs/METRICS.md`](METRICS.md)): one row per
+record (cohort, kind, path through the stages, decision, pull request, verification and outcome), then the
+headline numbers, liveness, spend with its source and read time, the Devin cross-check and any other cohorts.
+`--replay-store` and `--v1-store` add replay and v1-engine records as separate cohorts. With `GITHUB_REPO` and
+`GITHUB_TOKEN` it reads GitHub, and with `DEVIN_API_KEY` and `DEVIN_ORG_ID` it reads Devin; it never writes to
+either. Missing sources show as `Unavailable`, empty samples as `No data`, and credentials are redacted.
 
 ## Permissions
 

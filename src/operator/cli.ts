@@ -4,7 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { loadSettings, SettingsError, type Env, type Settings } from '../config/settings.ts';
 import { redact } from '../devin/errors.ts';
 import type { DevinFetch } from '../devin/http.ts';
+import { DevinClient } from '../devin/client.ts';
 import { DevinSetupClient } from '../devin/setup.ts';
+import { calculateMetrics } from '../metrics/calculate.ts';
+import { readDevinEvidence, readGitHubEvidence } from '../metrics/evidence.ts';
+import type { DevinEvidence, GitHubEvidence, RecordSet, Sourced } from '../metrics/types.ts';
 import { parseBugKey } from '../model/keys.ts';
 import { Prompts } from '../orchestrator/prompts.ts';
 import { BugStore, DEFAULT_BUG_STORE_PATH } from '../store/bug-store.ts';
@@ -28,7 +32,8 @@ Commands:
   env-status [BUILD_ID]                 Show a Devin environment build (default: latest) step by step
   mirror OWNER/REPO#N [--triage | --fix] [--dry-run]
                                         Copy an issue into the target repository
-  report [--store FILE] [--out FILE]    Write RESULTS.md from the bug store records`;
+  report [--store FILE] [--replay-store FILE] [--v1-store FILE] [--out FILE]
+                                        Write RESULTS.md (records and metrics) from the bug stores`;
 
 export interface OperatorIO {
   env: Env;
@@ -192,14 +197,52 @@ async function mirrorCommand(args: readonly string[], settings: Settings, io: Op
 }
 
 async function reportCommand(args: readonly string[], io: OperatorIO): Promise<number> {
-  const parsed = parseArgs(args, [], ['--store', '--out']);
+  const parsed = parseArgs(args, [], ['--store', '--replay-store', '--v1-store', '--out']);
   if (parsed.positionals.length > 0) throw new UsageError('report takes no arguments');
+  const settings = loadSettings(io.env);
   const storeOption = parsed.values.get('--store');
   const storePath = storeOption === undefined ? DEFAULT_BUG_STORE_PATH : resolve(io.cwd, storeOption);
   const outPath = resolve(io.cwd, parsed.values.get('--out') ?? 'RESULTS.md');
   const store = await BugStore.open(storePath);
   const storeLabel = relative(REPO_ROOT, storePath).startsWith('..') ? storePath : relative(REPO_ROOT, storePath);
-  await writeFile(outPath, renderResults(store.list(), storeLabel), 'utf8');
+  const recordSets: RecordSet[] = [{ mode: 'live', engine: 'current', records: store.list() }];
+  for (const [option, mode, engine] of [['--replay-store', 'replay', 'current'], ['--v1-store', 'live', 'v1']] as const) {
+    const path = parsed.values.get(option);
+    if (path !== undefined) recordSets.push({ mode, engine, records: (await BugStore.open(resolve(io.cwd, path))).list() });
+  }
+  const records = recordSets.filter((set) => set.mode === 'live').flatMap((set) => set.records);
+  const now = new Date();
+  const github: Sourced<GitHubEvidence> =
+    settings.github.repo === null || settings.github.token === null
+      ? { status: 'unavailable', reason: 'GITHUB_REPO and GITHUB_TOKEN are not both set' }
+      : await readGitHubEvidence(target(settings, io), records, settings.baselineFilter, now);
+  const devinEvidence: Sourced<DevinEvidence> =
+    settings.devin.apiKey === null || settings.devin.orgId === null
+      ? { status: 'unavailable', reason: 'DEVIN_API_KEY and DEVIN_ORG_ID are not both set' }
+      : await readDevinEvidence(
+          DevinClient.fromSettings(settings, {
+            ...(io.devinBaseUrl === undefined ? {} : { baseUrl: io.devinBaseUrl }),
+            ...(io.devinFetch === undefined ? {} : { fetch: io.devinFetch }),
+          }),
+          now,
+        );
+  const report = calculateMetrics({
+    now,
+    target: settings.github.repo === null ? null : `${settings.github.repo.owner}/${settings.github.repo.name}`,
+    recordSets,
+    settings: {
+      ...settings.cost,
+      maxAcuPerSession: settings.devin.maxAcuPerSession,
+      baselineFilter: settings.baselineFilter,
+    },
+    evidence: {
+      github,
+      devin: devinEvidence,
+      orchestrator: { status: 'unavailable', reason: 'report runs outside the service; only the running service knows its last cycle' },
+    },
+  });
+  const secrets = [settings.github.token, settings.devin.apiKey].filter((value): value is string => value !== null);
+  await writeFile(outPath, redact(renderResults(report, storeLabel), secrets), 'utf8');
   io.out(`Wrote ${relative(io.cwd, outPath) || outPath} from ${storeLabel}`);
   return 0;
 }
