@@ -586,6 +586,7 @@ describe('second review regressions', () => {
   it('ignores PR events for an earlier fix PR after work restarts', () => {
     const handed = event(verifyingRecord(), { type: 'pr-closed', prNumber: 7 });
     const back = expectOk(act(handed, facts([LABEL.engineer]), { name: 'fix', actor: 'ana' })).record;
+    reject(back, { type: 'pr-closed', prNumber: 99 }, 'unknown-pr');
     const ended = event(back, { type: 'session-status', sessionId: 'session-fix', liveState: 'ended' });
     let record = event(ended, {
       type: 'session-started',
@@ -635,5 +636,14 @@ describe('second review regressions', () => {
     reject(fixingRecord(), { type: 'insights-recorded', insights: { acuUsed: -1, notes: null } }, 'invalid-data');
     const recorded = event(fixingRecord(), { type: 'insights-recorded', insights: { acuUsed: null, notes: 'n' } });
     assert.deepEqual(validateBugRecord(recorded), []);
+  });
+
+  it('refuses any event whose resulting record the store could not save', () => {
+    reject(verifyingRecord(), { type: 'head-changed', prNumber: 7, headSha: 'not-a-sha' }, 'invalid-data');
+    reject(
+      enroll([LABEL.fix]),
+      { type: 'session-started', session: { id: '', url: 'u' }, issueState: 'open', labels: [LABEL.fix] },
+      'invalid-data',
+    );
   });
 });

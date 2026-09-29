@@ -18,6 +18,7 @@ import type {
   WorkRoute,
 } from './types.ts';
 import {
+  validateBugRecord,
   validateFixInfo,
   validateSessionInsights,
   validateTriageFindings,
@@ -239,8 +240,8 @@ function routeFromLabels(record: BugRecord, labels: string[], options: ModelOpti
 function prEventTarget(record: BugRecord, prNumber: number): 'current' | 'stale' | ModelResult {
   if (record.fix !== null && record.fix.prNumber === prNumber) return 'current';
   if (record.priorFixes.some((fix) => fix.prNumber === prNumber)) return 'stale';
-  if (record.fix === null) return fail('no-fix', 'No fix PR is recorded');
-  return fail('unknown-pr', `PR #${prNumber} is not the recorded fix PR #${record.fix.prNumber}`);
+  if (record.fix === null && record.priorFixes.length === 0) return fail('no-fix', 'No fix PR is recorded');
+  return fail('unknown-pr', `PR #${prNumber} is not a recorded fix PR`);
 }
 
 /**
@@ -271,7 +272,8 @@ function countSessionAttempts(record: BugRecord, result: VerificationAttempt['re
 
 /**
  * Pure transition function. Returns a new record for valid events; invalid events return an error and the
- * input record is never modified.
+ * input record is never modified. An event is refused (`invalid-data`) if the resulting record would not
+ * pass `validateBugRecord`, so every accepted event can be persisted.
  */
 export function applyEvent(
   current: BugRecord,
@@ -279,6 +281,13 @@ export function applyEvent(
   options: ModelOptions,
   now: Timestamp,
 ): ModelResult {
+  const result = transition(current, event, options, now);
+  if (!result.ok || !result.changed) return result;
+  const problems = validateBugRecord(result.record);
+  return problems.length > 0 ? fail('invalid-data', problems.join('; ')) : result;
+}
+
+function transition(current: BugRecord, event: ModelEvent, options: ModelOptions, now: Timestamp): ModelResult {
   const record = structuredClone(current);
 
   switch (event.type) {

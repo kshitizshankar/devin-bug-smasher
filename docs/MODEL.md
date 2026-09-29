@@ -116,8 +116,9 @@ are appended once per actual change; repeated identical events return `changed: 
 
 Events (`ModelEvent`): `labels-changed`, `session-started`, `session-status`, `question-asked`,
 `reply-received`, `triage-completed`, `fix-submitted`, `head-changed`, `verification-recorded`,
-`pr-merged`, `pr-closed`, `issue-closed`, `issue-reopened`, `insights-recorded` (validated like stored
-insights; invalid data is refused with `invalid-data`).
+`pr-merged`, `pr-closed`, `issue-closed`, `issue-reopened`, `insights-recorded`. An event whose resulting
+record would fail `validateBugRecord` (e.g. negative usage, a malformed SHA, an empty session ID) is refused
+with `invalid-data`, so every accepted event can be persisted.
 
 Stale events are ignored (`changed: false`): `head-changed`, `pr-merged` and `pr-closed` carry `prNumber`,
 and events for an earlier fix PR in `priorFixes` change nothing (a PR number that was never recorded is
