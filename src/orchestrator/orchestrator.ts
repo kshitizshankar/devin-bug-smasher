@@ -46,6 +46,7 @@ import {
   TrackerError,
   type Actor,
   type IssueEvent,
+  type RepositoryAdmin,
   type ReviewThread,
   type Tracker,
   type TrackerComment,
@@ -83,7 +84,8 @@ import {
   sameEvaluation,
   type ReviewGate,
 } from './policies.ts';
-import type { HumanComment, IssueContext, Prompts } from './prompts.ts';
+import type { PlaybookIds, PlaybookRoute } from './playbooks.ts';
+import type { HumanComment, IssueContext, OpenBug, Prompts } from './prompts.ts';
 
 /** The Devin operations the orchestrator uses. `DevinClient` satisfies it; so does `DevinClient` over `OfflineDevin`. */
 export type OrchestratorDevin = Pick<
@@ -145,7 +147,8 @@ export interface TraceEvent {
 
 export interface OrchestratorOptions {
   store: BugStore;
-  tracker: Tracker;
+  /** With `listAllIssues`, the duplicate check sees every open bug, not only the ones this cycle lists or tracks. */
+  tracker: Tracker & Partial<Pick<RepositoryAdmin, 'listAllIssues'>>;
   devin: OrchestratorDevin;
   settings: Settings;
   prompts: Prompts;
@@ -160,7 +163,8 @@ export interface OrchestratorOptions {
   requireLiveResults?: boolean;
   /** Logins whose comments and label changes are the service's own, besides bots and marked comments. */
   serviceLogins?: readonly string[];
-  playbookId?: string | null;
+  /** Synced Devin Playbook ids by route; a route without one gets its Playbook text inlined in the prompt. */
+  playbookIds?: PlaybookIds;
   /** Reconciliation lookups without a match before an unconfirmed create is abandoned (default 3). */
   reconcileAttempts?: number;
   now?: () => Date;
@@ -238,7 +242,7 @@ function permanentFailure(error: unknown): boolean {
  */
 export class Orchestrator {
   readonly #store: BugStore;
-  readonly #tracker: Tracker;
+  readonly #tracker: Tracker & Partial<Pick<RepositoryAdmin, 'listAllIssues'>>;
   readonly #devin: OrchestratorDevin;
   readonly #settings: Settings;
   readonly #prompts: Prompts;
@@ -247,13 +251,16 @@ export class Orchestrator {
   readonly #requireLive: boolean;
   readonly #maxReviewRepairs: number;
   readonly #serviceLogins: ReadonlySet<string>;
-  readonly #playbookId: string | null;
+  readonly #playbookIds: PlaybookIds;
   readonly #reconcileAttempts: number;
   readonly #now: () => Date;
   readonly #trace: (event: TraceEvent) => void;
   readonly #model: ModelOptions;
   readonly #repo: GitHubRepo;
   #cycle = 0;
+  #openIssues: readonly TrackerIssue[] = [];
+  /** Every issue in the repository, listed at most once per cycle for the duplicate check. */
+  #allIssues: Promise<readonly TrackerIssue[] | null> | null = null;
   #lastCycleAt: string | null = null;
   #inFlight: Promise<void> | null = null;
   #lock: Promise<unknown> = Promise.resolve();
@@ -280,7 +287,7 @@ export class Orchestrator {
     this.#requireLive = options.requireLiveResults ?? false;
     this.#maxReviewRepairs = options.maxReviewRepairs ?? DEFAULT_MAX_REVIEW_REPAIRS;
     this.#serviceLogins = new Set((options.serviceLogins ?? []).map((login) => login.toLowerCase()));
-    this.#playbookId = options.playbookId ?? null;
+    this.#playbookIds = options.playbookIds ?? {};
     this.#reconcileAttempts = options.reconcileAttempts ?? 3;
     this.#trace = options.trace ?? (() => {});
     this.#model = {
@@ -357,6 +364,7 @@ export class Orchestrator {
 
   async #runCycle(): Promise<void> {
     this.#cycle += 1;
+    this.#allIssues = null;
     this.#emit(null, 'cycle-started');
     const labels = [
       this.#settings.labels.triage,
@@ -383,6 +391,7 @@ export class Orchestrator {
         this.#emit(record.key, 'error', { during: 'getIssue', message: describe(error) });
       }
     }
+    this.#openIssues = [...issues.values()];
     for (const issue of [...issues.values()].sort((a, b) => a.number - b.number)) {
       try {
         await this.#step(issue);
@@ -892,12 +901,15 @@ export class Orchestrator {
     const comments = await this.#freshHumanComments(issue, workflow);
     const context = this.#issueContext(issue);
     const decision = this.#decisionContext(record);
+    const playbookRoute: PlaybookRoute = route === 'triage' ? 'triage' : record.kind === 'feature' ? 'feature' : 'repair';
+    const playbookId = this.#playbookIds[playbookRoute] ?? null;
+    const playbook = playbookId === null ? 'inline' : 'attached';
     const prompt =
-      route === 'triage'
-        ? this.#prompts.investigation(context, comments.included, decision)
-        : record.kind === 'feature'
-          ? this.#prompts.feature(context, comments.included, decision)
-          : this.#prompts.repairNew(context, record.triage, comments.included, decision);
+      playbookRoute === 'triage'
+        ? this.#prompts.investigation(context, comments.included, decision, { playbook, otherBugs: await this.#otherOpenBugs(issue) })
+        : playbookRoute === 'feature'
+          ? this.#prompts.feature(context, comments.included, decision, { playbook })
+          : this.#prompts.repairNew(context, record.triage, comments.included, decision, { playbook });
 
     await this.#persistWorkflow(record, (state) => {
       state.dispatch = { route, requestedAt: this.#nowIso(), attemptTag: null, checks: 0, commentIds: comments.all };
@@ -913,7 +925,7 @@ export class Orchestrator {
         prompt,
         title: `${route === 'triage' ? 'Investigate' : record.kind === 'feature' ? 'Build' : 'Fix'} ${record.key}: ${issue.title}`,
         repos: [`${this.#repo.owner}/${this.#repo.name}`],
-        playbookId: this.#playbookId,
+        playbookId,
       });
     } catch (error) {
       if (error instanceof DevinError && !error.ambiguous) {
@@ -935,6 +947,30 @@ export class Orchestrator {
     }
     this.#emit(record.key, 'session-created', { sessionId: result.session.id, route });
     await this.#sessionStarted(issue, pending, result.session, [], 'session-started');
+  }
+
+  /**
+   * Other open bugs (issues that are not feature requests) for the duplicate check, from every issue in the
+   * repository. Without `listAllIssues`, or when it fails, from the issues this cycle lists or tracks.
+   */
+  async #otherOpenBugs(issue: TrackerIssue): Promise<OpenBug[]> {
+    const feature = this.#settings.labels.feature.toLowerCase();
+    this.#allIssues ??= this.#listAllIssues();
+    const candidates = (await this.#allIssues) ?? this.#openIssues;
+    return candidates
+      .filter((other) => other.number !== issue.number && other.state === 'open')
+      .filter((other) => !other.labels.some((label) => label.toLowerCase() === feature))
+      .map((other) => ({ number: other.number, title: other.title, createdAt: other.createdAt }));
+  }
+
+  async #listAllIssues(): Promise<readonly TrackerIssue[] | null> {
+    if (this.#tracker.listAllIssues === undefined) return null;
+    try {
+      return await this.#tracker.listAllIssues();
+    } catch (error) {
+      this.#emit(null, 'error', { during: 'listAllIssues', message: describe(error) });
+      return null;
+    }
   }
 
   /** Resolves a persisted create intent by its attempt tag (or bug and route tags) instead of creating again. */

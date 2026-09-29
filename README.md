@@ -55,7 +55,7 @@ closes an issue. See [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md#decision-an
 
 ## Operator commands
 
-`npm run setup` configures the target repository's labels and bug issue form on GitHub and its Playbook,
+`npm run setup` configures the target repository's labels and bug issue form on GitHub and its route Playbooks,
 Knowledge notes, indexing, blueprint and build on Devin, changing only what differs; `env-status`, `mirror`
 and `report` inspect builds, copy issues in and write `RESULTS.md`; `replay` plays the offline replay and
 `verify-check` proves a throwaway fixture with the real verifier and Docker runtime. Every command that writes to GitHub or
@@ -178,7 +178,7 @@ src/metrics/     Shared metrics calculation and evidence readers (see docs/METRI
 src/dashboard/   Read-only dashboard API projection (see docs/API.md)
 replay/          Replay recording and its RESULTS.md (simulated)
 Dockerfile, compose.yaml  One image, one service (see docs/DOCKER.md)
-prompts/         Repository-owned Devin prompt templates
+prompts/         Repository-owned Devin prompt templates and route Playbooks (see docs/DEVIN-PROMPTS.md)
 web/             React + Vite frontend source
 test/            Smoke and behaviour tests (node:test)
 dist/web/        Generated frontend build output (git-ignored)

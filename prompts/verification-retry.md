@@ -14,4 +14,6 @@ weaken or delete tests. Do not merge. Keep your structured output at `phase: "fi
 with the same `pr_url` and updated `test_files` and `fix_summary`. If you cannot make it pass honestly,
 report `blocked` with the reason.
 
+{{structuredOutput}}
+
 Reference: {{marker}}

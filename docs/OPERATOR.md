@@ -53,9 +53,12 @@ In order:
    never changed.
 3. **GitHub issue form.** `.github/ISSUE_TEMPLATE/bug-smasher-bug.yml` on the default branch, committed only
    when missing or different.
-4. **Devin triage Playbook** titled `Bug Smasher triage: <owner>/<repo>`, with the body of
-   `prompts/investigation-playbook.md`. Playbooks are organization objects in Devin; setup only ever
-   considers the one with this exact title and stops if there are several.
+4. **Devin Playbooks, one per route**, titled `Bug Smasher triage: <owner>/<repo>`,
+   `Bug Smasher repair: <owner>/<repo>` and `Bug Smasher feature: <owner>/<repo>`, with the bodies of
+   `prompts/playbook-triage.md`, `prompts/playbook-repair.md` and `prompts/playbook-feature.md`. Playbooks
+   are organization objects in Devin; setup only ever considers the ones with these exact titles and stops
+   if there are several with one title. The service attaches them to sessions by id; see
+   [`DEVIN-PROMPTS.md`](DEVIN-PROMPTS.md).
 5. **Knowledge notes pinned to the target** (`pinned_repo`), matched by name among the target's pinned
    notes only (a disabled note is re-enabled); unpinned notes and notes pinned to other repositories are
    never considered:

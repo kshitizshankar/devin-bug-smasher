@@ -2,6 +2,7 @@ import type { Settings } from '../config/settings.ts';
 import { DevinError } from '../devin/errors.ts';
 import type { DevinSetupClient, KnowledgeNote } from '../devin/setup.ts';
 import type { RepositoryAdmin, RepositoryLabel } from '../tracker/types.ts';
+import { PLAYBOOK_ROUTES, samePlaybookText, type PlaybookRoute } from '../orchestrator/playbooks.ts';
 import { desiredLabels, desiredNotes, ISSUE_FORM_PATH, issueForm, playbookTitle } from './assets.ts';
 
 /**
@@ -28,8 +29,8 @@ export interface SetupInputs {
   settings: Settings;
   github: RepositoryAdmin;
   devin: DevinSetupClient;
-  /** Rendered triage Playbook body (`prompts/investigation-playbook.md`). */
-  playbookBody: string;
+  /** Rendered Playbook body per route (`prompts/playbook-<route>.md`). */
+  playbookBodies: Readonly<Record<PlaybookRoute, string>>;
   /** Target environment blueprint YAML. */
   blueprint: string;
   pitfalls: readonly string[];
@@ -134,27 +135,31 @@ export async function planSetup(inputs: SetupInputs): Promise<SetupPlan> {
     });
   }
 
-  // Devin triage Playbook, identified by its target-specific title.
-  const title = playbookTitle(target);
-  const playbooks = (await devin.listPlaybooks()).filter((playbook) => playbook.title === title);
-  if (playbooks.length > 1) {
-    throw new SetupStopped(`Several Devin Playbooks are titled "${title}"; remove the extras in the Devin web app and run setup again. No changes were made.`);
-  }
-  const playbook = playbooks[0];
-  if (playbook !== undefined && sameText(playbook.body, inputs.playbookBody)) {
-    unchanged.push(`Devin Playbook "${title}"`);
-  } else {
-    changes.push({
-      system: 'Devin',
-      resource: `Playbook "${title}"`,
-      action: playbook === undefined ? 'create' : 'update',
-      reason: playbook === undefined ? 'missing' : 'body differs',
-      apply: async () => {
-        if (playbook === undefined) await devin.createPlaybook({ title, body: inputs.playbookBody });
-        else await devin.updatePlaybook(playbook.playbook_id, { title, body: inputs.playbookBody, macro: playbook.macro });
-        return null;
-      },
-    });
+  // One Devin Playbook per route, each identified by its target-specific title.
+  const existingPlaybooks = await devin.listPlaybooks();
+  for (const route of PLAYBOOK_ROUTES) {
+    const title = playbookTitle(target, route);
+    const body = inputs.playbookBodies[route];
+    const playbooks = existingPlaybooks.filter((playbook) => playbook.title === title);
+    if (playbooks.length > 1) {
+      throw new SetupStopped(`Several Devin Playbooks are titled "${title}"; remove the extras in the Devin web app and run setup again. No changes were made.`);
+    }
+    const playbook = playbooks[0];
+    if (playbook !== undefined && samePlaybookText(playbook.body, body)) {
+      unchanged.push(`Devin Playbook "${title}"`);
+    } else {
+      changes.push({
+        system: 'Devin',
+        resource: `Playbook "${title}"`,
+        action: playbook === undefined ? 'create' : 'update',
+        reason: playbook === undefined ? 'missing' : 'body differs',
+        apply: async () => {
+          if (playbook === undefined) await devin.createPlaybook({ title, body });
+          else await devin.updatePlaybook(playbook.playbook_id, { title, body, macro: playbook.macro });
+          return null;
+        },
+      });
+    }
   }
 
   // Knowledge notes pinned to the target only; notes pinned elsewhere or unpinned are never considered.

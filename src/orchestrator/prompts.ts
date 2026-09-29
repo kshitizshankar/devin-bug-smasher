@@ -2,12 +2,19 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { TriageFindings } from '../model/types.ts';
+import { codeBlock } from './comments.ts';
 
 export const DEFAULT_PROMPTS_DIR = fileURLToPath(new URL('../../prompts', import.meta.url));
 
 export const PROMPT_NAMES = [
-  'investigation-playbook',
+  'playbook-triage',
+  'playbook-repair',
+  'playbook-feature',
+  'playbook-attached',
+  'playbook-inline',
   'investigation-request',
+  'open-bugs',
+  'open-bugs-none',
   'repair-new',
   'repair-continue',
   'verification-retry',
@@ -82,7 +89,7 @@ export function findingsSection(findings: TriageFindings | null): string {
     ].join('\n');
   }
   return [
-    'Findings from the investigation (reported by Devin, not verified by the service):',
+    'Findings from the investigation (reported by Devin, not verified by the service; verify them, do not take them on trust):',
     `- Summary: ${findings.summary}`,
     `- Reproduced: ${findings.reproduced ? 'yes' : 'no'}. ${findings.reproductionNotes}`,
     `- Steps to reproduce: ${list(findings.reproductionSteps)}`,
@@ -92,6 +99,9 @@ export function findingsSection(findings: TriageFindings | null): string {
     `- Affected files: ${list(findings.affectedFiles)}`,
     `- Proposed regression test: ${findings.proposedTest.description} (${findings.proposedTest.file}), ` +
       `run with \`${findings.proposedTest.command}\``,
+    ...(findings.proposedTest.code === undefined || findings.proposedTest.code.trim() === ''
+      ? []
+      : [`- Proposed new test file ${findings.proposedTest.file}:`, codeBlock(findings.proposedTest.code)]),
     `- Recommendation: ${findings.recommendation} (${findings.confidence} confidence): ${findings.reason}`,
   ].join('\n');
 }
@@ -117,6 +127,27 @@ export function humanContextSection(comments: readonly HumanComment[], decision:
     }
   }
   return parts.length === 0 ? '' : `\n${parts.join('\n\n')}\n`;
+}
+
+/** Most other open bugs listed in a triage prompt for the duplicate check. */
+export const MAX_OTHER_OPEN_BUGS = 20;
+
+export interface OpenBug {
+  number: number;
+  title: string;
+  createdAt: string;
+}
+
+/** How a session receives its route's procedure: the synced Playbook is attached by id, or its text is inlined. */
+export type PlaybookDelivery = 'attached' | 'inline';
+
+export interface SessionPromptOptions {
+  playbook?: PlaybookDelivery;
+}
+
+export interface InvestigationPromptOptions extends SessionPromptOptions {
+  /** Other open bugs in the repository, excluding this one; the most recent `MAX_OTHER_OPEN_BUGS` are listed. */
+  otherBugs?: readonly OpenBug[];
 }
 
 /** Repository-owned prompt templates from `prompts/`. */
@@ -146,7 +177,32 @@ export class Prompts {
     return { issueRef: `#${issue.issueNumber}`, structuredOutput: this.render('structured-output', {}) };
   }
 
-  investigation(issue: IssueContext, comments: readonly HumanComment[], decision: string | null): string {
+  /** The route's procedure: a pointer to the attached Playbook, or the Playbook text inlined once. */
+  playbookSection(route: 'triage' | 'repair' | 'feature', delivery: PlaybookDelivery): string {
+    return delivery === 'attached'
+      ? this.render('playbook-attached', {})
+      : this.render('playbook-inline', { playbook: this.render(`playbook-${route}`, {}) });
+  }
+
+  /** Other open bugs for the duplicate check, most recent first and bounded, or a statement that there are none. */
+  otherBugsSection(repo: string, bugs: readonly OpenBug[]): string {
+    if (bugs.length === 0) return this.render('open-bugs-none', { repo });
+    const listed = [...bugs]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.number - a.number)
+      .slice(0, MAX_OTHER_OPEN_BUGS);
+    return this.render('open-bugs', {
+      repo,
+      limit: String(MAX_OTHER_OPEN_BUGS),
+      bugs: listed.map((bug) => `- #${bug.number}: ${bug.title}`).join('\n'),
+    });
+  }
+
+  investigation(
+    issue: IssueContext,
+    comments: readonly HumanComment[],
+    decision: string | null,
+    options: InvestigationPromptOptions = {},
+  ): string {
     return this.render('investigation-request', {
       ...this.#shared(issue),
       repo: issue.repo,
@@ -154,7 +210,8 @@ export class Prompts {
       title: issue.title,
       body: issue.body,
       humanContext: humanContextSection(comments, decision),
-      playbook: this.render('investigation-playbook', {}),
+      otherBugs: this.otherBugsSection(issue.repo, options.otherBugs ?? []),
+      playbook: this.playbookSection('triage', options.playbook ?? 'inline'),
     });
   }
 
@@ -163,16 +220,17 @@ export class Prompts {
     findings: TriageFindings | null,
     comments: readonly HumanComment[],
     decision: string | null,
+    options: SessionPromptOptions = {},
   ): string {
     return this.render('repair-new', {
       ...this.#shared(issue),
       repo: issue.repo,
-      issueNumber: String(issue.issueNumber),
       issueUrl: issue.issueUrl,
       title: issue.title,
       body: issue.body,
       findings: findingsSection(findings),
       humanContext: humanContextSection(comments, decision),
+      playbook: this.playbookSection('repair', options.playbook ?? 'inline'),
     });
   }
 
@@ -185,31 +243,36 @@ export class Prompts {
   ): string {
     return this.render('repair-continue', {
       ...this.#shared(issue),
-      issueNumber: String(issue.issueNumber),
       findings: findingsSection(findings),
       humanContext: humanContextSection(comments, decision),
+      playbook: this.playbookSection('repair', 'inline'),
       marker,
     });
   }
 
-  feature(issue: IssueContext, comments: readonly HumanComment[], decision: string | null): string {
+  feature(
+    issue: IssueContext,
+    comments: readonly HumanComment[],
+    decision: string | null,
+    options: SessionPromptOptions = {},
+  ): string {
     return this.render('feature', {
       ...this.#shared(issue),
       repo: issue.repo,
-      issueNumber: String(issue.issueNumber),
       issueUrl: issue.issueUrl,
       title: issue.title,
       criteria: issue.body,
       humanContext: humanContextSection(comments, decision),
+      playbook: this.playbookSection('feature', options.playbook ?? 'inline'),
     });
   }
 
   verificationRetry(input: { prUrl: string; headSha: string; reason: string; output: string; marker: string }): string {
-    return this.render('verification-retry', { ...input });
+    return this.render('verification-retry', { ...input, structuredOutput: this.render('structured-output', {}) });
   }
 
   replyRelay(input: { author: string; commentUrl: string; reply: string; marker: string }): string {
-    return this.render('reply-relay', { ...input });
+    return this.render('reply-relay', { ...input, structuredOutput: this.render('structured-output', {}) });
   }
 
   postMergeAck(input: { issueRef: string; prUrl: string; mergeCommitSha: string; marker: string }): string {

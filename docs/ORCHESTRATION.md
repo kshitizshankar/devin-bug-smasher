@@ -10,6 +10,7 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 | `orchestrator.ts` | `Orchestrator` (polling, steps, outbox, dispatch, sessions, replies, verification, decisions), `consumesCapacity`, `TraceEvent` |
 | `contracts.ts` | `Verifier` (implemented by `src/verify/`, see `docs/VERIFICATION.md`), `DecisionPolicy` (M1.6), `VERIFICATION_STATUS_CONTEXT`, `verificationStatus`, unavailable stubs, actor helpers |
 | `prompts.ts` | Loads and renders `prompts/*.md` strictly |
+| `playbooks.ts` | Route Playbook titles and bodies, and which synced Playbook ids to attach (see `docs/DEVIN-PROMPTS.md`) |
 | `comments.ts` | GitHub comment bodies (question, triage summary, notices) |
 | `../../prompts/` | Repository-owned prompt templates (see `prompts/README.md`) |
 

@@ -1,6 +1,9 @@
 ## Reporting (structured output)
 
-The service reads only your structured output to decide what happens next; it never acts on chat text.
+Where you communicate: report your status, questions and results in your structured output. The service
+reads only your structured output to decide what happens next; it never acts on chat text. It posts your
+questions and findings on the issue and relays people's replies to this session.
+
 Update it whenever your status changes. Leave fields you cannot fill honestly empty rather than inventing
 values; an incomplete output simply means "not finished".
 

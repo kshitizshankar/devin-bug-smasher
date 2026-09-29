@@ -3,10 +3,10 @@
 ## Scope
 
 - Work only on the issue you were assigned. Do not start other features, refactors or clean-ups outside it.
-- If you are blocked by missing access, or a requirement would change the issue's scope, ask a focused
-  question on the issue and wait.
-- The `devin-builds-feature` label marks future feature work. It does not launch any implemented
-  automation; do not claim that it does.
+- If you are blocked by missing access, or a requirement would change the issue's scope, ask one focused
+  question through the channel your session prompt names, and wait.
+- The `devin-builds-feature` label starts a feature session: the service implements the issue's acceptance
+  criteria and opens one pull request (see `docs/DEVIN-PROMPTS.md`).
 
 ## Change process
 

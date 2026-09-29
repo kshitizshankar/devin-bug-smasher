@@ -10,6 +10,7 @@ import { calculateMetrics } from '../metrics/calculate.ts';
 import { readDevinEvidence, readGitHubEvidence } from '../metrics/evidence.ts';
 import type { DevinEvidence, GitHubEvidence, RecordSet, Sourced } from '../metrics/types.ts';
 import { parseBugKey } from '../model/keys.ts';
+import { playbookBody } from '../orchestrator/playbooks.ts';
 import { Prompts } from '../orchestrator/prompts.ts';
 import { BugStore, DEFAULT_BUG_STORE_PATH } from '../store/bug-store.ts';
 import { GitHubTracker } from '../tracker/github.ts';
@@ -130,7 +131,7 @@ async function setupCommand(args: readonly string[], settings: Settings, io: Ope
     settings,
     github,
     devin: devin(settings, io),
-    playbookBody: prompts.render('investigation-playbook', {}),
+    playbookBodies: { triage: playbookBody(prompts, 'triage'), repair: playbookBody(prompts, 'repair'), feature: playbookBody(prompts, 'feature') },
     blueprint,
     pitfalls: parsePitfalls(pitfalls ?? ''),
     pitfallsFile: relative(io.cwd, pitfallsPath) || pitfallsOption,
