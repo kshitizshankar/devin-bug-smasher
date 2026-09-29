@@ -1,0 +1,52 @@
+{
+  "refresh": {
+    "state": "current",
+    "lastRefreshAt": "2026-03-18T12:00:00.000Z",
+    "lastAttemptAt": "2026-03-18T12:00:00.000Z",
+    "problems": []
+  },
+  "settings": {
+    "github": {
+      "repo": "acme/widgets",
+      "tokenConfigured": true
+    },
+    "devin": {
+      "apiKeyConfigured": true,
+      "orgId": "org-offline",
+      "review": true,
+      "maxActiveSessions": 3,
+      "maxAcuPerSession": 5
+    },
+    "checkCommand": "npm test -- {files}",
+    "baselineFilter": null,
+    "verify": {
+      "image": null,
+      "setupCommand": null,
+      "timeoutSeconds": 600,
+      "workDir": "/srv/bug-smasher/data/verify"
+    },
+    "labels": {
+      "triage": "needs-triage",
+      "fix": "bug-smasher",
+      "engineer": "needs-engineer",
+      "feature": "devin-builds-feature"
+    },
+    "decision": "person",
+    "decisionRuleClasses": [],
+    "merge": "person",
+    "mergeMaxLines": 200,
+    "maxFixRetries": 1,
+    "pollSeconds": 60,
+    "cost": {
+      "acuPriceUsd": null,
+      "spendUsd": null,
+      "spendReadAt": null,
+      "budgetUsd": null
+    },
+    "server": {
+      "host": "127.0.0.1",
+      "port": 8080,
+      "staticDir": "/srv/bug-smasher/dist/web"
+    }
+  }
+}

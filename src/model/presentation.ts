@@ -289,3 +289,91 @@ export function presentBug(
     automation: automation(record),
   };
 }
+
+/** Person gates: points where the workflow cannot continue until someone acts on GitHub. */
+export const GATES = ['labels', 'reply', 'decision', 'merge', 'engineer'] as const;
+export type Gate = (typeof GATES)[number];
+
+export interface Attention {
+  /** The person gate the item is held at, or `null` while it is not waiting for a person. */
+  gate: Gate | null;
+  /** Who moves the item next; `null` when nothing is left to do. */
+  waitingOn: 'person' | 'devin' | 'service' | null;
+  /** Next-action text for the overview. */
+  text: string;
+}
+
+const RECOMMENDATION_TEXT: Record<Recommendation, string> = {
+  devin_fix: 'a Devin fix',
+  needs_engineer: 'an engineer',
+  close: 'closing the issue',
+};
+
+const HANDOFF_TEXT: Record<Handoff['reason'], string> = {
+  'engineer-label': 'the engineer label was added',
+  person: 'a person asked for an engineer',
+  'session-ended': 'the Devin session ended before finishing',
+  'pr-closed-unmerged': 'the pull request was closed without merging',
+  'verification-error': 'verification could not run',
+  'verification-failed': 'the fix failed verification',
+  'post-merge-verification-failed': 'the merged fix failed post-merge verification',
+  'existing-pr': 'an open pull request already addresses the issue',
+};
+
+function withBlockers(text: string, blockers: readonly string[]): string {
+  return blockers.length === 0 ? text : `${text} Blocked: ${blockers.join('; ')}`;
+}
+
+/**
+ * Derives the person gate and next-action text from a presentation. A recommendation is reported as advice
+ * only; it never stands in for the decision a person or policy has to make.
+ */
+export function attention(presentation: Presentation): Attention {
+  const { history, automation: { blockers }, kind } = presentation;
+  const work = kind === 'feature' ? 'implementation' : 'repair';
+  const issueOpen = presentation.actions.includes('close');
+  switch (presentation.status) {
+    case 'not-started':
+      return { gate: null, waitingOn: 'person', text: 'Add a workflow label on GitHub to start work.' };
+    case 'label-conflict':
+      return { gate: 'labels', waitingOn: 'person', text: `Resolve the labels on GitHub: ${presentation.labels.conflict ?? 'they conflict'}` };
+    case 'queued-triage':
+      return { gate: null, waitingOn: 'service', text: 'Queued; the investigation starts when a Devin session is free.' };
+    case 'queued-fix':
+      return { gate: null, waitingOn: 'service', text: `Queued; the ${work} starts when a Devin session is free.` };
+    case 'investigating':
+      return { gate: null, waitingOn: 'devin', text: 'Devin is investigating.' };
+    case 'waiting-for-reply':
+      return history.outstandingQuestion === null
+        ? { gate: null, waitingOn: 'service', text: 'Reply received; Devin continues when a session is free.' }
+        : { gate: 'reply', waitingOn: 'person', text: `Reply on GitHub to Devin's question: ${history.outstandingQuestion.summary}` };
+    case 'needs-decision': {
+      const advice = history.recommendation === null ? '' : ` Devin recommends ${RECOMMENDATION_TEXT[history.recommendation]}; this is not a decision.`;
+      return { gate: 'decision', waitingOn: 'person', text: withBlockers(`Decide on GitHub: fix, engineer or close.${advice}`, blockers) };
+    }
+    case 'fixing':
+      return blockers.length > 0
+        ? { gate: 'engineer', waitingOn: 'person', text: withBlockers('The fix needs a person.', blockers) }
+        : { gate: null, waitingOn: 'devin', text: kind === 'feature' ? 'Devin is implementing the feature.' : 'Devin is working on the fix.' };
+    case 'verifying':
+      return blockers.length > 0
+        ? { gate: 'engineer', waitingOn: 'person', text: withBlockers('The fix needs a person.', blockers) }
+        : { gate: null, waitingOn: 'service', text: 'Waiting for verification and review of the current pull request head.' };
+    case 'ready-to-merge':
+      return { gate: 'merge', waitingOn: 'person', text: withBlockers('Review and merge the pull request on GitHub.', blockers) };
+    case 'merged': {
+      const proof = history.postMergeVerified === true ? ' Post-merge verification passed.' : '';
+      return issueOpen
+        ? { gate: null, waitingOn: 'person', text: `Merged.${proof} Close the issue on GitHub when satisfied.` }
+        : { gate: null, waitingOn: null, text: `Merged.${proof}` };
+    }
+    case 'needs-engineer': {
+      const reason = history.handoff === null ? '' : `: ${HANDOFF_TEXT[history.handoff.reason]}`;
+      return issueOpen
+        ? { gate: 'engineer', waitingOn: 'person', text: `An engineer is needed${reason}.` }
+        : { gate: null, waitingOn: 'person', text: `Handed to an engineer${reason}; reopen the issue on GitHub to continue.` };
+    }
+    case 'closed':
+      return { gate: null, waitingOn: null, text: 'Closed on GitHub.' };
+  }
+}

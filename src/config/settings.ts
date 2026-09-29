@@ -296,10 +296,22 @@ export function loadSettings(env: Env = process.env): Settings {
     },
   };
 
+  if (!isLoopbackHost(settings.server.host)) {
+    read.problems.push(`HOST must be a loopback address (127.0.0.1, ::1 or localhost); the service listens only on localhost, got ${JSON.stringify(settings.server.host)}`);
+  }
+
   if (read.problems.length > 0) {
     throw new SettingsError(read.problems);
   }
   return settings;
+}
+
+/** True for `localhost`, `::1` and IPv4 loopback addresses (`127.0.0.0/8`). */
+export function isLoopbackHost(host: string): boolean {
+  const name = host.toLowerCase();
+  if (name === 'localhost' || name === '::1') return true;
+  const octets = /^127\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(name);
+  return octets !== null && octets.slice(1).every((octet) => Number(octet) <= 255);
 }
 
 /** Lists what is missing or invalid for live provider use. Never includes secret values. */
