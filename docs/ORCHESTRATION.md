@@ -234,6 +234,7 @@ Tests are in `test/orchestrator.test.ts` unless noted.
 | Unknown unlabelled issue untouched | `labels` › leaves an unknown unlabelled issue untouched |
 | Conflicting labels start no work | `labels` › does not start work for conflicting… |
 | Removed label or relabel to triage stops a running fix | `labels` › stops a live repair… |
+| Removed label stops a fix waiting to merge; Automatic does not merge it | `merge policies` › Automatic does not merge a verified fix whose work label… |
 | Repair → triage | `labels` › routes queued repair back to investigation… |
 | Existing PR prevents duplicate repair (new and continued) | `existing pull requests` (both tests) |
 | Capacity; waiting sessions free capacity; blocked replies wait | `capacity` › queues work at MAX_ACTIVE_SESSIONS… |

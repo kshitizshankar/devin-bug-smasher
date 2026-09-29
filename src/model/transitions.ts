@@ -112,7 +112,7 @@ export interface ActionRequest {
 }
 
 const ACTIVE_WORK_STAGES: readonly Stage[] = ['triaging', 'needs-input', 'fixing'];
-const RUNNING_FIX_STAGES: readonly Stage[] = ['fixing', 'verifying'];
+const CANCELLABLE_FIX_STAGES: readonly Stage[] = ['fixing', 'verifying', 'ready-to-merge'];
 
 function fail(code: ModelError['code'], message: string): ModelResult {
   return { ok: false, error: { code, message } };
@@ -247,11 +247,11 @@ function routeFromLabels(record: BugRecord, labels: string[], options: ModelOpti
 }
 
 /**
- * Stops a running fix whose labels no longer request it: without workflow labels the record returns to an
- * unrouted `queued`; relabelled for investigation it is queued for triage. Returns null otherwise.
+ * Stops a running or merge-ready fix whose labels no longer request it: without workflow labels the record
+ * returns to an unrouted `queued`; relabelled for investigation it is queued for triage. Returns null otherwise.
  */
 function cancelFromLabels(record: BugRecord, labels: string[], options: ModelOptions, now: Timestamp): Effect[] | null {
-  if (!RUNNING_FIX_STAGES.includes(record.stage)) return null;
+  if (!CANCELLABLE_FIX_STAGES.includes(record.stage)) return null;
   const { route, conflict } = resolveLabels(labels, options.labels);
   if (conflict !== null || (route !== null && route !== 'triage')) return null;
   const effects = stopSessionEffects(record, now, route === null ? 'labels-removed' : 'returned-to-triage');

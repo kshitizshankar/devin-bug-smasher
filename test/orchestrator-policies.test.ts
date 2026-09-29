@@ -483,6 +483,21 @@ describe('merge policies in the orchestrator', () => {
     assert.ok(evaluation?.checks.some((check) => check.name === 'diff-checks' && !check.blocking && /check-silenced in src\/legend\.py/.test(check.detail)));
   });
 
+  it('Automatic does not merge a verified fix whose work label a person removed, and stops its session', async (t) => {
+    const f = await readyFix(t, { MERGE: 'auto' }, { review: false });
+    f.h.tracker.externalLabel(f.issueNumber, 'bug-smasher', 'remove', 'maintainer');
+    await f.h.cycle();
+    greenCi(f.h, HEAD_1);
+    await f.h.cycle(3);
+    const record = f.h.record(f.key);
+    assert.equal(record.stage, 'queued', 'withdrawing the label stops the fix waiting to merge');
+    assert.equal(record.route, null);
+    assert.equal(record.fix, null);
+    assert.equal(record.session?.stopReason, 'labels-removed');
+    assert.equal(mergeEvaluations(record).some((evaluation) => evaluation.outcome === 'merge'), false);
+    assert.equal((await f.h.tracker.getPullRequest(f.pr.number)).state, 'open', 'the withdrawn fix is not merged');
+  });
+
   it('asks GitHub again for the same head after it refused the merge, without another decision', async (t) => {
     const f = await readyFix(t, { MERGE: 'auto' }, { review: false });
     greenCi(f.h, HEAD_1);
