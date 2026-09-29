@@ -30,6 +30,8 @@ suite finishes.
 | `test/devin-structured-output.test.ts` | Absent, malformed, partial and complete structured output; only complete output yields model events, which the shared model accepts | No |
 | `test/devin-review-insights.test.ts` | Devin Review pending/completed/error/unavailable, unresolved findings, corrective messages, Auto-Fix not assumed; Insights unavailable/pending/failed/available and model projection | No |
 | `test/devin-setup.test.ts` | Setup client paths for Playbooks, Knowledge notes, repository indexing, blueprints and builds; redacted errors | No |
+| `test/tracker-github.test.ts` | `GitHubTracker` against an offline fake GitHub REST server: the shared tracker contract, headers, Link pagination, page-limit and foreign-link refusal, drift deduplication, timeline filtering, merge `sha` precondition, label ordering, rate-limit/auth/validation/server/network/timeout/malformed-response errors, token redaction | No |
+| `test/tracker-memory.test.ts` | `InMemoryTracker` against the same shared tracker contract, plus copy isolation | No |
 
 Run a selected file:
 
