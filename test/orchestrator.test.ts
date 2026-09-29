@@ -322,20 +322,59 @@ describe('orchestrator: labels', () => {
     assert.equal(h.record(issue.key).kind, 'bug');
   });
 
-  it('keeps tracking a live repair after its work label is removed', async (t) => {
+  it('stops a live repair and frees its slot when a person removes its work label', async (t) => {
+    const h = await setup(t, { env: { MAX_ACTIVE_SESSIONS: '1' } });
+    const issue = h.tracker.seedIssue({ title: 'Legend', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const id = h.sessionId(issue.key);
+    h.working(id);
+    await h.cycle();
+    assert.equal(h.record(issue.key).stage, 'fixing');
+    const other = h.tracker.seedIssue({ title: 'Other', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    assert.equal(h.record(other.key).stage, 'queued', 'the only slot is taken by the live repair');
+
+    h.tracker.externalLabel(issue.number, 'bug-smasher', 'remove', 'maintainer');
+    await h.cycle();
+    const record = h.record(issue.key);
+    assert.notEqual(record.stage, 'fixing', 'removing the label stops treating the repair as active');
+    assert.equal(record.route, null);
+    assert.notEqual(record.session?.stopRequestedAt, null);
+    assert.equal(record.session?.stopReason, 'labels-removed', 'the record shows why the session stopped');
+    assert.equal(consumesCapacity(record), false);
+    assert.ok(h.types(issue.key).includes('effect-applied'));
+
+    h.tracker.externalComment(issue.number, 'maintainer', 'Please also check the tooltip.');
+    await h.cycle(3);
+    assert.equal(h.messages(id).length, 0, 'no further work is posted to the stopped session');
+    assert.equal(h.record(other.key).stage, 'fixing', 'the freed slot starts the next repair');
+  });
+
+  it('stops a live repair when a person moves the bug back to investigation', async (t) => {
     const h = await setup(t);
     const issue = h.tracker.seedIssue({ title: 'Legend', labels: ['bug-smasher'] });
     await h.cycle(2);
     const id = h.sessionId(issue.key);
     h.working(id);
-    h.tracker.externalLabel(issue.number, 'bug-smasher', 'remove', 'maintainer');
-    await h.cycle(3);
-    assert.equal(h.record(issue.key).stage, 'fixing', 'removing the label neither forgets nor stops the work');
-    assert.equal(h.session(id).status, 'running');
-    const pr = h.tracker.seedPullRequest({ title: 'Fix', body: `Fixes #${issue.number}`, headSha: HEAD_1, references: [issue.number] });
-    h.opensPr(id, pr.url);
     await h.cycle();
-    assert.equal(h.record(issue.key).stage, 'verifying');
+    assert.equal(h.record(issue.key).stage, 'fixing');
+
+    h.tracker.externalLabel(issue.number, 'needs-triage', 'add', 'maintainer');
+    h.tracker.externalLabel(issue.number, 'bug-smasher', 'remove', 'maintainer');
+    await h.cycle();
+    const record = h.record(issue.key);
+    assert.equal(record.stage, 'queued');
+    assert.equal(record.route, 'triage');
+    assert.notEqual(record.session?.stopRequestedAt, null);
+    assert.equal(record.session?.stopReason, 'returned-to-triage');
+    assert.equal(consumesCapacity(record), false);
+    assert.equal(h.createRequests().length, 1, 'no investigation overlaps the stopping repair session');
+
+    h.ends(id);
+    await h.cycle(3);
+    assert.equal(h.record(issue.key).stage, 'triaging');
+    assert.ok(h.createRequests()[1]?.tags.includes('bug-smasher:route=triage'));
+    assert.equal(h.messages(id).length, 0);
   });
 
   it('routes queued repair back to investigation when a person relabels it', async (t) => {
@@ -706,5 +745,20 @@ describe('orchestrator: interface actions', () => {
     assert.equal(h.session(issue.id).status, 'exit');
     const refused = await h.orchestrator.performAction(issue.key, { name: 'reply', answer: '   ' });
     assert.equal(refused.status, 'refused');
+  });
+
+  it('keeps a repair started from the interface when its label move is retried', async (t) => {
+    const h = await setup(t);
+    const issue = await triaged(h);
+    h.tracker.failNext('addLabels', 'server-error');
+    const outcome = await h.orchestrator.performAction(issue.key, { name: 'fix' });
+    assert.equal(outcome.status, 'applied');
+    assert.equal(h.record(issue.key).stage, 'fixing');
+    assert.deepEqual((await h.tracker.getIssue(issue.number)).labels, ['needs-triage']);
+    await h.cycle(2);
+    const record = h.record(issue.key);
+    assert.equal(record.stage, 'fixing', 'a label snapshot read before the move applied does not cancel the repair');
+    assert.equal(record.session?.stopRequestedAt, null);
+    assert.deepEqual((await h.tracker.getIssue(issue.number)).labels, ['bug-smasher']);
   });
 });

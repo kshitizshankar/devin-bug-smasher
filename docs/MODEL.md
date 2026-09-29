@@ -158,6 +158,10 @@ Main flows:
 - `triage`/`fix` actions from `with-engineer` (or replacing the engineer label with a work label) return the
   work to `queued` with the person's context. The previous fix PR moves to `priorFixes`, so its closed or
   merged state no longer affects the new work.
+- A running or merge-ready fix (`fixing`/`verifying`/`ready-to-merge`) whose label snapshot has no workflow
+  label returns to an unrouted `queued`, so it is not merged; one relabelled for investigation only is queued
+  for triage. Either way the fix PR moves to `priorFixes` and the session is stopped with `session.stopReason` `labels-removed` / `returned-to-triage`
+  (other stops record `pr-merged`, `issue-closed`, `person-<action>` or the handoff reason).
 - Issue closed → `closed` (running session stopped). Reopened → routed by the current labels with engineer
   precedence: the engineer label → `with-engineer`; a bug with findings → `triaged`, upgraded to repair by a
   repair or feature label; otherwise label routing.

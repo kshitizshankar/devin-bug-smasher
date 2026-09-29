@@ -46,7 +46,8 @@ verifier, with the reason logged), and the unavailable policy until M1.6 provide
 5. A workflow label added **by a person** since the last step → that person's action (`github:<login>`,
    the label event time). Service and bot label changes are not decisions.
 6. Label snapshot → `labels-changed`, except that a snapshot never moves a `triaged` record into repair
-   (`decision-label-ignored`): only a person's label event or a policy decides.
+   (`decision-label-ignored`): only a person's label event or a policy decides. The issue is re-read
+   after the outbox moved labels in this step, so the snapshot is never older than those moves.
 7. Pending dispatch → reconcile (below).
 8. Live session → read it: valid structured output → model event; otherwise only its live state.
 9. Relay one genuine human comment to the live session.
@@ -237,7 +238,8 @@ Tests are in `test/orchestrator.test.ts` unless noted.
 | Unexpected session end hands off instead of restarting | `close, handoff and reopen` › hands off instead of restarting… |
 | Unknown unlabelled issue untouched | `labels` › leaves an unknown unlabelled issue untouched |
 | Conflicting labels start no work | `labels` › does not start work for conflicting… |
-| Removed label keeps the record | `labels` › keeps tracking a live repair… |
+| Removed label or relabel to triage stops a running fix | `labels` › stops a live repair… |
+| Removed label stops a fix waiting to merge; Automatic does not merge it | `merge policies` › Automatic does not merge a verified fix whose work label… |
 | Repair → triage | `labels` › routes queued repair back to investigation… |
 | Existing PR prevents duplicate repair (new and continued) | `existing pull requests` (both tests) |
 | Capacity; waiting sessions free capacity; blocked replies wait | `capacity` › queues work at MAX_ACTIVE_SESSIONS… |
