@@ -34,6 +34,7 @@ export class ReplayService implements DashboardApi {
   readonly #settings: Settings;
   #current: Dashboard;
   #seen: string | null = null;
+  #failure: string | null = null;
   #loading: Promise<void> | null = null;
   #timer: NodeJS.Timeout | null = null;
 
@@ -77,7 +78,6 @@ export class ReplayService implements DashboardApi {
       return;
     }
     if (text === this.#seen) return;
-    this.#seen = text;
     try {
       const replay = await openReplay(this.#paths, this.#loaded, this.#settings);
       try {
@@ -85,15 +85,20 @@ export class ReplayService implements DashboardApi {
       } finally {
         await replay.close();
       }
+      this.#seen = text;
+      this.#failure = null;
       console.log(`Replay ${this.#loaded.recording.id}: serving step ${replay.world.played} of ${this.#loaded.recording.steps.length} (simulated data)`);
     } catch (error) {
       this.#fail(error);
     }
   }
 
+  /** Serves the failure and retries on the next poll; the same failure is logged once. */
   #fail(error: unknown): void {
     const reason = `Replay unavailable: ${error instanceof Error ? error.message : String(error)}`;
-    console.error(reason);
+    this.#seen = null;
+    if (reason !== this.#failure) console.error(reason);
+    this.#failure = reason;
     this.#current = this.#unavailable(reason);
   }
 

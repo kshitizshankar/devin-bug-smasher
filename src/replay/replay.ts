@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, link, mkdir, mkdtemp, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -98,33 +98,47 @@ export async function rebuild(loaded: LoadedRecording, settings: Settings, playe
 /**
  * Opens the persisted replay: rebuilds it to the saved position and checks the persisted records are
  * exactly what the recording produces, so a changed or hand-edited store is refused rather than shown.
+ * The store is written before the position, so a store that matches a later step (a write stopped
+ * between the two files) is accepted at that step.
  */
 export async function openReplay(paths: ReplayPaths, loaded: LoadedRecording, settings: Settings): Promise<RebuiltReplay> {
   const state = await readReplayState(paths, loaded);
-  const persisted = await readBugRecords(paths.store);
+  const persisted = canonical(await readBugRecords(paths.store));
   const replay = await rebuild(loaded, settings, state.played);
-  if (canonical(persisted) !== canonical(replay.world.store.list())) {
+  try {
+    while (persisted !== canonical(replay.world.store.list())) {
+      if (replay.world.remaining === 0) {
+        throw new ReplayError(`${paths.store} does not match step ${state.played} of recording ${loaded.recording.id}; run "npm run replay -- reset"`);
+      }
+      await replay.world.next();
+    }
+  } catch (error) {
     await replay.close();
-    throw new ReplayError(`${paths.store} does not match step ${state.played} of recording ${loaded.recording.id}; run "npm run replay -- reset"`);
+    throw error;
   }
   return replay;
 }
 
 async function withLock<T>(paths: ReplayPaths, run: () => Promise<T>): Promise<T> {
   await mkdir(paths.dir, { recursive: true });
-  let handle;
+  // The lock appears with its owner's pid already in it (hard link of a complete file), so it is never
+  // seen empty; only a lock whose owner has exited is removed.
+  const pending = `${paths.lock}.${process.pid}`;
+  await writeFile(pending, String(process.pid), 'utf8');
   try {
-    handle = await open(paths.lock, 'wx');
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    const owner = Number((await readFile(paths.lock, 'utf8').catch(() => '')).trim());
-    if (Number.isInteger(owner) && owner > 0 && alive(owner)) throw new ReplayError(`Another replay command (pid ${owner}) is running`);
-    await rm(paths.lock, { force: true });
-    handle = await open(paths.lock, 'wx');
+    try {
+      await link(pending, paths.lock);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      const owner = Number((await readFile(paths.lock, 'utf8').catch(() => '')).trim());
+      if (Number.isInteger(owner) && owner > 0 && alive(owner)) throw new ReplayError(`Another replay command (pid ${owner}) is running`);
+      await rm(paths.lock, { force: true });
+      await link(pending, paths.lock);
+    }
+  } finally {
+    await rm(pending, { force: true });
   }
   try {
-    await handle.writeFile(String(process.pid));
-    await handle.close();
     return await run();
   } finally {
     await rm(paths.lock, { force: true });
@@ -150,7 +164,6 @@ export async function advanceReplay(paths: ReplayPaths, loaded: LoadedRecording,
     try {
       const results: StepResult[] = [];
       while (results.length < count && replay.world.remaining > 0) results.push(await replay.world.next());
-      if (results.length === 0) return results;
       await writeAtomically(paths.store, (tmp) => copyFile(replay.world.store.path, tmp));
       const state: ReplayState = { schemaVersion: REPLAY_STATE_VERSION, recording: { id: loaded.recording.id, digest: loaded.digest }, played: replay.world.played };
       await writeAtomically(paths.state, (tmp) => writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`, 'utf8'));

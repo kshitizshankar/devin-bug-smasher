@@ -15,6 +15,7 @@ import {
   resetReplay,
   type RebuiltReplay,
 } from '../src/replay/replay.ts';
+import { ReplayService } from '../src/replay/service.ts';
 import { replaySettings, type StepResult } from '../src/replay/world.ts';
 import { BugStore, DEFAULT_BUG_STORE_PATH } from '../src/store/bug-store.ts';
 
@@ -219,6 +220,49 @@ describe('replay persistence and isolation', () => {
       const fresh = await openReplay(paths, loaded, settings);
       assert.equal(fresh.world.played, 0);
       await fresh.close();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('recovers a write stopped between the store and the position, and keeps a live lock', async () => {
+    const dir = await tempDir();
+    try {
+      const paths = replayPaths(dir);
+      const settings = replaySettings(loaded.recording, {});
+      await advanceReplay(paths, loaded, settings, 3);
+      const state = await readFile(paths.state, 'utf8');
+      await advanceReplay(paths, loaded, settings, 1);
+      await writeFile(paths.state, state);
+      const recovered = await openReplay(paths, loaded, settings);
+      assert.equal(recovered.world.played, 4, 'the store written at step 4 is accepted');
+      await recovered.close();
+      assert.equal((await advanceReplay(paths, loaded, settings, 1))[0]?.number, 5);
+
+      await writeFile(paths.lock, String(process.pid));
+      await assert.rejects(advanceReplay(paths, loaded, settings, 1), /Another replay command/);
+      await writeFile(paths.lock, '2147483646');
+      assert.equal((await advanceReplay(paths, loaded, settings, 1))[0]?.number, 6, 'a lock left by an exited process is replaced');
+      await assert.rejects(readFile(paths.lock), /ENOENT/);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the service retries after a failed load and serves the replay once it is valid again', async () => {
+    const dir = await tempDir();
+    try {
+      const paths = replayPaths(dir);
+      const service = new ReplayService(paths, loaded, replaySettings(loaded.recording, {}));
+      await advanceReplay(paths, loaded, replaySettings(loaded.recording, {}), 2);
+      await writeFile(paths.store, '{"schemaVersion":1,"bugs":{}}\n');
+      await service.reload();
+      assert.equal(service.overview().refresh.state, 'unavailable');
+      assert.equal(service.overview().data.simulated, true);
+      await resetReplay(paths);
+      await service.reload();
+      assert.equal(service.overview().refresh.state, 'current');
+      assert.equal(service.overview().data.replay?.played, 0);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

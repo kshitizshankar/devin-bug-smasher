@@ -35,8 +35,9 @@ new position within a second; the dashboard stays read-only.
 | `data/bugs.json` | Live store; replay never opens it, and a `REPLAY_DIR` that would resolve to it is refused |
 
 Each command rebuilds the stand-in world to the saved step, checks that the saved store matches it exactly
-(a store from another recording or edited by hand is refused), then plays further and replaces the files
-atomically. Positions survive restarts of the service or container. Metrics come from the shared
+(a store from another recording or edited by hand is refused), then plays further and replaces the store,
+then the position, atomically; a store one step ahead of its position (an interrupted write) is accepted at
+its step. `replay.lock` always holds its owner's pid and is replaced only when that process has exited. Positions survive restarts of the service or container. Metrics come from the shared
 `calculateMetrics` with the records in the `replay` cohort: the live headline figures stay `null`.
 
 ## Recording

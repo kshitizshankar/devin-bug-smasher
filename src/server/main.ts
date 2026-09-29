@@ -30,7 +30,7 @@ const { host, port, staticDir } = settings.server;
 const replayMode = settings.github.token === null && settings.devin.apiKey === null;
 
 const dashboard = new Dashboard({ settings });
-let served: DashboardApi = dashboard;
+let served: DashboardApi = replayMode ? unavailableReplayDashboard(settings, 'The replay is loading') : dashboard;
 const server = createApp({
   staticDir,
   dashboard: { overview: () => served.overview(), metrics: () => served.metrics(), settings: () => served.settings() },
