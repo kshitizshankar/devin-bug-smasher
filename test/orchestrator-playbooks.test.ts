@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, it, type TestContext } from 'node:test';
 import { playbookBody, syncedPlaybookIds } from '../src/orchestrator/playbooks.ts';
 import { MAX_OTHER_OPEN_BUGS } from '../src/orchestrator/prompts.ts';
+import type { TrackerIssue } from '../src/tracker/types.ts';
 import { Harness, report } from './helpers/orchestrator.ts';
 
 const IDS = { triage: 'playbook-triage-1', repair: 'playbook-repair-2', feature: 'playbook-feature-3' } as const;
@@ -31,6 +32,21 @@ function createFor(h: Harness, title: string): { prompt: string; body: Record<st
   const create = h.createRequests().find((request) => String(request.body.title).endsWith(title));
   assert.ok(create, `a session was created for ${title}`);
   return create;
+}
+
+/**
+ * Gives the harness tracker the GitHub adapter's `listAllIssues` over `seeded` (current state, open and closed);
+ * returns how many times it was called.
+ */
+function offerFullListing(h: Harness, seeded: readonly TrackerIssue[]): () => number {
+  let listings = 0;
+  Object.assign(h.tracker, {
+    listAllIssues: async (): Promise<TrackerIssue[]> => {
+      listings += 1;
+      return Promise.all(seeded.map((issue) => h.tracker.getIssue(issue.number)));
+    },
+  });
+  return () => listings;
 }
 
 function count(haystack: string, needle: string): number {
@@ -122,6 +138,57 @@ describe('orchestrator: open bugs for the triage duplicate check', () => {
     const prompt = createFor(h, 'Legend overlaps axis').prompt;
     assert.match(prompt, /There are no other open bugs in acme\/widgets/);
     assert.doesNotMatch(prompt, /BEGIN OPEN BUGS/);
+  });
+
+  it('lists open bugs nobody has labelled and tracked bugs that lost their label, but not closed ones', async (t) => {
+    const h = await setup(t);
+    const tracked = h.tracker.seedIssue({ title: 'Axis labels clipped', labels: ['needs-triage'] });
+    await h.cycle(2);
+    await h.tracker.removeLabel(tracked.number, 'needs-triage');
+    const unlabelled = h.tracker.seedIssue({ title: 'Legend overlaps title' });
+    const closed = h.tracker.seedIssue({ title: 'Legend missing' });
+    await h.tracker.closeIssue(closed.number);
+    const feature = h.tracker.seedIssue({ title: 'Dark mode', labels: ['devin-builds-feature'] });
+    const triaged = h.tracker.seedIssue({ title: 'Legend overlaps axis', labels: ['needs-triage'] });
+    offerFullListing(h, [tracked, unlabelled, closed, feature, triaged]);
+    await h.cycle(2);
+    const prompt = createFor(h, 'Legend overlaps axis').prompt;
+    const listed = [...prompt.matchAll(/^- #(\d+): (.*)$/gm)].map((match) => [Number(match[1]), match[2]]);
+    assert.deepEqual(listed, [
+      [unlabelled.number, 'Legend overlaps title'],
+      [tracked.number, 'Axis labels clipped'],
+    ]);
+  });
+
+  it('lists every issue at most once per cycle, however many triage sessions it starts', async (t) => {
+    const h = await setup(t);
+    const listings = offerFullListing(h, [
+      h.tracker.seedIssue({ title: 'Legend overlaps axis', labels: ['needs-triage'] }),
+      h.tracker.seedIssue({ title: 'Zoom resets on resize', labels: ['needs-triage'] }),
+    ]);
+    await h.cycle(2);
+    const dispatchCycles = new Set(h.trace.filter((event) => event.type === 'dispatch-intent').map((event) => event.cycle));
+    assert.equal(h.createRequests().length, 2);
+    assert.equal(dispatchCycles.size, 1, 'both triage sessions start in the same cycle');
+    assert.equal(listings(), 1);
+    assert.match(createFor(h, 'Zoom resets on resize').prompt, /^- #\d+: Legend overlaps axis$/m);
+  });
+
+  it('falls back to the issues the cycle lists when the full listing fails', async (t) => {
+    const h = await setup(t);
+    Object.assign(h.tracker, {
+      listAllIssues: async (): Promise<TrackerIssue[]> => {
+        throw new Error('simulated listing failure');
+      },
+    });
+    const other = h.tracker.seedIssue({ title: 'Zoom resets on resize', labels: ['needs-engineer'] });
+    h.tracker.seedIssue({ title: 'Unlabelled bug' });
+    h.tracker.seedIssue({ title: 'Legend overlaps axis', labels: ['needs-triage'] });
+    await h.cycle(2);
+    const prompt = createFor(h, 'Legend overlaps axis').prompt;
+    assert.match(prompt, new RegExp(`^- #${other.number}: Zoom resets on resize$`, 'm'));
+    assert.doesNotMatch(prompt, /Unlabelled bug/);
+    assert.ok(h.trace.some((event) => event.type === 'error' && event.detail.during === 'listAllIssues'));
   });
 
   it('lists only the most recent bugs beyond the bound', async (t) => {

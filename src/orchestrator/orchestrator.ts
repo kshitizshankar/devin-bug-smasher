@@ -46,6 +46,7 @@ import {
   TrackerError,
   type Actor,
   type IssueEvent,
+  type RepositoryAdmin,
   type ReviewThread,
   type Tracker,
   type TrackerComment,
@@ -146,7 +147,8 @@ export interface TraceEvent {
 
 export interface OrchestratorOptions {
   store: BugStore;
-  tracker: Tracker;
+  /** With `listAllIssues`, the duplicate check sees every open bug, not only the ones this cycle lists or tracks. */
+  tracker: Tracker & Partial<Pick<RepositoryAdmin, 'listAllIssues'>>;
   devin: OrchestratorDevin;
   settings: Settings;
   prompts: Prompts;
@@ -240,7 +242,7 @@ function permanentFailure(error: unknown): boolean {
  */
 export class Orchestrator {
   readonly #store: BugStore;
-  readonly #tracker: Tracker;
+  readonly #tracker: Tracker & Partial<Pick<RepositoryAdmin, 'listAllIssues'>>;
   readonly #devin: OrchestratorDevin;
   readonly #settings: Settings;
   readonly #prompts: Prompts;
@@ -257,6 +259,8 @@ export class Orchestrator {
   readonly #repo: GitHubRepo;
   #cycle = 0;
   #openIssues: readonly TrackerIssue[] = [];
+  /** Every issue in the repository, listed at most once per cycle for the duplicate check. */
+  #allIssues: Promise<readonly TrackerIssue[] | null> | null = null;
   #lastCycleAt: string | null = null;
   #inFlight: Promise<void> | null = null;
   #lock: Promise<unknown> = Promise.resolve();
@@ -360,6 +364,7 @@ export class Orchestrator {
 
   async #runCycle(): Promise<void> {
     this.#cycle += 1;
+    this.#allIssues = null;
     this.#emit(null, 'cycle-started');
     const labels = [
       this.#settings.labels.triage,
@@ -375,7 +380,6 @@ export class Orchestrator {
       this.#finishCycle();
       return;
     }
-    this.#openIssues = open;
     const issues = new Map(open.map((issue) => [issue.number, issue]));
     for (const record of this.#store.list()) {
       const parts = parseBugKey(record.key);
@@ -387,6 +391,7 @@ export class Orchestrator {
         this.#emit(record.key, 'error', { during: 'getIssue', message: describe(error) });
       }
     }
+    this.#openIssues = [...issues.values()];
     for (const issue of [...issues.values()].sort((a, b) => a.number - b.number)) {
       try {
         await this.#step(issue);
@@ -901,7 +906,7 @@ export class Orchestrator {
     const playbook = playbookId === null ? 'inline' : 'attached';
     const prompt =
       playbookRoute === 'triage'
-        ? this.#prompts.investigation(context, comments.included, decision, { playbook, otherBugs: this.#otherOpenBugs(issue) })
+        ? this.#prompts.investigation(context, comments.included, decision, { playbook, otherBugs: await this.#otherOpenBugs(issue) })
         : playbookRoute === 'feature'
           ? this.#prompts.feature(context, comments.included, decision, { playbook })
           : this.#prompts.repairNew(context, record.triage, comments.included, decision, { playbook });
@@ -944,13 +949,28 @@ export class Orchestrator {
     await this.#sessionStarted(issue, pending, result.session, [], 'session-started');
   }
 
-  /** Open bugs (not feature requests) from this cycle's listing, other than `issue`, for the duplicate check. */
-  #otherOpenBugs(issue: TrackerIssue): OpenBug[] {
+  /**
+   * Other open bugs (issues that are not feature requests) for the duplicate check, from every issue in the
+   * repository. Without `listAllIssues`, or when it fails, from the issues this cycle lists or tracks.
+   */
+  async #otherOpenBugs(issue: TrackerIssue): Promise<OpenBug[]> {
     const feature = this.#settings.labels.feature.toLowerCase();
-    return this.#openIssues
+    this.#allIssues ??= this.#listAllIssues();
+    const candidates = (await this.#allIssues) ?? this.#openIssues;
+    return candidates
       .filter((other) => other.number !== issue.number && other.state === 'open')
       .filter((other) => !other.labels.some((label) => label.toLowerCase() === feature))
       .map((other) => ({ number: other.number, title: other.title, createdAt: other.createdAt }));
+  }
+
+  async #listAllIssues(): Promise<readonly TrackerIssue[] | null> {
+    if (this.#tracker.listAllIssues === undefined) return null;
+    try {
+      return await this.#tracker.listAllIssues();
+    } catch (error) {
+      this.#emit(null, 'error', { during: 'listAllIssues', message: describe(error) });
+      return null;
+    }
   }
 
   /** Resolves a persisted create intent by its attempt tag (or bug and route tags) instead of creating again. */

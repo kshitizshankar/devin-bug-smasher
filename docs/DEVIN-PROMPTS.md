@@ -21,8 +21,10 @@ and its repository rules from `AGENTS.md`. Each kind of guidance has one home:
 | Replies | `reply-relay.md` | A person's comment, unchanged |
 | Verification retry | `verification-retry.md` | Why independent verification failed |
 
-The other open bugs for the duplicate check are the open issues carrying a workflow label other than the
-feature label, most recent first, at most 20 (`MAX_OTHER_OPEN_BUGS`).
+The other open bugs for the duplicate check are every open issue in the repository, labelled or not, other
+than feature requests and the bug being triaged, most recent first, at most 20 (`MAX_OTHER_OPEN_BUGS`). The
+issues are listed once per cycle, and only when that cycle starts a triage session. If the listing fails, the
+list falls back to the issues the cycle already has (those with a workflow label, and tracked bugs).
 
 Shared rules:
 
