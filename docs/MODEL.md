@@ -31,7 +31,7 @@ The store keeps only orchestration and evidence data (`BugRecord` in `src/model/
 | `kind`          | `bug` or `feature`                                                                                 |
 | `stage`         | One of the ten internal stages below                                                               |
 | `route`         | Work queued or running: `triage`, `fix` or `null`                                                  |
-| `session`       | Devin session `id`, `url`, `route`, `liveState` (`starting`/`running`/`blocked`/`ended`), timestamps, `stopRequestedAt` |
+| `session`       | Devin session `id`, `url`, `route`, `liveState` (`starting`/`running`/`blocked`/`ended`), timestamps, `stopRequestedAt`, `archiveFailedAt` (a stop left it unarchived) |
 | `triage`        | Findings: title, summary, reproduction steps, expected/actual, suspected cause, affected files, reproduced + notes, proposed test (description, file, command — **data only, never executed** — and optional `code`, the full test file when it is not on the default branch), recommendation (`devin_fix`/`needs_engineer`/`close`), reason, confidence |
 | `fix`           | PR number/URL, current head SHA, test files, summary, `mergeCommitSha`, `mergedBy` (`github:<login>`) and `mergedAt` (set by `pr-merged`) |
 | `priorFixes`    | Earlier fix PRs, moved here when work is returned to investigation or repair                      |

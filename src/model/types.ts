@@ -66,6 +66,8 @@ export interface SessionInfo {
   updatedAt: Timestamp;
   /** Set when the model asked the adapter to stop this session (a `stop-session` effect). */
   stopRequestedAt: Timestamp | null;
+  /** Set when a stop ended without the session being archived, so it could still wake on a pull request comment. */
+  archiveFailedAt?: Timestamp;
 }
 
 export interface TriageFindings {

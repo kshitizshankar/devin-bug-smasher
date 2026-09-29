@@ -112,6 +112,7 @@ export type TraceType =
   | 'effect-applied'
   | 'effect-failed'
   | 'effect-dropped'
+  | 'session-not-archived'
   | 'merge-retried'
   | 'message-already-delivered'
   | 'dispatch-intent'
@@ -663,11 +664,12 @@ export class Orchestrator {
       case 'stop-session':
         // Archived so a later comment on the session's pull request cannot wake it. A session that cannot be
         // terminated because it already ended (409) is archived on its own; a missing one (404) counts as stopped.
+        // A stop whose session is left unarchived is recorded on the bug and fails as a permanent conflict.
         try {
           await this.#devin.terminateSession(op.sessionId, { archive: true });
         } catch (error) {
           if (!(error instanceof DevinError && (error.kind === 'not-found' || error.kind === 'conflict'))) throw error;
-          if (error.kind === 'conflict') await this.#archive(op.sessionId);
+          if (error.kind === 'conflict' && !(await this.#archive(op.sessionId))) await this.#archiveFailed(record.key, op.sessionId);
         }
         return;
       case 'post-comment':
@@ -691,12 +693,39 @@ export class Orchestrator {
     }
   }
 
-  async #archive(sessionId: string): Promise<void> {
+  /** Archives a session; true when it ends up archived or no longer exists. */
+  async #archive(sessionId: string): Promise<boolean> {
     try {
       await this.#devin.archiveSession(sessionId);
+      return true;
     } catch (error) {
       if (!(error instanceof DevinError && (error.kind === 'not-found' || error.kind === 'conflict'))) throw error;
+      if (error.kind === 'not-found') return true;
     }
+    try {
+      return (await this.#devin.getSession(sessionId)).isArchived;
+    } catch (error) {
+      if (error instanceof DevinError && error.kind === 'not-found') return true;
+      throw error;
+    }
+  }
+
+  async #archiveFailed(key: string, sessionId: string): Promise<never> {
+    const at = this.#now().toISOString();
+    await this.#store.update(key, (current) => {
+      if (current?.session?.id !== sessionId) return undefined;
+      current.session.archiveFailedAt = at;
+      return current;
+    });
+    this.#emit(key, 'session-not-archived', { sessionId });
+    throw new DevinError({
+      kind: 'conflict',
+      operation: 'archive-session',
+      status: 409,
+      message: `Session ${sessionId} was stopped but could not be archived`,
+      retryAfterSeconds: null,
+      ambiguous: false,
+    });
   }
 
   // Capacity -----------------------------------------------------------------------------------------------------

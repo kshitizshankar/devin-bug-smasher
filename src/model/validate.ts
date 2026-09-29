@@ -338,6 +338,7 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
     checkTimestamp(session.startedAt, `${path}.session.startedAt`, problems);
     checkTimestamp(session.updatedAt, `${path}.session.updatedAt`, problems);
     checkNullableTimestamp(session.stopRequestedAt, `${path}.session.stopRequestedAt`, problems);
+    if (session.archiveFailedAt !== undefined) checkTimestamp(session.archiveFailedAt, `${path}.session.archiveFailedAt`, problems);
   }
   if (value.triage !== null) problems.push(...validateTriageFindings(value.triage, `${path}.triage`));
   if (value.fix !== null) problems.push(...validateFixInfo(value.fix, `${path}.fix`));

@@ -88,7 +88,7 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
     requireLiveResults: true,
     trace: (event) => {
       if (event.type === 'cycle-finished') void dashboard.refresh();
-      if (event.type === 'error' || event.type === 'effect-failed' || event.type === 'refused') {
+      if (event.type === 'error' || event.type === 'effect-failed' || event.type === 'refused' || event.type === 'session-not-archived') {
         console.error(`[workflow] ${event.type} ${event.key ?? ''} ${JSON.stringify(event.detail)}`);
       }
     },
