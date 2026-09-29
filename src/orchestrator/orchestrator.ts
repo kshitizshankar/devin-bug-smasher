@@ -109,6 +109,7 @@ export type TraceType =
   | 'effect-applied'
   | 'effect-failed'
   | 'effect-dropped'
+  | 'merge-retried'
   | 'message-already-delivered'
   | 'dispatch-intent'
   | 'session-created'
@@ -1412,6 +1413,8 @@ export class Orchestrator {
       if (round.status === 'pending') {
         const state = await this.#reviewCall(record, () => this.#devin.getReview(fix.prUrl, fix.headSha));
         if (state === null || state.status === 'pending') return false;
+        // The provider may briefly report no Review (or the previous head's) for a requested commit; keep polling.
+        if (state.status === 'unavailable' && (state.reason === 'not-requested' || state.reason === 'different-commit')) return false;
         await this.#settleRound(record.key, fix.prNumber, round, state, review);
       } else if (round.status === 'completed' && round.findings.length > 0 && round.correctionSentAt === null && round.blocker === null) {
         const repairs = review.rounds.filter((other) => other.prNumber === fix.prNumber && other.correctionSentAt !== null).length;
@@ -1513,7 +1516,10 @@ export class Orchestrator {
     if (fix === null || record.stage !== 'ready-to-merge' || policy === 'person') return;
     const pr = await this.#tracker.getPullRequest(fix.prNumber);
     if (pr.state !== 'open' || pr.headSha !== fix.headSha) return;
-    if ((record.evaluations ?? []).some((evaluation) => evaluation.kind === 'merge' && evaluation.outcome === 'merge' && evaluation.subject === pr.headSha)) {
+    const requested = (record.evaluations ?? []).some(
+      (evaluation) => evaluation.kind === 'merge' && evaluation.outcome === 'merge' && evaluation.subject === pr.headSha,
+    );
+    if (requested && (record.workflow?.outbox ?? []).some((op) => op.type === 'merge-pr' && op.expectedHeadSha === pr.headSha)) {
       this.#emit(record.key, 'merge-already-requested', { prNumber: pr.number, headSha: pr.headSha });
       return;
     }
@@ -1551,6 +1557,12 @@ export class Orchestrator {
     if (evaluation.outcome === 'wait') {
       if (!seen) this.#emit(record.key, 'merge-waiting', { rule: evaluation.rule, headSha: pr.headSha });
       if (result.changed) await this.#commit(issue, record, result, 'merge-wait');
+      return;
+    }
+    if (requested) {
+      // GitHub refused the earlier request for this head (e.g. a required approval was missing); ask again.
+      this.#emit(record.key, 'merge-retried', { prNumber: pr.number, headSha: pr.headSha });
+      await this.#persistWorkflow(result.record, () => {}, [{ type: 'merge-pr', prNumber: pr.number, expectedHeadSha: pr.headSha }]);
       return;
     }
     const merge = applyAction(

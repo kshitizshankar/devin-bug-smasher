@@ -290,6 +290,21 @@ describe('Devin Review', () => {
     assert.equal(reviewPosts(f.h), 2, 'restarts request nothing again');
   });
 
+  it('keeps polling when the provider briefly reports no Review for a requested head', async (t) => {
+    const f = await readyFix(t, { MERGE: 'rule' });
+    greenCi(f.h, HEAD_1);
+    await until(f.h, f.key, (record) => (record.review?.rounds.length ?? 0) === 1);
+    const review = f.h.offline.reviews.get(f.pr.url);
+    assert.ok(review);
+    f.h.offline.reviews.delete(f.pr.url);
+    await f.h.cycle(2);
+    assert.equal(f.h.record(f.key).review?.rounds[0]?.status, 'pending');
+    f.h.offline.reviews.set(f.pr.url, { ...review, status: 'completed' });
+    const merged = await until(f.h, f.key, (record) => record.stage === 'merged');
+    assert.equal(merged.review?.rounds[0]?.status, 'completed');
+    assert.equal(reviewPosts(f.h), 1);
+  });
+
   it('records an unavailable Review, never treats it as passed, and Rule merge waits', async (t) => {
     const f = await readyFix(t, { MERGE: 'rule' }, { review: false });
     greenCi(f.h, HEAD_1);
@@ -425,6 +440,21 @@ describe('merge policies in the orchestrator', () => {
     assert.equal(evaluation?.rule, 'merge-auto');
     assert.equal(evaluation?.subject, HEAD_3);
     assert.ok(evaluation?.checks.some((check) => check.name === 'diff-checks' && !check.blocking));
+  });
+
+  it('asks GitHub again for the same head after it refused the merge, without another decision', async (t) => {
+    const f = await readyFix(t, { MERGE: 'auto' }, { review: false });
+    greenCi(f.h, HEAD_1);
+    f.h.tracker.blockMerge(f.pr.number, 'At least 1 approving review is required');
+    await f.h.cycle(3);
+    assert.ok(f.h.types(f.key).includes('effect-dropped'));
+    assert.equal((await f.h.tracker.getPullRequest(f.pr.number)).state, 'open');
+    f.h.tracker.blockMerge(f.pr.number, null);
+    const merged = await until(f.h, f.key, (record) => record.stage === 'merged');
+    assert.ok(f.h.types(f.key).includes('merge-retried'));
+    assert.equal(merged.decisions.filter((decision) => decision.action === 'merge').length, 1);
+    assert.equal(mergeEvaluations(merged).length, 1);
+    assert.equal((await comments(f.h, f.issueNumber, 'merge-decision:')).length, 1);
   });
 
   it('refuses to merge when the head moves between evaluation and merge, then verifies the new head afresh', async (t) => {

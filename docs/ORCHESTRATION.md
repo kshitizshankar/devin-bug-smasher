@@ -164,7 +164,8 @@ Once a head is `ready-to-merge`:
    findings, the correction is sent once to the same live session (`bug-smasher:review:<head>` marker);
    the new head is verified afresh and reviewed again. After `maxReviewRepairs` (default 2) correction
    rounds per PR, or when the session has ended, the round gets a durable `blocker` and one keyed comment.
-   An error, `forbidden`, `not-requested`, `cancelled`, `skipped` or disabled Review is recorded as
+   While polling a requested Review, `not-requested` or an earlier commit's Review keeps the round
+   `pending`. An error, `forbidden`, `not-requested` (when requesting), `cancelled`, `skipped` or disabled Review is recorded as
    `unavailable` and never counts as passed. Auto-Fix is never assumed. Resolved or removed finding threads
    are recorded as `resolutions` (`same-session` when fixed on a later head after a correction).
 2. **Merge policy** (`MERGE`), evaluated on a fresh read of the PR, check runs, commit statuses, Review
@@ -181,8 +182,10 @@ Once a head is `ready-to-merge`:
 
 `person` never merges automatically. A passing evaluation requests `merge-pr` with the evaluated head as
 `expectedHeadSha`; GitHub refuses the merge if the head moved (the model then sees `head-changed` and
-verifies the new head afresh) and branch protection is never bypassed. A head that already had a merge
-requested is not requested again. Direct merges by a person are detected the same way and record
+verifies the new head afresh) and branch protection is never bypassed. If GitHub refuses the
+request for a reason other than a moved head (for example a required approval is missing), the next
+cycle re-evaluates the same head and, if it still passes, asks GitHub again (`merge-retried`) without
+recording another decision. Direct merges by a person are detected the same way and record
 `mergedBy`/`mergedAt`/merge commit; a policy merge also gets one `merge-decision` comment. After any merge
 the merge commit is verified (`post-merge`); a failure hands off to an engineer. Exactly one thank-you
 comment (`thanks:<merge commit>`) addresses the reporter; the issue stays open unless GitHub closed it
@@ -206,7 +209,7 @@ same session posts nothing; a new session gets its own comment.
 `create-ambiguous`, `create-failed`, `reconcile-not-found`, `create-abandoned`, `waiting-for-capacity`,
 `waiting-for-session-end`, `label-conflict`, `decision-label-ignored`, `structured-output-ignored`, `unexpected-triage-pr`,
 `reply-relayed`, `question-posted`, `verifier-unavailable`, `policy-unavailable`, `policy-waiting`,
-`review-requested`, `review-unavailable`, `merge-waiting`, `merge-already-requested`, `cycle-*`, `error`.
+`review-requested`, `review-unavailable`, `merge-waiting`, `merge-already-requested`, `merge-retried`, `cycle-*`, `error`.
 Run the traces with `ORCHESTRATOR_TRACE=1 node --test test/orchestrator.test.ts`; each test prints its
 trace as diagnostics.
 
