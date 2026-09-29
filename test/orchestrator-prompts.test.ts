@@ -184,3 +184,18 @@ describe('triage comment', () => {
     assert.doesNotMatch(comment, /New test file/);
   });
 });
+
+describe('repair prompts: triage findings', () => {
+  it('carry the full code of the proposed new test into new and continued repair sessions', async () => {
+    const prompts = await Prompts.load();
+    const code = "import { it } from 'node:test';\nit('rejects empty names', () => {});\n";
+    const triage = findings({ proposedTest: { description: 'Rejects empty names', file: 'test/save.test.ts', command: 'node --test test/save.test.ts', code } });
+    for (const prompt of [
+      prompts.repairNew(issue, triage, [], null),
+      prompts.repairContinue(issue, triage, [], null, 'bug-smasher:continue:s:1'),
+    ]) {
+      assert.ok(prompt.includes(`- Proposed new test file test/save.test.ts:\n\`\`\`\n${code.trimEnd()}\n\`\`\``));
+    }
+    assert.doesNotMatch(prompts.repairNew(issue, findings(), [], null), /Proposed new test file/);
+  });
+});

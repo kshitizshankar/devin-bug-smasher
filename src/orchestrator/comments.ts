@@ -14,12 +14,16 @@ function quote(text: string): string {
     .join('\n');
 }
 
-/** The proposed new test file, fenced so no backtick run inside it can close the block. */
+/** `text` in a Markdown code block whose fence is longer than any backtick run inside it. */
+export function codeBlock(text: string): string {
+  const longest = Math.max(2, ...[...text.matchAll(/`+/g)].map((run) => run[0].length));
+  const fence = '`'.repeat(longest + 1);
+  return [fence, text.replace(/\n+$/, ''), fence].join('\n');
+}
+
 function proposedTestCode(test: TriageFindings['proposedTest']): string[] {
   if (test.code === undefined || test.code.trim() === '') return [];
-  const longest = Math.max(2, ...[...test.code.matchAll(/`+/g)].map((run) => run[0].length));
-  const fence = '`'.repeat(longest + 1);
-  return ['', `New test file \`${test.file}\` (proposed by Devin; not run by the service):`, fence, test.code.replace(/\n+$/, ''), fence];
+  return ['', `New test file \`${test.file}\` (proposed by Devin; not run by the service):`, codeBlock(test.code)];
 }
 
 function bullets(items: readonly string[]): string {

@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { TriageFindings } from '../model/types.ts';
+import { codeBlock } from './comments.ts';
 
 export const DEFAULT_PROMPTS_DIR = fileURLToPath(new URL('../../prompts', import.meta.url));
 
@@ -98,6 +99,9 @@ export function findingsSection(findings: TriageFindings | null): string {
     `- Affected files: ${list(findings.affectedFiles)}`,
     `- Proposed regression test: ${findings.proposedTest.description} (${findings.proposedTest.file}), ` +
       `run with \`${findings.proposedTest.command}\``,
+    ...(findings.proposedTest.code === undefined || findings.proposedTest.code.trim() === ''
+      ? []
+      : [`- Proposed new test file ${findings.proposedTest.file}:`, codeBlock(findings.proposedTest.code)]),
     `- Recommendation: ${findings.recommendation} (${findings.confidence} confidence): ${findings.reason}`,
   ].join('\n');
 }
