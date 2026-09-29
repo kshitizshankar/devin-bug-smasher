@@ -135,6 +135,11 @@ describe('independent verification against fixture repositories', () => {
       ],
       ['a changed CI workflow', { '.github/workflows/ci.yml': 'on: push\njobs: { skip: {} }\n' }, /rules-changed in \.github\/workflows\/ci\.yml/],
       ['an added pytest.ini', { 'pytest.ini': '[pytest]\naddopts = -k "not slow"\n' }, /rules-changed in pytest\.ini/],
+      [
+        'changed package.json scripts',
+        { 'package.json': '{ "name": "fixture", "type": "module", "scripts": { "test": "exit 0" } }\n' },
+        /rules-changed in package\.json: scripts or test, lint or type-check configuration changed/,
+      ],
     ];
     for (const [name, change, reason] of cases) {
       it(`rejects ${name}`, async () => {
@@ -206,6 +211,7 @@ describe('independent verification against fixture repositories', () => {
       for (const [command, reason] of [
         [`${NODE} -e 0 {results} {files}`, /no JUnit report was written/],
         [`${NODE} -e require('fs').writeFileSync(process.argv[1],'garbage') {results} {files}`, /the report is not JUnit XML/],
+        [`${NODE} -e require('fs').symlinkSync('/etc/hostname',process.argv[1]) {results} {files}`, /no JUnit report was written/],
       ] as const) {
         await world.close();
         world = await verifyWorld({ checkCommand: command });
@@ -213,6 +219,16 @@ describe('independent verification against fixture repositories', () => {
         assert.equal(attempt.result, 'error');
         assert.match(attempt.reason, reason);
       }
+    });
+
+    it('replaces a link in the base tree with the new test instead of writing through it', async () => {
+      const outside = join(world.root, 'outside.txt');
+      await writeFile(outside, 'untouched\n');
+      const base = await world.repo.advanceMainWithLink(ADD_TEST_PATH, outside);
+      const head = await world.repo.head('fix', { 'src/math.mjs': FIXED_MATH, [ADD_TEST_PATH]: ADD_TEST }, base);
+      const attempt = attemptOf(await world.verifier.verify({ ...request(head), baseSha: base }));
+      assert.equal(await readFile(outside, 'utf8'), 'untouched\n');
+      assert.equal(attempt.result, 'pass', attempt.reason);
     });
 
     it('treats commits that cannot be fetched as an error', async () => {
@@ -272,7 +288,7 @@ describe('independent verification against fixture repositories', () => {
     const { attempt } = await verifyHead({
       'src/math.mjs': FIXED_MATH,
       [ADD_TEST_PATH]: `${ADD_TEST}// To reproduce run: ${script}\n`,
-      'package.json': `{ "name": "fixture", "type": "module", "scripts": { "test": "${script}", "pretest": "${script}" } }\n`,
+      'scripts/repro.sh': `#!/bin/sh\n${script}\n`,
     });
     assert.equal(attempt.result, 'pass', attempt.reason);
     assert.equal(existsSync(join(world.root, 'pwned')), false);

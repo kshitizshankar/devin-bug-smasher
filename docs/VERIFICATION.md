@@ -51,7 +51,7 @@ recorded merge commit and the base is its first parent.
    | `test-disabled` | Added skip, expected-failure or only markers: `it.skip`, `describe.only`, `xit`, `pytest.mark.skip`/`skipif`/`xfail`, `unittest.skip`, `@Disabled`, `t.Skip`, `{ skip: … }` … |
    | `test-weakened` | A changed test file with fewer assertions than before |
    | `check-silenced` | Added suppressions: `# noqa`, `# type: ignore`, `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `pylint: disable`, `nolint`, coverage pragmas … |
-   | `rules-changed` | Test, lint, type-check or CI configuration: `pytest.ini`, `conftest.py`, `tox.ini`, `setup.cfg`, lint and `tsconfig*.json` files, test-runner configs, `.github/workflows/`, other CI files |
+   | `rules-changed` | Test, lint, type-check or CI configuration: `pytest.ini`, `conftest.py`, `tox.ini`, `setup.cfg`, lint and `tsconfig*.json` files, test-runner configs, `.github/workflows/`, other CI files; `package.json` `scripts` or test/lint config keys (`jest`, `mocha`, `vitest`, `eslintConfig` …) |
    | `deletion-only` (flag) | The change outside tests only deletes lines. Recorded in `evidence.flags`, noted in the status and one issue comment; never fails verification |
 
 4. **Run head, then base**, each in a fresh workspace exported with `git archive` (no `.git`, remote or
@@ -76,13 +76,16 @@ recorded merge commit and the base is its first parent.
 ## Safety
 
 - Only `CHECK_COMMAND` and `VERIFY_SETUP_COMMAND` run. Commands in Devin's output, issue or PR comments, or
-  files in the PR (`package.json` scripts included, unless the administrator's command itself runs them)
-  are data; paths are passed as arguments without a shell.
+  files in the PR are data (a PR that changes `package.json` scripts fails `rules-changed`); paths are passed as arguments without a shell.
 - The Docker CLI gets only `PATH`, `HOME` and `DOCKER_*` variables; `docker run` gets no `--env`, so no
   service variable (GitHub token, Devin key) reaches the container. The GitHub token and Devin key are also
   redacted from every recorded reason, command and output.
 - Containers run with `no-new-privileges`, a PID limit, no network during tests, and are removed afterwards
   (also on timeout). Workspaces are deleted after each attempt.
+- The workspace and results mounts are writable (tests and setup need to write) but are disposable
+  directories under `VERIFY_WORK_DIR`. The host never follows links there: the base copy replaces a link
+  at a test path instead of writing through it, and the report is read only as a regular file (no link,
+  at most 16 MiB).
 
 ## Orchestration
 
@@ -105,11 +108,12 @@ recorded merge commit and the base is its first parent.
 | V1: base fails with a real assertion, head passes → `pass`; exact SHAs, commands, timestamps, outputs for both runs | `test/verify.test.ts` › V1 |
 | V2: passes on both → `fail` | `test/verify.test.ts` › V2 |
 | V3: fails on head → `fail` | `test/verify.test.ts` › V3 |
-| V4: each diff violation fails on its own reason, nothing runs | `test/verify.test.ts` › V4 › rejects … (8 cases) |
+| V4: each diff violation fails on its own reason, nothing runs | `test/verify.test.ts` › V4 › rejects … (9 cases) |
 | V4: deletion-only is a flag, not a failure; flag comment | `test/verify.test.ts` › V4 flags…; `test/orchestrator-verification.test.ts` › comments the deletion-only flag… |
-| V5: setup failure, missing module, timeout, crashed test file, crashed runner, missing/unreadable results, unfetchable commits → `error` | `test/verify.test.ts` › V5 (7 tests) |
+| V5: setup failure, missing module, timeout, crashed test file, crashed runner, missing/unreadable/linked results, unfetchable commits → `error` | `test/verify.test.ts` › V5 (7 tests) |
+| Base test copy never writes through a link in the base tree | `test/verify.test.ts` › V5 › replaces a link in the base tree… |
 | V6: unsafe paths, non-test and unchanged files, empty selection refused before anything runs | `test/verify.test.ts` › V6 |
-| G7: proposed commands (PR files, package scripts, issue comments) never run; only the configured runner | `test/verify.test.ts` › G7; `test/orchestrator-verification.test.ts` › G7 |
+| G7: proposed commands (PR files, issue comments) never run; only the configured runner; changed package scripts rejected | `test/verify.test.ts` › G7; `test/orchestrator-verification.test.ts` › G7 |
 | G9: no credentials in Docker CLI/container environment or records; network cut before tests | `test/verify.test.ts` › G9 (2 tests); real Docker with `VERIFY_DOCKER_IMAGE` |
 | Commit status on the exact checked SHA with the stable context | `test/orchestrator-verification.test.ts` (every test) |
 | Changed head invalidates proof and is verified afresh | `test/orchestrator-verification.test.ts` › publishes a passing proof… |

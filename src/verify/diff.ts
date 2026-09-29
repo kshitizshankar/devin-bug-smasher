@@ -68,6 +68,27 @@ function count(text: string | null, patterns: readonly RegExp[]): number {
   return patterns.reduce((sum, pattern) => sum + (text.match(pattern)?.length ?? 0), 0);
 }
 
+/** `package.json` keys that decide how tests, lint and type checks run. */
+const MANIFEST_RULE_KEYS = ['scripts', 'jest', 'mocha', 'ava', 'c8', 'nyc', 'vitest', 'eslintConfig', 'prettier', 'xo', 'standard'];
+
+function isManifest(path: string): boolean {
+  return (path.split('/').at(-1) ?? '') === 'package.json';
+}
+
+/** A comparable projection of the manifest's rule keys; unparseable content is compared verbatim. */
+function manifestRules(text: string | null): string {
+  if (text === null) return '';
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return `unparseable:${text}`;
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return `unparseable:${text}`;
+  const manifest = new Map(Object.entries(parsed));
+  return JSON.stringify(MANIFEST_RULE_KEYS.map((key) => [key, manifest.get(key) ?? null]));
+}
+
 function testNames(text: string | null): Set<string> {
   const names = new Set<string>();
   if (text === null) return names;
@@ -95,6 +116,8 @@ export function checkChanges(changes: readonly FileChange[]): DiffReport {
     const file = change.path;
     if (isConfigPath(file)) {
       violations.push({ check: 'rules-changed', file, detail: `test, lint, type-check or CI configuration ${change.status}` });
+    } else if (isManifest(file) && manifestRules(change.base) !== manifestRules(change.head)) {
+      violations.push({ check: 'rules-changed', file, detail: 'scripts or test, lint or type-check configuration changed' });
     }
 
     const silenced = count(change.head, SUPPRESSIONS) - count(change.base, SUPPRESSIONS);

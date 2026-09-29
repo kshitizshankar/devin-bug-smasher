@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { runProcess, type ProcessResult } from '../../src/verify/process.ts';
@@ -91,6 +91,15 @@ export class FixtureRepo {
     return sha;
   }
 
+  /** Commits a symbolic link at `path` pointing to `target` directly on main and returns the new main SHA. */
+  async advanceMainWithLink(path: string, target: string): Promise<string> {
+    git(this.dir, ['checkout', '--quiet', 'main']);
+    const link = join(this.dir, path);
+    await mkdir(dirname(link), { recursive: true });
+    await symlink(target, link);
+    return commitFiles(this.dir, {}, `link ${path}`);
+  }
+
   /** Commits `files` directly on main and returns the new main SHA. */
   async advanceMain(files: Record<string, string | null>): Promise<string> {
     git(this.dir, ['checkout', '--quiet', 'main']);
@@ -115,9 +124,8 @@ function git(cwd: string, args: string[]): string {
 async function commitFiles(dir: string, files: Record<string, string | null>, message: string): Promise<string> {
   for (const [path, content] of Object.entries(files)) {
     const target = join(dir, path);
-    if (content === null) {
-      await rm(target, { force: true });
-    } else {
+    await rm(target, { force: true });
+    if (content !== null) {
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, content);
     }

@@ -1,5 +1,6 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { constants } from 'node:fs';
+import { lstat, mkdir, mkdtemp, open, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { Settings } from '../config/settings.ts';
 import type { DiffFinding, VerificationEvidence, VerificationResult, VerificationRun, VerificationRunRole } from '../model/types.ts';
 import type { VerificationOutcome, VerificationRequest, Verifier } from '../orchestrator/contracts.ts';
@@ -14,6 +15,7 @@ export const RESULTS_TOKEN = '{results}';
 const RESULTS_FILE = 'junit.xml';
 const RUN_TAIL_CHARS = 1800;
 const ATTEMPT_TAIL_CHARS = 4000;
+const MAX_REPORT_BYTES = 16 * 1024 * 1024;
 
 export interface CheckedVerifierOptions {
   repository: GitRepository;
@@ -199,11 +201,7 @@ export class CheckedVerifier implements Verifier {
 
       const base = await this.#runRole('base', baseSha, root, files, async (workspace) => {
         await repo.exportTree(baseSha, workspace);
-        for (const change of testChanges) {
-          const target = join(workspace, change.path);
-          await mkdir(dirname(target), { recursive: true });
-          await writeFile(target, change.head ?? '');
-        }
+        for (const change of testChanges) await writeInside(workspace, change.path, change.head ?? '');
       }, evidence.runs);
       if (base.classification.outcome === 'error') return finish('error', `Base ${short(baseSha)}: ${base.classification.reason}`);
       if (base.classification.outcome === 'passed') {
@@ -268,7 +266,7 @@ export class CheckedVerifier implements Verifier {
         token === FILES_TOKEN ? [...files] : [token.split(RESULTS_TOKEN).join(reportPath)],
       );
       const executed = await sandbox.exec(argv, timeoutMs);
-      const report = await readFile(join(results, RESULTS_FILE), 'utf8').catch(() => null);
+      const report = await readReport(join(results, RESULTS_FILE));
       const classification = classifyTests(executed, report, files, timeoutSeconds);
       runs.push(this.#record(role, 'test', sha, argv, executed.startedAt, executed.exitCode, classification.outcome, classification.reason, executed.output, executed.endedAt));
       return { classification };
@@ -312,6 +310,38 @@ export class CheckedVerifier implements Verifier {
       .filter((run) => run.step === 'test' || run.outcome === 'error')
       .map((run) => `--- ${run.role} ${run.step} ${short(run.sha)}: ${run.reason} ---\n${run.outputTail}`);
     return tail(parts.join('\n'), ATTEMPT_TAIL_CHARS);
+  }
+}
+
+/** Writes `path` under `root` without following links the exported tree may contain. */
+async function writeInside(root: string, path: string, content: string): Promise<void> {
+  const parts = path.split('/');
+  let current = root;
+  for (const part of parts.slice(0, -1)) {
+    current = join(current, part);
+    const entry = await lstat(current).catch(() => null);
+    if (entry === null) await mkdir(current);
+    else if (!entry.isDirectory()) throw new Error(`${path} cannot be written: ${part} is not a directory in the base tree`);
+  }
+  const target = join(current, parts.at(-1) ?? '');
+  const existing = await lstat(target).catch(() => null);
+  if (existing !== null) {
+    if (existing.isDirectory()) throw new Error(`${path} cannot be written: it is a directory in the base tree`);
+    await rm(target);
+  }
+  await writeFile(target, content, { flag: 'wx' });
+}
+
+/** Reads the runner's report only if it is a regular file (never a link planted by the tests) of bounded size. */
+async function readReport(path: string): Promise<string | null> {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW).catch(() => null);
+  if (handle === null) return null;
+  try {
+    const stats = await handle.stat();
+    if (!stats.isFile() || stats.size > MAX_REPORT_BYTES) return null;
+    return await handle.readFile('utf8');
+  } finally {
+    await handle.close();
   }
 }
 
