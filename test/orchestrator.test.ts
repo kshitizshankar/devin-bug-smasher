@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, type TestContext } from 'node:test';
 import { UNAVAILABLE_POLICY, type VerificationOutcome, type Verifier } from '../src/orchestrator/contracts.ts';
+import { attention, presentBug } from '../src/model/presentation.ts';
 import { consumesCapacity } from '../src/orchestrator/orchestrator.ts';
 import type { TrackerComment } from '../src/tracker/types.ts';
+import { facts } from './helpers/model.ts';
 import { Harness, report } from './helpers/orchestrator.ts';
 
 /** Service comments other than the one-per-session greeting. */
@@ -218,6 +220,68 @@ describe('orchestrator: close, handoff and reopen', () => {
     assert.deepEqual((await h.tracker.getIssue(issue.number)).labels, ['needs-engineer']);
     assert.equal((await h.tracker.getIssue(issue.number)).state, 'open', 'the service never closes issues');
     assert.equal(h.createRequests().length, 2);
+  });
+
+  it('archives the session it stops, and tolerates one that is already archived or not found', async (t) => {
+    const h = await setup(t);
+    const terminations = () => h.offline.requests.filter((request) => request.method === 'DELETE' && request.path.includes('/sessions/'));
+
+    const closed = h.tracker.seedIssue({ title: 'Closed while fixing', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const first = h.sessionId(closed.key);
+    h.working(first);
+    h.tracker.externalCloseIssue(closed.number, 'maintainer');
+    await h.cycle();
+    assert.equal(h.record(closed.key).stage, 'closed');
+    assert.equal(terminations().at(-1)?.query.get('archive'), 'true', 'stop asks Devin to archive');
+    assert.equal(h.session(first).status, 'exit');
+    assert.equal(h.session(first).is_archived, true, 'the stopped session is archived');
+
+    for (const status of [409, 404]) {
+      const issue = h.tracker.seedIssue({ title: `Stop answered ${status}`, labels: ['bug-smasher'] });
+      await h.cycle(2);
+      h.working(h.sessionId(issue.key));
+      h.offline.failNext({ method: 'DELETE', path: '/sessions/', status });
+      h.tracker.externalCloseIssue(issue.number, 'maintainer');
+      await h.cycle();
+      assert.equal(h.record(issue.key).stage, 'closed');
+      assert.equal(terminations().at(-1)?.query.get('archive'), 'true');
+      if (status === 409) assert.equal(h.session(h.sessionId(issue.key)).is_archived, true, 'a session that already ended is still archived');
+      assert.deepEqual(h.record(issue.key).workflow?.outbox ?? [], [], `a ${status} stop is not retried`);
+      assert.ok(!h.types(issue.key).includes('effect-dropped'), `a ${status} stop is handled like a missing session`);
+      assert.ok(!h.types(issue.key).includes('effect-failed'));
+    }
+
+    for (const archived of [true, false]) {
+      const issue = h.tracker.seedIssue({ title: `Terminate and archive answered 409, archived=${archived}`, labels: ['bug-smasher'] });
+      await h.cycle(2);
+      const id = h.sessionId(issue.key);
+      h.working(id);
+      if (archived) h.offline.updateSession(id, { is_archived: true });
+      h.offline.failNext({ method: 'DELETE', path: '/sessions/', status: 409 });
+      h.offline.failNext({ method: 'POST', path: '/archive', status: 409 });
+      h.tracker.externalCloseIssue(issue.number, 'maintainer');
+      await h.cycle();
+      const record = h.record(issue.key);
+      assert.equal(record.stage, 'closed');
+      assert.ok(h.offline.requests.some((request) => request.method === 'POST' && request.path.endsWith(`/sessions/${id}/archive`)), 'a 409 on terminate still archives');
+      assert.deepEqual(record.workflow?.outbox ?? [], [], 'the stop is not retried');
+      const note = attention(presentBug(record, facts([], { state: 'closed' }), h.settings.labels));
+      const stop = (type: string) => h.trace.some((event) => event.key === issue.key && event.type === type && event.detail.operation === 'stop-session');
+      if (archived) {
+        assert.ok(stop('effect-applied'), 'a 409 on archive completes the stop when the session is archived');
+        assert.ok(!stop('effect-dropped'));
+        assert.equal(record.unarchivedSessions, undefined);
+        assert.doesNotMatch(note.text, /could not be archived/);
+      } else {
+        assert.ok(!stop('effect-applied'), 'a stop that leaves the session unarchived is not reported done');
+        assert.ok(stop('effect-dropped'));
+        assert.ok(h.types(issue.key).includes('session-not-archived'));
+        assert.deepEqual(record.unarchivedSessions, [id], 'the failed archive is recorded on the bug');
+        assert.match(note.text, new RegExp(`Devin session ${id} was stopped but could not be archived`));
+        assert.equal(note.waitingOn, 'person');
+      }
+    }
   });
 
   it('hands off instead of restarting when a session ends unexpectedly', async (t) => {

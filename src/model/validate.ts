@@ -383,6 +383,7 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
   }
   if (value.insights !== null) problems.push(...validateSessionInsights(value.insights, `${path}.insights`));
   if (value.review !== undefined) problems.push(...validateReviewRecord(value.review, `${path}.review`));
+  if (value.unarchivedSessions !== undefined) checkArray(value.unarchivedSessions, `${path}.unarchivedSessions`, problems, checkStringItem);
   if (value.evaluations !== undefined) {
     checkArray(value.evaluations, `${path}.evaluations`, problems, (item, itemPath, list) => {
       list.push(...validatePolicyEvaluation(item, itemPath));

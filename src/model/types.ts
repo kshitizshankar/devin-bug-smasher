@@ -334,6 +334,8 @@ export interface BugRecord {
   evaluations?: PolicyEvaluation[];
   /** Orchestrator bookkeeping; absent on records the orchestrator has not handled yet. */
   workflow?: WorkflowState;
+  /** Sessions a stop left unarchived, so they could still wake on a pull request comment; absent when none. */
+  unarchivedSessions?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

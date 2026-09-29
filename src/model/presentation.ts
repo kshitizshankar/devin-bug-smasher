@@ -88,6 +88,8 @@ export interface Presentation {
     handoff: Handoff | null;
     outstandingQuestion: Question | null;
     wasMerged: boolean;
+    /** Sessions that were stopped but could not be archived. */
+    unarchivedSessions: string[];
   };
   /** Read-only policy, Review and merge-readiness evidence recorded by the service. */
   automation: Automation;
@@ -285,6 +287,7 @@ export function presentBug(
       handoff: record?.handoff ?? null,
       outstandingQuestion: record === undefined ? null : outstandingQuestion(record),
       wasMerged: record !== undefined && wasMerged(record),
+      unarchivedSessions: record?.unarchivedSessions ?? [],
     },
     automation: automation(record),
   };
@@ -329,6 +332,17 @@ function withBlockers(text: string, blockers: readonly string[]): string {
  * only; it never stands in for the decision a person or policy has to make.
  */
 export function attention(presentation: Presentation): Attention {
+  const next = nextAction(presentation);
+  const sessions = presentation.history.unarchivedSessions;
+  if (sessions.length === 0) return next;
+  return {
+    ...next,
+    waitingOn: next.waitingOn ?? 'person',
+    text: `${next.text} Devin session ${sessions.join(', ')} was stopped but could not be archived; archive it in Devin.`,
+  };
+}
+
+function nextAction(presentation: Presentation): Attention {
   const { history, automation: { blockers }, kind } = presentation;
   const work = kind === 'feature' ? 'implementation' : 'repair';
   const issueOpen = presentation.actions.includes('close');

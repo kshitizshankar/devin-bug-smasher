@@ -43,6 +43,7 @@ The store keeps only orchestration and evidence data (`BugRecord` in `src/model/
 | `review`        | Optional Devin Review record: one round per reviewed `{prNumber, headSha}` (`pending`/`completed`/`unavailable`, detail, unresolved findings with thread ID/path/line/body/URL, `correctionSentAt`, durable `blocker`) and `resolutions` (thread, head it was found on and resolved on, `same-session` or `github`) |
 | `evaluations`   | Optional Rule/Automatic policy evaluations: `kind` (`decision`/`merge`), policy, rule, subject (triage commit or PR head), outcome (`fix`/`engineer`/`merge`/`wait`), every check (`name`, `ok`, `blocking`, `detail`), reproduction evidence (`sha`, test file, `reproduced`/`not-reproduced`/`unknown`, reason, runs) |
 | `insights`      | Optional session insights (`acuUsed` — `null` when unknown, never zero — and notes)                |
+| `unarchivedSessions` | Optional IDs of sessions a stop left unarchived (they could still wake on a pull request comment); shown in the next-action text |
 
 Display strings (status labels, groups, actions) are **not** persisted.
 
