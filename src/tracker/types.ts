@@ -288,7 +288,49 @@ export interface Tracker {
   mergePullRequest(number: number, request: MergeRequest): Promise<MergeResult>;
 }
 
-export type TrackerOperation = Exclude<keyof Tracker, 'repo'>;
+export interface RepositoryLabel {
+  name: string;
+  /** Six hex digits, lower case, without `#`. */
+  color: string;
+  description: string;
+}
+
+export interface RepositoryFile {
+  path: string;
+  /** Blob SHA, needed to update the file. */
+  sha: string;
+  content: string;
+}
+
+export interface PutFileInput {
+  content: string;
+  /** Commit message. */
+  message: string;
+  /** Blob SHA of the file being replaced, or null to create it. */
+  sha: string | null;
+}
+
+/**
+ * Repository-level operations used only by the operator commands (`setup`, `mirror`), never by the
+ * orchestrator. Bound to one repository like `Tracker`.
+ */
+export interface RepositoryAdmin {
+  readonly repo: GitHubRepo;
+
+  /** Every repository label, all pages. */
+  listLabels(): Promise<RepositoryLabel[]>;
+  createLabel(label: RepositoryLabel): Promise<RepositoryLabel>;
+  /** Updates the label currently named `name` (case-insensitive on GitHub), including its exact name. */
+  updateLabel(name: string, label: RepositoryLabel): Promise<RepositoryLabel>;
+  /** A file on the default branch, or null when it does not exist. */
+  getFile(path: string): Promise<RepositoryFile | null>;
+  /** Creates or replaces a file with one commit on the default branch. */
+  putFile(path: string, input: PutFileInput): Promise<RepositoryFile>;
+  /** Every issue (never pull requests), open and closed, all pages, sorted by number. */
+  listAllIssues(): Promise<TrackerIssue[]>;
+}
+
+export type TrackerOperation = Exclude<keyof Tracker, 'repo'> | Exclude<keyof RepositoryAdmin, 'repo'>;
 
 export type TrackerErrorCode =
   | 'unauthorized'

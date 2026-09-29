@@ -20,8 +20,8 @@ const STARTUP_TIMEOUT_MS = 10_000;
  * Starts the real service entrypoint (`src/server/main.ts`) as a child process on an
  * OS-assigned free port and resolves once it reports the URL it is listening on.
  */
-export async function startService(env: Record<string, string> = {}): Promise<RunningService> {
-  const child: ChildProcess = spawn(process.execPath, ['src/server/main.ts'], {
+export async function startService(env: Record<string, string> = {}, args: string[] = ['src/server/main.ts']): Promise<RunningService> {
+  const child: ChildProcess = spawn(process.execPath, args, {
     cwd: repoRoot,
     env: { ...process.env, PORT: '0', HOST: '127.0.0.1', ...env },
     stdio: ['ignore', 'pipe', 'pipe'],

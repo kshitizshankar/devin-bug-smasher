@@ -53,6 +53,12 @@ Setup (`DevinSetupClient`):
 | `indexRepository`, `getRepositoryIndexing` | `PUT`/`GET /v3beta1/organizations/{org_id}/repositories/{repository_path}/indexing` | [Index](https://docs.devin.ai/api-reference/v3/repositories/put-organizations-index-repository), [status](https://docs.devin.ai/api-reference/v3/repositories/get-organizations-repository-indexing-status) |
 | `listBlueprints`, `createBlueprint`, `updateBlueprint` | `GET`/`POST /v3beta1/organizations/{org_id}/snapshot-setup/blueprints`, `PATCH …/{blueprint_id}` | [List](https://docs.devin.ai/api-reference/v3/snapshot-setup/list-organizations-blueprints), [create](https://docs.devin.ai/api-reference/v3/snapshot-setup/post-organizations-blueprints), [update](https://docs.devin.ai/api-reference/v3/snapshot-setup/patch-organizations-blueprint) |
 | `triggerBuild`, `getBuild` | `POST /v3beta1/organizations/{org_id}/snapshot-setup/builds`, `GET …/builds/{build_id}` | [Trigger](https://docs.devin.ai/api-reference/v3/snapshot-setup/post-organizations-builds), [get](https://docs.devin.ai/api-reference/v3/snapshot-setup/get-organizations-build) |
+| `listRepositories(paths)` | `GET /v3beta1/organizations/{org_id}/repositories?only_repo_paths=…` | [List repositories](https://docs.devin.ai/api-reference/v3/repositories/list-organizations-repositories) |
+| `listBuilds`, `getBuildLogs` | `GET …/snapshot-setup/builds`, `GET …/builds/{build_id}/logs` | [List](https://docs.devin.ai/api-reference/v3/snapshot-setup/list-organizations-builds), [logs](https://docs.devin.ai/api-reference/v3/snapshot-setup/get-organizations-build-logs) |
+| `getBlueprintContents` | `GET …/snapshot-setup/blueprints/{blueprint_id}/contents` | [Contents](https://docs.devin.ai/api-reference/v3/snapshot-setup/get-organizations-blueprint-contents) |
+| `fetchDownload(op, { url })` | `GET` the presigned `url` from contents/logs, **without** the Devin key; `https` only (loopback `http` for tests) | |
+
+The operator commands that use this client are described in [`docs/OPERATOR.md`](OPERATOR.md).
 
 ## Contracts for the orchestrator
 
@@ -218,5 +224,7 @@ after applying the request (`applyFirst`) to model a lost create answer.
   structured fields would need a shared-model change for the orchestrator task.
 - **Repository indexing path.** `repository_path` is sent as `owner/repo` (segments encoded, slash kept);
   the docs do not show an example.
-- **Setup scope.** `DevinSetupClient` covers only the operations the setup task is expected to need; it is
-  not used by `DevinClient`.
+- **Setup scope.** `DevinSetupClient` covers only the operations the operator commands need; it is not
+  used by `DevinClient`. Repository access cannot be granted through the API (Settings > Connections > GitHub
+  or Settings > Repositories in the web app), build logs are an undocumented file behind a presigned link,
+  and builds are organization-wide; see [`docs/OPERATOR.md`](OPERATOR.md#unsupported-operations-and-limitations).

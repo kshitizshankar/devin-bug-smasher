@@ -57,6 +57,19 @@ All methods are async and either return complete normalized data or throw `Track
 
 Paths above are relative to `/repos/{owner}/{repo}`.
 
+`GitHubTracker` also implements `RepositoryAdmin` (`src/tracker/types.ts`), used only by the operator
+commands ([`docs/OPERATOR.md`](OPERATOR.md)), never by the orchestrator. It is bound to the same repository:
+
+| Method | GitHub REST call(s) | Notes |
+| --- | --- | --- |
+| `listLabels()` | `GET /labels` | All pages; color lower-cased, missing description is `''` |
+| `createLabel(label)`, `updateLabel(name, label)` | `POST /labels`, `PATCH /labels/{name}` (`new_name`) | Color is six lower-case hex digits |
+| `getFile(path)`, `putFile(path, { content, message, sha })` | `GET`/`PUT /contents/{path}` | Default branch; `null` when missing; a stale `sha` is `conflict` |
+| `listAllIssues()` | `GET /issues?state=all` | All pages, open and closed, PRs dropped |
+
+`mirror` reads its source with a second `GitHubTracker` bound to the source repository and only calls
+`getIssue` on it.
+
 ### Pagination and completeness
 
 Listings follow `Link: rel="next"` until the last page. A listing needing more than `maxPages` pages throws

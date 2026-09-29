@@ -44,7 +44,7 @@ import {
 const SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 
 /** Provider calls a failure can be injected into. `moveLabel` fails through `addLabels` or `removeLabel`. */
-export type FailurePoint = Exclude<TrackerOperation, 'moveLabel'>;
+export type FailurePoint = Exclude<keyof Tracker, 'repo' | 'moveLabel'>;
 
 const WRITE_POINTS: ReadonlySet<FailurePoint> = new Set([
   'createIssue',

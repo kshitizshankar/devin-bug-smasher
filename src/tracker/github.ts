@@ -27,6 +27,7 @@ import {
   type NewIssue,
   type PostCommentOptions,
   type PullRequestDiff,
+  type PutFileInput,
   type PullRequestFile,
   type PullRequestFiles,
   type RateLimitInfo,
@@ -34,6 +35,9 @@ import {
   type Review,
   type ReviewState,
   type ReviewThread,
+  type RepositoryAdmin,
+  type RepositoryFile,
+  type RepositoryLabel,
   type Tracker,
   type TrackerComment,
   type TrackerErrorCode,
@@ -146,7 +150,7 @@ function intHeader(headers: Headers, name: string): number | null {
 }
 
 /** GitHub REST implementation of `Tracker`. Uses only `fetch` from the Node standard library. */
-export class GitHubTracker implements Tracker {
+export class GitHubTracker implements Tracker, RepositoryAdmin {
   readonly repo: GitHubRepo;
   readonly #token: string;
   readonly #baseUrl: URL;
@@ -556,6 +560,103 @@ export class GitHubTracker implements Tracker {
 
   #repoPath(path: string): string {
     return `repos/${encodeURIComponent(this.repo.owner)}/${encodeURIComponent(this.repo.name)}/${path}`;
+  }
+
+  // Repository administration (operator commands only) ---------------------------------------------------
+
+  async listLabels(): Promise<RepositoryLabel[]> {
+    const op = 'listLabels';
+    const { items } = await this.#paginate(op, this.#repoPath('labels'));
+    return items.map((raw) => this.#repositoryLabel(op, this.#object(op, raw, 'label')));
+  }
+
+  async createLabel(label: RepositoryLabel): Promise<RepositoryLabel> {
+    const op = 'createLabel';
+    this.#checkLabel(op, label);
+    const response = await this.#send(op, 'POST', this.#repoPath('labels'), {
+      body: { name: label.name, color: label.color, description: label.description },
+    });
+    return this.#repositoryLabel(op, this.#object(op, this.#json(op, response), 'label'));
+  }
+
+  async updateLabel(name: string, label: RepositoryLabel): Promise<RepositoryLabel> {
+    const op = 'updateLabel';
+    if (name.trim() === '') this.#invalidInput(op, 'label name must not be empty');
+    this.#checkLabel(op, label);
+    const response = await this.#send(op, 'PATCH', this.#repoPath(`labels/${encodeURIComponent(name)}`), {
+      body: { new_name: label.name, color: label.color, description: label.description },
+    });
+    return this.#repositoryLabel(op, this.#object(op, this.#json(op, response), 'label'));
+  }
+
+  async getFile(path: string): Promise<RepositoryFile | null> {
+    const op = 'getFile';
+    let missing = false;
+    const response = await this.#send(op, 'GET', this.#repoPath(`contents/${this.#filePath(op, path)}`), {
+      tolerate: (status) => {
+        missing = status === 404;
+        return missing;
+      },
+    });
+    if (missing) return null;
+    const item = this.#object(op, this.#json(op, response), 'file');
+    if (item.type !== 'file') this.#badResponse(op, `${path} is not a file`);
+    if (item.encoding !== 'base64') this.#badResponse(op, `${path} content is not base64`);
+    return {
+      path: this.#string(op, item, 'path'),
+      sha: this.#string(op, item, 'sha'),
+      content: Buffer.from(this.#string(op, item, 'content'), 'base64').toString('utf8'),
+    };
+  }
+
+  async putFile(path: string, input: PutFileInput): Promise<RepositoryFile> {
+    const op = 'putFile';
+    if (input.message.trim() === '') this.#invalidInput(op, 'commit message must not be empty');
+    const response = await this.#send(op, 'PUT', this.#repoPath(`contents/${this.#filePath(op, path)}`), {
+      body: {
+        message: input.message,
+        content: Buffer.from(input.content, 'utf8').toString('base64'),
+        ...(input.sha === null ? {} : { sha: input.sha }),
+      },
+      statusCodes: { 409: 'conflict' },
+    });
+    const content = this.#object(op, this.#object(op, this.#json(op, response), 'file update').content, 'content');
+    return { path: this.#string(op, content, 'path'), sha: this.#string(op, content, 'sha'), content: input.content };
+  }
+
+  async listAllIssues(): Promise<TrackerIssue[]> {
+    const op = 'listAllIssues';
+    const { items } = await this.#paginate(op, this.#repoPath('issues'), { state: 'all', sort: 'created', direction: 'asc' });
+    const byNumber = new Map<number, TrackerIssue>();
+    for (const raw of items) {
+      const item = this.#object(op, raw, 'issue');
+      if (item.pull_request !== undefined) continue;
+      const issue = this.#issue(op, item);
+      byNumber.set(issue.number, issue);
+    }
+    return [...byNumber.values()].sort((a, b) => a.number - b.number);
+  }
+
+  #repositoryLabel(op: TrackerOperation, item: JsonObject): RepositoryLabel {
+    return {
+      name: this.#string(op, item, 'name'),
+      color: this.#string(op, item, 'color').toLowerCase(),
+      description: this.#optionalString(op, item, 'description') ?? '',
+    };
+  }
+
+  #checkLabel(op: TrackerOperation, label: RepositoryLabel): void {
+    if (label.name.trim() === '' || label.name.length > 50) this.#invalidInput(op, 'label name must be 1-50 characters');
+    if (!/^[0-9a-f]{6}$/.test(label.color)) this.#invalidInput(op, 'label color must be six lower-case hex digits');
+    if (label.description.length > 100) this.#invalidInput(op, 'label description must be at most 100 characters');
+  }
+
+  #filePath(op: TrackerOperation, path: string): string {
+    const segments = path.split('/');
+    if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+      this.#invalidInput(op, `file path ${JSON.stringify(path)} is not a relative repository path`);
+    }
+    return segments.map((segment) => encodeURIComponent(segment)).join('/');
   }
 
   async #readIssue(op: TrackerOperation, number: number): Promise<TrackerIssue> {
