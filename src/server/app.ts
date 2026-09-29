@@ -2,9 +2,13 @@ import { open, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { pipeline } from 'node:stream/promises';
+import { isLoopbackHost } from '../config/settings.ts';
+import type { DashboardApi } from '../dashboard/dashboard.ts';
 
 export interface AppOptions {
   staticDir: string;
+  /** Serves `/api/overview`, `/api/metrics` and `/api/settings`; without it those paths are not found. */
+  dashboard?: DashboardApi;
 }
 
 export interface HealthResponse {
@@ -91,8 +95,28 @@ async function serveStatic(
   await pipeline(handle.createReadStream(), res);
 }
 
+/** A `Host` header naming a loopback host, with an optional port. Anything else may be DNS rebinding. */
+export function isLocalHostHeader(header: string | undefined): boolean {
+  if (header === undefined) return false;
+  const match = /^(\[::1\]|[^:[\]]+)(?::\d{1,5})?$/.exec(header.trim());
+  if (match === null) return false;
+  const host = match[1] as string;
+  return isLoopbackHost(host === '[::1]' ? '::1' : host);
+}
+
 export function createApp(options: AppOptions): Server {
   const staticRoot = resolve(options.staticDir);
+  const dashboard = options.dashboard;
+  const routes: Record<string, () => unknown> = {
+    '/api/health': (): HealthResponse => ({ status: 'ok', service: 'bug-smasher', stage: 'scaffold' }),
+    ...(dashboard === undefined
+      ? {}
+      : {
+          '/api/overview': () => dashboard.overview(),
+          '/api/metrics': () => dashboard.metrics(),
+          '/api/settings': () => dashboard.settings(),
+        }),
+  };
 
   return createServer((req, res) => {
     const method = req.method ?? 'GET';
@@ -103,19 +127,26 @@ export function createApp(options: AppOptions): Server {
       sendText(res, 400, 'Bad request');
       return;
     }
+    const api = pathname === '/api' || pathname.startsWith('/api/');
 
-    if (pathname === '/api/health') {
-      if (method !== 'GET' && method !== 'HEAD') {
-        sendJson(res, 405, { error: 'method_not_allowed' });
-        return;
-      }
-      const body: HealthResponse = { status: 'ok', service: 'bug-smasher', stage: 'scaffold' };
-      sendJson(res, 200, body);
+    if (!isLocalHostHeader(req.headers.host)) {
+      if (api) sendJson(res, 403, { error: 'forbidden_host' });
+      else sendText(res, 403, 'Forbidden host');
       return;
     }
 
-    if (pathname === '/api' || pathname.startsWith('/api/')) {
-      sendJson(res, 404, { error: 'not_found' });
+    if (api) {
+      if (method !== 'GET' && method !== 'HEAD') {
+        res.setHeader('allow', 'GET, HEAD');
+        sendJson(res, 405, { error: 'method_not_allowed' });
+        return;
+      }
+      const route = Object.hasOwn(routes, pathname) ? routes[pathname] : undefined;
+      if (route === undefined) {
+        sendJson(res, 404, { error: 'not_found' });
+        return;
+      }
+      sendJson(res, 200, route());
       return;
     }
 

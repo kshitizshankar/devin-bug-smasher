@@ -1,0 +1,1870 @@
+{
+  "refresh": {
+    "state": "current",
+    "lastRefreshAt": "2026-03-18T12:00:00.000Z",
+    "lastAttemptAt": "2026-03-18T12:00:00.000Z",
+    "problems": []
+  },
+  "metrics": {
+    "generatedAt": "2026-03-18T12:00:00.000Z",
+    "timezone": "UTC",
+    "weekStartsOn": "Monday",
+    "target": "acme/widgets",
+    "sources": {
+      "github": "GitHub acme/widgets, read 2026-03-18T12:00:00.000Z",
+      "devin": "Devin API, read 2026-03-18T12:00:00.000Z",
+      "orchestrator": "running orchestrator"
+    },
+    "rows": [
+      {
+        "key": "acme/widgets#1",
+        "cohort": "acme/widgets (live)",
+        "kind": "bug",
+        "stage": "merged",
+        "path": "queued → fixing → verifying → ready-to-merge → merged",
+        "decision": "none",
+        "pullRequest": "https://github.com/acme/widgets/pull/9",
+        "verification": "pre-merge pass at 9aaaaaa; post-merge pass at 9ffffff",
+        "outcome": "fixed and proven"
+      },
+      {
+        "key": "acme/widgets#2",
+        "cohort": "acme/widgets (live)",
+        "kind": "bug",
+        "stage": "triaged",
+        "path": "queued → triaging → triaged",
+        "decision": "none yet (Devin recommends close)",
+        "pullRequest": "none",
+        "verification": "none",
+        "outcome": "open (triaged)"
+      },
+      {
+        "key": "acme/widgets#3",
+        "cohort": "acme/widgets (live)",
+        "kind": "bug",
+        "stage": "ready-to-merge",
+        "path": "queued → fixing → verifying → ready-to-merge",
+        "decision": "none",
+        "pullRequest": "https://github.com/acme/widgets/pull/10",
+        "verification": "pre-merge pass at 10aaaaa",
+        "outcome": "open (ready-to-merge)"
+      },
+      {
+        "key": "acme/widgets#4",
+        "cohort": "acme/widgets (live)",
+        "kind": "bug",
+        "stage": "needs-input",
+        "path": "queued → triaging → needs-input",
+        "decision": "none",
+        "pullRequest": "none",
+        "verification": "none",
+        "outcome": "open (needs-input)"
+      },
+      {
+        "key": "acme/widgets#5",
+        "cohort": "acme/widgets (live)",
+        "kind": "bug",
+        "stage": "queued",
+        "path": "queued",
+        "decision": "none",
+        "pullRequest": "none",
+        "verification": "none",
+        "outcome": "open (queued)"
+      },
+      {
+        "key": "acme/widgets#6",
+        "cohort": "acme/widgets (live)",
+        "kind": "bug",
+        "stage": "with-engineer",
+        "path": "queued → fixing → with-engineer",
+        "decision": "engineer by github:maria",
+        "pullRequest": "none",
+        "verification": "none",
+        "outcome": "with engineer (person)"
+      },
+      {
+        "key": "acme/widgets#8",
+        "cohort": "acme/widgets (live)",
+        "kind": "bug",
+        "stage": "verifying",
+        "path": "queued → fixing → verifying",
+        "decision": "none",
+        "pullRequest": "https://github.com/acme/widgets/pull/11",
+        "verification": "none",
+        "outcome": "open (verifying)"
+      }
+    ],
+    "live": {
+      "id": "acme/widgets:live:current",
+      "label": "acme/widgets (live)",
+      "repository": "acme/widgets",
+      "mode": "live",
+      "engine": "current",
+      "live": true,
+      "records": 7,
+      "bugs": 7,
+      "features": 0,
+      "keys": {
+        "fixThroughput": {
+          "figure": {
+            "id": "fix-throughput",
+            "label": "Fix throughput (bugs fixed and proven this week)",
+            "unit": "count",
+            "window": {
+              "start": "2026-03-16T00:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "week of 2026-03-16 (to date)"
+            },
+            "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug fix was merged in this week"
+          },
+          "reference": {
+            "id": "fix-throughput.previous",
+            "label": "Previous week",
+            "unit": "count",
+            "window": {
+              "start": "2026-03-09T00:00:00.000Z",
+              "end": "2026-03-16T00:00:00.000Z",
+              "label": "week of 2026-03-09"
+            },
+            "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug fix was merged in this week"
+          }
+        },
+        "trend": [
+          {
+            "figure": {
+              "id": "fix-throughput:2026-01-26T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-01-26T00:00:00.000Z",
+                "end": "2026-02-02T00:00:00.000Z",
+                "label": "week of 2026-01-26"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "no-data",
+              "value": null,
+              "numerator": null,
+              "denominator": null,
+              "samples": 0,
+              "display": "No data",
+              "note": "No bug fix was merged in this week"
+            },
+            "excluded": []
+          },
+          {
+            "figure": {
+              "id": "fix-throughput:2026-02-02T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-02-02T00:00:00.000Z",
+                "end": "2026-02-09T00:00:00.000Z",
+                "label": "week of 2026-02-02"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "no-data",
+              "value": null,
+              "numerator": null,
+              "denominator": null,
+              "samples": 0,
+              "display": "No data",
+              "note": "No bug fix was merged in this week"
+            },
+            "excluded": []
+          },
+          {
+            "figure": {
+              "id": "fix-throughput:2026-02-09T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-02-09T00:00:00.000Z",
+                "end": "2026-02-16T00:00:00.000Z",
+                "label": "week of 2026-02-09"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "no-data",
+              "value": null,
+              "numerator": null,
+              "denominator": null,
+              "samples": 0,
+              "display": "No data",
+              "note": "No bug fix was merged in this week"
+            },
+            "excluded": []
+          },
+          {
+            "figure": {
+              "id": "fix-throughput:2026-02-16T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-02-16T00:00:00.000Z",
+                "end": "2026-02-23T00:00:00.000Z",
+                "label": "week of 2026-02-16"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "no-data",
+              "value": null,
+              "numerator": null,
+              "denominator": null,
+              "samples": 0,
+              "display": "No data",
+              "note": "No bug fix was merged in this week"
+            },
+            "excluded": []
+          },
+          {
+            "figure": {
+              "id": "fix-throughput:2026-02-23T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-02-23T00:00:00.000Z",
+                "end": "2026-03-02T00:00:00.000Z",
+                "label": "week of 2026-02-23"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "no-data",
+              "value": null,
+              "numerator": null,
+              "denominator": null,
+              "samples": 0,
+              "display": "No data",
+              "note": "No bug fix was merged in this week"
+            },
+            "excluded": []
+          },
+          {
+            "figure": {
+              "id": "fix-throughput:2026-03-02T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-03-02T00:00:00.000Z",
+                "end": "2026-03-09T00:00:00.000Z",
+                "label": "week of 2026-03-02"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "value",
+              "value": 1,
+              "numerator": 1,
+              "denominator": 1,
+              "samples": 1,
+              "display": "1",
+              "note": null
+            },
+            "excluded": []
+          },
+          {
+            "figure": {
+              "id": "fix-throughput:2026-03-09T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-03-09T00:00:00.000Z",
+                "end": "2026-03-16T00:00:00.000Z",
+                "label": "week of 2026-03-09"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "no-data",
+              "value": null,
+              "numerator": null,
+              "denominator": null,
+              "samples": 0,
+              "display": "No data",
+              "note": "No bug fix was merged in this week"
+            },
+            "excluded": []
+          },
+          {
+            "figure": {
+              "id": "fix-throughput:2026-03-16T00:00:00.000Z",
+              "label": "Bugs fixed and proven",
+              "unit": "count",
+              "window": {
+                "start": "2026-03-16T00:00:00.000Z",
+                "end": "2026-03-18T12:00:00.000Z",
+                "label": "week of 2026-03-16 (to date)"
+              },
+              "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+              "status": "no-data",
+              "value": null,
+              "numerator": null,
+              "denominator": null,
+              "samples": 0,
+              "display": "No data",
+              "note": "No bug fix was merged in this week"
+            },
+            "excluded": []
+          }
+        ],
+        "timeToFixMedian": {
+          "figure": {
+            "id": "time-to-fix.median",
+            "label": "Time to fix (median)",
+            "unit": "hours",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (issue filed) and bug store merge records and independent verification attempts (merge)",
+            "status": "value",
+            "value": 62.983333333333334,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "63 h",
+            "note": null
+          },
+          "reference": {
+            "id": "time-to-fix.baseline",
+            "label": "Repository median for comparable closed issues",
+            "unit": "hours",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "repository history"
+            },
+            "source": "GitHub issues and pull requests closed issues matching BASELINE_FILTER",
+            "status": "unavailable",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "Insufficient history: BASELINE_FILTER is not set",
+            "note": "BASELINE_FILTER is not set"
+          }
+        },
+        "timeToFixP90": {
+          "id": "time-to-fix.p90",
+          "label": "Time to fix (90th percentile)",
+          "unit": "hours",
+          "window": {
+            "start": "2026-02-16T12:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "last 30 days"
+          },
+          "source": "GitHub issues and pull requests (issue filed) and bug store merge records and independent verification attempts (merge)",
+          "status": "value",
+          "value": 62.983333333333334,
+          "numerator": null,
+          "denominator": null,
+          "samples": 1,
+          "display": "63 h",
+          "note": null
+        },
+        "firstTimePass": {
+          "figure": {
+            "id": "first-time-pass",
+            "label": "First-time pass rate",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (pre-merge verification attempts per fix session; errors are not attempts)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 1,
+            "numerator": 2,
+            "denominator": 2,
+            "samples": 2,
+            "display": "100% (2 of 2)",
+            "note": null
+          },
+          "reference": {
+            "id": "first-time-pass.previous",
+            "label": "Previous 30 days",
+            "window": {
+              "start": "2026-01-17T12:00:00.000Z",
+              "end": "2026-02-16T12:00:00.000Z",
+              "label": "previous 30 days"
+            },
+            "source": "bug store records (pre-merge verification attempts per fix session; errors are not attempts)",
+            "unit": "ratio",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No pull request was first verified in the window"
+          }
+        },
+        "escapedFixes": {
+          "figure": {
+            "id": "escaped-fixes",
+            "label": "Escaped-fix rate",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store merge records and independent verification attempts, GitHub issues and pull requests (reverts, reopens)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 1,
+            "samples": 1,
+            "display": "0% (0 of 1)",
+            "note": null
+          },
+          "reference": {
+            "id": "escaped-fixes.previous",
+            "label": "Previous 30 days",
+            "window": {
+              "start": "2026-01-17T12:00:00.000Z",
+              "end": "2026-02-16T12:00:00.000Z",
+              "label": "previous 30 days"
+            },
+            "source": "bug store merge records and independent verification attempts, GitHub issues and pull requests (reverts, reopens)",
+            "unit": "ratio",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug fix was merged in the window"
+          }
+        }
+      },
+      "flow": {
+        "bugsIn": [
+          {
+            "id": "bugs-in:2026-01-26T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-01-26T00:00:00.000Z",
+              "end": "2026-02-02T00:00:00.000Z",
+              "label": "week of 2026-01-26"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug was sent on in this week"
+          },
+          {
+            "id": "bugs-in:2026-02-02T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-02-02T00:00:00.000Z",
+              "end": "2026-02-09T00:00:00.000Z",
+              "label": "week of 2026-02-02"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug was sent on in this week"
+          },
+          {
+            "id": "bugs-in:2026-02-09T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-02-09T00:00:00.000Z",
+              "end": "2026-02-16T00:00:00.000Z",
+              "label": "week of 2026-02-09"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug was sent on in this week"
+          },
+          {
+            "id": "bugs-in:2026-02-16T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-02-16T00:00:00.000Z",
+              "end": "2026-02-23T00:00:00.000Z",
+              "label": "week of 2026-02-16"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug was sent on in this week"
+          },
+          {
+            "id": "bugs-in:2026-02-23T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-02-23T00:00:00.000Z",
+              "end": "2026-03-02T00:00:00.000Z",
+              "label": "week of 2026-02-23"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No bug was sent on in this week"
+          },
+          {
+            "id": "bugs-in:2026-03-02T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-03-02T00:00:00.000Z",
+              "end": "2026-03-09T00:00:00.000Z",
+              "label": "week of 2026-03-02"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 1,
+            "samples": 1,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "bugs-in:2026-03-09T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-03-09T00:00:00.000Z",
+              "end": "2026-03-16T00:00:00.000Z",
+              "label": "week of 2026-03-09"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "value",
+            "value": 4,
+            "numerator": 4,
+            "denominator": 4,
+            "samples": 4,
+            "display": "4",
+            "note": null
+          },
+          {
+            "id": "bugs-in:2026-03-16T00:00:00.000Z",
+            "label": "Bugs in",
+            "window": {
+              "start": "2026-03-16T00:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "week of 2026-03-16 (to date)"
+            },
+            "source": "bug store records (enrolment time)",
+            "unit": "count",
+            "status": "value",
+            "value": 2,
+            "numerator": 2,
+            "denominator": 2,
+            "samples": 2,
+            "display": "2",
+            "note": null
+          }
+        ],
+        "openByStage": [
+          {
+            "id": "open-bugs:queued",
+            "label": "Open bugs: queued",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 6,
+            "samples": 6,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "open-bugs:triaging",
+            "label": "Open bugs: triaging",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 6,
+            "samples": 6,
+            "display": "0",
+            "note": null
+          },
+          {
+            "id": "open-bugs:needs-input",
+            "label": "Open bugs: needs-input",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 6,
+            "samples": 6,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "open-bugs:triaged",
+            "label": "Open bugs: triaged",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 6,
+            "samples": 6,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "open-bugs:fixing",
+            "label": "Open bugs: fixing",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 6,
+            "samples": 6,
+            "display": "0",
+            "note": null
+          },
+          {
+            "id": "open-bugs:verifying",
+            "label": "Open bugs: verifying",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 6,
+            "samples": 6,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "open-bugs:ready-to-merge",
+            "label": "Open bugs: ready-to-merge",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 6,
+            "samples": 6,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "open-bugs:with-engineer",
+            "label": "Open bugs: with-engineer",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 6,
+            "samples": 6,
+            "display": "1",
+            "note": null
+          }
+        ],
+        "longestWait": [
+          {
+            "id": "longest-wait:needs-input",
+            "label": "Longest wait for answer to Devin",
+            "unit": "hours",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records (stage history)",
+            "status": "value",
+            "value": 98,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "98 h",
+            "note": null
+          },
+          {
+            "id": "longest-wait:triaged",
+            "label": "Longest wait for fix, engineer or close decision",
+            "unit": "hours",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records (stage history)",
+            "status": "value",
+            "value": 193,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "193 h",
+            "note": null
+          },
+          {
+            "id": "longest-wait:ready-to-merge",
+            "label": "Longest wait for merge decision",
+            "unit": "hours",
+            "window": {
+              "start": null,
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "now"
+            },
+            "source": "bug store records (stage history)",
+            "status": "value",
+            "value": 143.5,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "143.5 h",
+            "note": null
+          }
+        ],
+        "resolution": {
+          "id": "resolution",
+          "label": "Resolution rate",
+          "window": {
+            "start": "2026-02-16T12:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "last 30 days"
+          },
+          "source": "bug store records (enrolment time, fixed and proven or closed)",
+          "unit": "ratio",
+          "status": "value",
+          "value": 0.14285714285714285,
+          "numerator": 1,
+          "denominator": 7,
+          "samples": 7,
+          "display": "14.3% (1 of 7)",
+          "note": null
+        },
+        "failure": {
+          "id": "failure",
+          "label": "Failure rate",
+          "window": {
+            "start": "2026-02-16T12:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "last 30 days"
+          },
+          "source": "bug store records (first sent to a fix in the window; current handoff reason)",
+          "unit": "ratio",
+          "status": "value",
+          "value": 0,
+          "numerator": 0,
+          "denominator": 4,
+          "samples": 4,
+          "display": "0% (0 of 4)",
+          "note": null
+        },
+        "failureByReason": [
+          {
+            "id": "failure:verification-failed",
+            "label": "Failure rate: verification failed twice",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (first sent to a fix in the window; current handoff reason)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 4,
+            "samples": 4,
+            "display": "0% (0 of 4)",
+            "note": null
+          },
+          {
+            "id": "failure:verification-error",
+            "label": "Failure rate: verification could not run",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (first sent to a fix in the window; current handoff reason)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 4,
+            "samples": 4,
+            "display": "0% (0 of 4)",
+            "note": null
+          },
+          {
+            "id": "failure:session-ended",
+            "label": "Failure rate: the session ended",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (first sent to a fix in the window; current handoff reason)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 4,
+            "samples": 4,
+            "display": "0% (0 of 4)",
+            "note": null
+          },
+          {
+            "id": "failure:pr-closed-unmerged",
+            "label": "Failure rate: the pull request was closed unmerged",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (first sent to a fix in the window; current handoff reason)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 4,
+            "samples": 4,
+            "display": "0% (0 of 4)",
+            "note": null
+          }
+        ],
+        "fixSizeLines": [
+          {
+            "id": "fix-size:lines:min",
+            "label": "Fix size in lines (smallest)",
+            "unit": "lines",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (pull request additions, deletions and changed files)",
+            "status": "value",
+            "value": 0,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "0 lines",
+            "note": null
+          },
+          {
+            "id": "fix-size:lines:median",
+            "label": "Fix size in lines (median)",
+            "unit": "lines",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (pull request additions, deletions and changed files)",
+            "status": "value",
+            "value": 0,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "0 lines",
+            "note": null
+          },
+          {
+            "id": "fix-size:lines:max",
+            "label": "Fix size in lines (largest)",
+            "unit": "lines",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (pull request additions, deletions and changed files)",
+            "status": "value",
+            "value": 0,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "0 lines",
+            "note": null
+          }
+        ],
+        "fixSizeFiles": [
+          {
+            "id": "fix-size:files:min",
+            "label": "Fix size in files (smallest)",
+            "unit": "files",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (pull request additions, deletions and changed files)",
+            "status": "value",
+            "value": 0,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "0 files",
+            "note": null
+          },
+          {
+            "id": "fix-size:files:median",
+            "label": "Fix size in files (median)",
+            "unit": "files",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (pull request additions, deletions and changed files)",
+            "status": "value",
+            "value": 0,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "0 files",
+            "note": null
+          },
+          {
+            "id": "fix-size:files:max",
+            "label": "Fix size in files (largest)",
+            "unit": "files",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (pull request additions, deletions and changed files)",
+            "status": "value",
+            "value": 0,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "0 files",
+            "note": null
+          }
+        ]
+      },
+      "adoption": {
+        "peopleByWeek": [
+          {
+            "id": "people:2026-01-26T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-01-26T00:00:00.000Z",
+              "end": "2026-02-02T00:00:00.000Z",
+              "label": "week of 2026-01-26"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person acted in the window"
+          },
+          {
+            "id": "people:2026-02-02T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-02-02T00:00:00.000Z",
+              "end": "2026-02-09T00:00:00.000Z",
+              "label": "week of 2026-02-02"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person acted in the window"
+          },
+          {
+            "id": "people:2026-02-09T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-02-09T00:00:00.000Z",
+              "end": "2026-02-16T00:00:00.000Z",
+              "label": "week of 2026-02-09"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person acted in the window"
+          },
+          {
+            "id": "people:2026-02-16T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-02-16T00:00:00.000Z",
+              "end": "2026-02-23T00:00:00.000Z",
+              "label": "week of 2026-02-16"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person acted in the window"
+          },
+          {
+            "id": "people:2026-02-23T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-02-23T00:00:00.000Z",
+              "end": "2026-03-02T00:00:00.000Z",
+              "label": "week of 2026-02-23"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 7,
+            "samples": 7,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "people:2026-03-02T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-03-02T00:00:00.000Z",
+              "end": "2026-03-09T00:00:00.000Z",
+              "label": "week of 2026-03-02"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 1,
+            "samples": 1,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "people:2026-03-09T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-03-09T00:00:00.000Z",
+              "end": "2026-03-16T00:00:00.000Z",
+              "label": "week of 2026-03-09"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 1,
+            "samples": 1,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "people:2026-03-16T00:00:00.000Z",
+            "label": "People involved",
+            "window": {
+              "start": "2026-03-16T00:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "week of 2026-03-16 (to date)"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person acted in the window"
+          }
+        ],
+        "peopleByAction": [
+          {
+            "id": "people:filed",
+            "label": "People who filed a bug",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 7,
+            "samples": 7,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "people:answered",
+            "label": "People who answered Devin",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person acted in the window"
+          },
+          {
+            "id": "people:decided",
+            "label": "People who made a decision",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 1,
+            "samples": 1,
+            "display": "1",
+            "note": null
+          },
+          {
+            "id": "people:merged",
+            "label": "People who merged a fix",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "GitHub issues and pull requests (issue authors, replies to Devin) and bug store records (label decisions, merges)",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 1,
+            "samples": 1,
+            "display": "1",
+            "note": null
+          }
+        ],
+        "answerTime": {
+          "id": "response:answer",
+          "label": "Median time to answer Devin",
+          "unit": "hours",
+          "window": {
+            "start": "2026-02-16T12:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "last 30 days"
+          },
+          "source": "bug store records (question asked and answered times)",
+          "status": "no-data",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "No data",
+          "note": "No question was answered in the window"
+        },
+        "decisionTime": [
+          {
+            "id": "response:fix",
+            "label": "Median time to decide fix",
+            "unit": "hours",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (investigation finished until the decision)",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person decided fix in the window"
+          },
+          {
+            "id": "response:engineer",
+            "label": "Median time to decide engineer",
+            "unit": "hours",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (investigation finished until the decision)",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person decided engineer in the window"
+          },
+          {
+            "id": "response:close",
+            "label": "Median time to decide close",
+            "unit": "hours",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (investigation finished until the decision)",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person decided close in the window"
+          },
+          {
+            "id": "response:merge",
+            "label": "Median time to decide merge",
+            "unit": "hours",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (ready to merge until merged)",
+            "status": "value",
+            "value": 23,
+            "numerator": null,
+            "denominator": null,
+            "samples": 1,
+            "display": "23 h",
+            "note": null
+          }
+        ],
+        "unansweredQuestions": {
+          "id": "unanswered-questions",
+          "label": "Questions unanswered after two days",
+          "window": {
+            "start": null,
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "now"
+          },
+          "source": "bug store records (open questions)",
+          "unit": "count",
+          "status": "value",
+          "value": 1,
+          "numerator": 1,
+          "denominator": 1,
+          "samples": 1,
+          "display": "1",
+          "note": null
+        },
+        "agreement": [
+          {
+            "id": "agreement:devin_fix",
+            "label": "Agreement when Devin recommends devin_fix",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (Devin's recommendation and the person's decision)",
+            "unit": "ratio",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person decided on a devin_fix recommendation in the window"
+          },
+          {
+            "id": "agreement:needs_engineer",
+            "label": "Agreement when Devin recommends needs_engineer",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (Devin's recommendation and the person's decision)",
+            "unit": "ratio",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person decided on a needs_engineer recommendation in the window"
+          },
+          {
+            "id": "agreement:close",
+            "label": "Agreement when Devin recommends close",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (Devin's recommendation and the person's decision)",
+            "unit": "ratio",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No person decided on a close recommendation in the window"
+          }
+        ],
+        "automation": [
+          {
+            "id": "automation:fix:rule",
+            "label": "fix decisions made by the Rule policy",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (decision actors)",
+            "unit": "ratio",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No fix decision was made in the window"
+          },
+          {
+            "id": "automation:fix:auto",
+            "label": "fix decisions made by the Automatic policy",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (decision actors)",
+            "unit": "ratio",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No fix decision was made in the window"
+          },
+          {
+            "id": "automation:engineer:rule",
+            "label": "engineer decisions made by the Rule policy",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (decision actors)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 1,
+            "samples": 1,
+            "display": "0% (0 of 1)",
+            "note": null
+          },
+          {
+            "id": "automation:engineer:auto",
+            "label": "engineer decisions made by the Automatic policy",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (decision actors)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 1,
+            "samples": 1,
+            "display": "0% (0 of 1)",
+            "note": null
+          },
+          {
+            "id": "automation:merge:rule",
+            "label": "merge decisions made by the Rule policy",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (decision actors)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 1,
+            "samples": 1,
+            "display": "0% (0 of 1)",
+            "note": null
+          },
+          {
+            "id": "automation:merge:auto",
+            "label": "merge decisions made by the Automatic policy",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (decision actors)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 1,
+            "samples": 1,
+            "display": "0% (0 of 1)",
+            "note": null
+          }
+        ]
+      }
+    },
+    "otherCohorts": [],
+    "cost": {
+      "source": "none",
+      "sourceLabel": "Not reported by Devin on this plan",
+      "readAt": null,
+      "scope": "Every Bug Smasher session for acme/widgets, successful or not",
+      "totalSpend": {
+        "id": "total-spend",
+        "label": "Total spend",
+        "unit": "usd",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "to date"
+        },
+        "source": "none",
+        "status": "unavailable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "samples": 0,
+        "display": "Not reported by Devin on this plan",
+        "note": "Devin reports no ACUs for 0 of 0 sessions and no manual reading (DEVIN_SPEND_USD, DEVIN_SPEND_READ_AT) is configured"
+      },
+      "budgetRemaining": {
+        "id": "budget-remaining",
+        "label": "Budget remaining",
+        "unit": "usd",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "to date"
+        },
+        "source": "none",
+        "status": "unavailable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "samples": 0,
+        "display": "Not reported by Devin on this plan",
+        "note": "Devin reports no ACUs for 0 of 0 sessions and no manual reading (DEVIN_SPEND_USD, DEVIN_SPEND_READ_AT) is configured"
+      },
+      "costPerFixedBug": {
+        "id": "cost-per-fixed-bug",
+        "label": "Cost per fixed bug",
+        "unit": "usd",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "to date"
+        },
+        "source": "none",
+        "status": "unavailable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "samples": 0,
+        "display": "Not reported by Devin on this plan",
+        "note": "Devin reports no ACUs for 0 of 0 sessions and no manual reading (DEVIN_SPEND_USD, DEVIN_SPEND_READ_AT) is configured"
+      },
+      "costPerSession": {
+        "id": "cost-per-session",
+        "label": "Cost per session",
+        "unit": "usd",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "to date"
+        },
+        "source": "none",
+        "status": "unavailable",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "samples": 0,
+        "display": "Not reported by Devin on this plan",
+        "note": "Devin reports no ACUs for 0 of 0 sessions and no manual reading (DEVIN_SPEND_USD, DEVIN_SPEND_READ_AT) is configured"
+      },
+      "costPerSessionByRoute": [
+        {
+          "id": "cost-per-session:triage",
+          "label": "Cost per triage session",
+          "unit": "usd",
+          "window": {
+            "start": null,
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "to date"
+          },
+          "source": "none",
+          "status": "unavailable",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "Not reported by Devin on this plan",
+          "note": "Devin reports no ACUs for 0 of 0 sessions and no manual reading (DEVIN_SPEND_USD, DEVIN_SPEND_READ_AT) is configured"
+        },
+        {
+          "id": "cost-per-session:fix",
+          "label": "Cost per fix session",
+          "unit": "usd",
+          "window": {
+            "start": null,
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "to date"
+          },
+          "source": "none",
+          "status": "unavailable",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "Not reported by Devin on this plan",
+          "note": "Devin reports no ACUs for 0 of 0 sessions and no manual reading (DEVIN_SPEND_USD, DEVIN_SPEND_READ_AT) is configured"
+        }
+      ],
+      "largestSessions": [],
+      "sessionsAtCap": {
+        "id": "sessions-at-cap",
+        "label": "Sessions stopped at the cap",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "to date"
+        },
+        "source": "Devin session list (Bug Smasher tags) (status detail usage_limit_exceeded, or reported ACUs at MAX_ACU_PER_SESSION)",
+        "unit": "count",
+        "status": "no-data",
+        "value": null,
+        "numerator": null,
+        "denominator": null,
+        "samples": 0,
+        "display": "No data",
+        "note": "No Bug Smasher sessions"
+      }
+    },
+    "liveness": {
+      "lastCycle": {
+        "id": "last-cycle",
+        "label": "Orchestrator's last cycle",
+        "unit": "timestamp",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "now"
+        },
+        "source": "running orchestrator",
+        "status": "value",
+        "value": 1773835140000,
+        "numerator": null,
+        "denominator": null,
+        "samples": 1,
+        "display": "2026-03-18T11:59:00.000Z",
+        "note": null
+      },
+      "workingSessions": {
+        "id": "working-sessions",
+        "label": "Sessions working now",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "now"
+        },
+        "source": "bug store records (session state last observed by the orchestrator)",
+        "unit": "count",
+        "status": "value",
+        "value": 4,
+        "numerator": 4,
+        "denominator": 6,
+        "samples": 6,
+        "display": "4",
+        "note": null
+      },
+      "verificationErrors": {
+        "id": "verification-errors",
+        "label": "Verification runs that errored",
+        "window": {
+          "start": "2026-02-16T12:00:00.000Z",
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "last 30 days"
+        },
+        "source": "bug store records (verification attempts)",
+        "unit": "count",
+        "status": "value",
+        "value": 0,
+        "numerator": 0,
+        "denominator": 3,
+        "samples": 3,
+        "display": "0",
+        "note": null
+      },
+      "stalledSessions": {
+        "id": "stalled-sessions",
+        "label": "Sessions with no progress for two hours",
+        "window": {
+          "start": null,
+          "end": "2026-03-18T12:00:00.000Z",
+          "label": "now"
+        },
+        "source": "bug store records and Devin session list (Bug Smasher tags) (last update)",
+        "unit": "count",
+        "status": "value",
+        "value": 4,
+        "numerator": 4,
+        "denominator": 4,
+        "samples": 4,
+        "display": "4",
+        "note": null
+      },
+      "knowledgeUsed": [
+        {
+          "window": {
+            "start": null,
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "to date"
+          },
+          "source": "Devin Session Insights",
+          "id": "knowledge",
+          "label": "Knowledge used",
+          "unit": "ratio",
+          "status": "no-data",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "No data",
+          "note": "No session has Session Insights"
+        }
+      ]
+    },
+    "crossCheck": {
+      "note": "Devin's organisation-wide figures, shown only as a cross-check; they never change the local counts.",
+      "figures": [
+        {
+          "devin": {
+            "id": "devin:prs-merged",
+            "label": "Devin: pull requests merged",
+            "unit": "count",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "cross-check window"
+            },
+            "source": "Devin's organisation metrics endpoints",
+            "status": "unavailable",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "Unavailable",
+            "note": "Devin get-pr-metrics failed: forbidden (HTTP 403): Forbidden: Metrics are not available offline"
+          },
+          "local": {
+            "id": "local:merged",
+            "label": "Local: bug fixes merged",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "cross-check window"
+            },
+            "source": "bug store merge records and independent verification attempts",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 1,
+            "samples": 1,
+            "display": "1",
+            "note": null
+          }
+        },
+        {
+          "devin": {
+            "id": "devin:sessions-with-merged-prs",
+            "label": "Devin: sessions with merged pull requests",
+            "unit": "count",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "cross-check window"
+            },
+            "source": "Devin's organisation metrics endpoints",
+            "status": "unavailable",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "Unavailable",
+            "note": "Devin get-session-metrics failed: forbidden (HTTP 403): Forbidden: Metrics are not available offline"
+          },
+          "local": {
+            "id": "local:fixed-and-proven",
+            "label": "Local: bugs fixed and proven",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "cross-check window"
+            },
+            "source": "bug store merge records and independent verification attempts",
+            "unit": "count",
+            "status": "value",
+            "value": 1,
+            "numerator": 1,
+            "denominator": 1,
+            "samples": 1,
+            "display": "1",
+            "note": null
+          }
+        },
+        {
+          "devin": {
+            "id": "devin:sessions-created",
+            "label": "Devin: sessions created",
+            "unit": "count",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "cross-check window"
+            },
+            "source": "Devin's organisation metrics endpoints",
+            "status": "unavailable",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "Unavailable",
+            "note": "Devin get-session-metrics failed: forbidden (HTTP 403): Forbidden: Metrics are not available offline"
+          },
+          "local": {
+            "id": "local:sessions",
+            "label": "Local: Bug Smasher sessions",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "cross-check window"
+            },
+            "source": "Devin session list (Bug Smasher tags)",
+            "unit": "count",
+            "status": "no-data",
+            "value": null,
+            "numerator": null,
+            "denominator": null,
+            "samples": 0,
+            "display": "No data",
+            "note": "No Bug Smasher session was created in the window"
+          }
+        }
+      ]
+    }
+  }
+}

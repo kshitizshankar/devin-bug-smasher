@@ -5,6 +5,7 @@ import { Orchestrator } from '../orchestrator/orchestrator.ts';
 import { Prompts } from '../orchestrator/prompts.ts';
 import { BugStore } from '../store/bug-store.ts';
 import { GitHubTracker } from '../tracker/github.ts';
+import { Dashboard } from '../dashboard/dashboard.ts';
 import { verifierFromSettings, verifierSettingsProblems } from '../verify/verifier.ts';
 import { createApp } from './app.ts';
 
@@ -21,7 +22,8 @@ try {
 
 const { host, port, staticDir } = settings.server;
 
-const server = createApp({ staticDir });
+const dashboard = new Dashboard({ settings });
+const server = createApp({ staticDir, dashboard });
 
 server.listen(port, host, () => {
   const address = server.address() as AddressInfo;
@@ -32,7 +34,9 @@ server.listen(port, host, () => {
 async function startOrchestrator(settings: Settings): Promise<Orchestrator | null> {
   const problems = liveSettingsProblems(settings);
   if (problems.length > 0) {
-    console.log(`Workflow polling is off until live settings are complete: ${problems.join('; ')}`);
+    const message = `Workflow polling is off until live settings are complete: ${problems.join('; ')}`;
+    console.log(message);
+    dashboard.disconnect(message);
     return null;
   }
   const repo = settings.github.repo as NonNullable<Settings['github']['repo']>;
@@ -41,27 +45,34 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
     console.log(`Independent verification is unavailable until settings are complete: ${verifierProblems.join('; ')}`);
   }
   const verifier = verifierProblems.length === 0 ? verifierFromSettings(settings) : null;
-  const orchestrator = new Orchestrator({
-    store: await BugStore.open(),
-    tracker: new GitHubTracker({ repo, token: settings.github.token as string }),
-    devin: DevinClient.fromSettings(settings),
+  const store = await BugStore.open();
+  const tracker = new GitHubTracker({ repo, token: settings.github.token as string });
+  const devin = DevinClient.fromSettings(settings);
+  const orchestrator: Orchestrator = new Orchestrator({
+    store,
+    tracker,
+    devin,
     settings,
     prompts: await Prompts.load(),
     ...(verifier === null ? {} : { verifier, reproducer: verifier }),
     requireLiveResults: true,
     trace: (event) => {
+      if (event.type === 'cycle-finished') void dashboard.refresh();
       if (event.type === 'error' || event.type === 'effect-failed' || event.type === 'refused') {
         console.error(`[workflow] ${event.type} ${event.key ?? ''} ${JSON.stringify(event.detail)}`);
       }
     },
   });
+  dashboard.connect({ store, tracker, devin, lastCycleAt: () => orchestrator.lastCycleAt });
   orchestrator.start();
   console.log(`Workflow polling ${repo.owner}/${repo.name} every ${settings.pollSeconds} s`);
   return orchestrator;
 }
 
 const orchestrator = startOrchestrator(settings).catch((error: unknown) => {
-  console.error(`Workflow polling failed to start: ${error instanceof Error ? error.message : String(error)}`);
+  const message = `Workflow polling failed to start: ${error instanceof Error ? error.message : String(error)}`;
+  console.error(message);
+  dashboard.disconnect(message);
   return null;
 });
 

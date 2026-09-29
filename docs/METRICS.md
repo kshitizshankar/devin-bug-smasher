@@ -1,8 +1,8 @@
 # Metrics
 
 Every figure Bug Smasher shows comes from one calculation, `calculateMetrics` in `src/metrics/calculate.ts`.
-`RESULTS.md` (`npm run report`) renders its output unchanged, and the dashboard API is to serve the same
-`MetricsReport`. Nothing is estimated from activity counts, session size classes or Devin's own view of
+`RESULTS.md` (`npm run report`) renders its output unchanged, and the dashboard API (`GET /api/metrics`) serves the
+same `MetricsReport`. Nothing is estimated from activity counts, session size classes or Devin's own view of
 success.
 
 ## Figures

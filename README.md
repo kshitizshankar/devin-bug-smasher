@@ -76,6 +76,9 @@ curl http://127.0.0.1:8080/api/health
 # {"status":"ok","service":"bug-smasher","stage":"scaffold"}
 ```
 
+The read-only dashboard API (`/api/overview`, `/api/metrics`, `/api/settings`) is described in
+[`docs/API.md`](docs/API.md).
+
 Environment variables used by the scaffold service (all settings, including the future live-mode ones, are
 listed in [`docs/MODEL.md`](docs/MODEL.md#settings) and `.env.example`; invalid values stop startup with
 a clear error):
@@ -83,7 +86,7 @@ a clear error):
 | Variable     | Default           | Purpose                                     |
 | ------------ | ----------------- | ------------------------------------------- |
 | `PORT`       | `8080`            | Port to listen on (`0` picks a free port)   |
-| `HOST`       | `127.0.0.1`       | Interface to bind                           |
+| `HOST`       | `127.0.0.1`       | Loopback interface to bind (non-loopback values are refused) |
 | `STATIC_DIR` | `<repo>/dist/web` | Directory of built frontend assets to serve |
 
 ### Frontend development

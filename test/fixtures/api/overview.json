@@ -1,0 +1,437 @@
+{
+  "refresh": {
+    "state": "current",
+    "lastRefreshAt": "2026-03-18T12:00:00.000Z",
+    "lastAttemptAt": "2026-03-18T12:00:00.000Z",
+    "problems": []
+  },
+  "overview": {
+    "repository": "acme/widgets",
+    "headline": {
+      "fixThroughput": {
+        "figure": {
+          "id": "fix-throughput",
+          "label": "Fix throughput (bugs fixed and proven this week)",
+          "unit": "count",
+          "window": {
+            "start": "2026-03-16T00:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "week of 2026-03-16 (to date)"
+          },
+          "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+          "status": "no-data",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "No data",
+          "note": "No bug fix was merged in this week"
+        },
+        "reference": {
+          "id": "fix-throughput.previous",
+          "label": "Previous week",
+          "unit": "count",
+          "window": {
+            "start": "2026-03-09T00:00:00.000Z",
+            "end": "2026-03-16T00:00:00.000Z",
+            "label": "week of 2026-03-09"
+          },
+          "source": "bug store merge records and independent verification attempts, checked against GitHub issues and pull requests",
+          "status": "no-data",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "No data",
+          "note": "No bug fix was merged in this week"
+        }
+      },
+      "timeToFixMedian": {
+        "figure": {
+          "id": "time-to-fix.median",
+          "label": "Time to fix (median)",
+          "unit": "hours",
+          "window": {
+            "start": "2026-02-16T12:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "last 30 days"
+          },
+          "source": "GitHub issues and pull requests (issue filed) and bug store merge records and independent verification attempts (merge)",
+          "status": "value",
+          "value": 62.983333333333334,
+          "numerator": null,
+          "denominator": null,
+          "samples": 1,
+          "display": "63 h",
+          "note": null
+        },
+        "reference": {
+          "id": "time-to-fix.baseline",
+          "label": "Repository median for comparable closed issues",
+          "unit": "hours",
+          "window": {
+            "start": null,
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "repository history"
+          },
+          "source": "GitHub issues and pull requests closed issues matching BASELINE_FILTER",
+          "status": "unavailable",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "Insufficient history: BASELINE_FILTER is not set",
+          "note": "BASELINE_FILTER is not set"
+        }
+      },
+      "firstTimePass": {
+        "figure": {
+          "id": "first-time-pass",
+          "label": "First-time pass rate",
+          "window": {
+            "start": "2026-02-16T12:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "last 30 days"
+          },
+          "source": "bug store records (pre-merge verification attempts per fix session; errors are not attempts)",
+          "unit": "ratio",
+          "status": "value",
+          "value": 1,
+          "numerator": 2,
+          "denominator": 2,
+          "samples": 2,
+          "display": "100% (2 of 2)",
+          "note": null
+        },
+        "reference": {
+          "id": "first-time-pass.previous",
+          "label": "Previous 30 days",
+          "window": {
+            "start": "2026-01-17T12:00:00.000Z",
+            "end": "2026-02-16T12:00:00.000Z",
+            "label": "previous 30 days"
+          },
+          "source": "bug store records (pre-merge verification attempts per fix session; errors are not attempts)",
+          "unit": "ratio",
+          "status": "no-data",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "No data",
+          "note": "No pull request was first verified in the window"
+        }
+      },
+      "escapedFixes": {
+        "figure": {
+          "id": "escaped-fixes",
+          "label": "Escaped-fix rate",
+          "window": {
+            "start": "2026-02-16T12:00:00.000Z",
+            "end": "2026-03-18T12:00:00.000Z",
+            "label": "last 30 days"
+          },
+          "source": "bug store merge records and independent verification attempts, GitHub issues and pull requests (reverts, reopens)",
+          "unit": "ratio",
+          "status": "value",
+          "value": 0,
+          "numerator": 0,
+          "denominator": 1,
+          "samples": 1,
+          "display": "0% (0 of 1)",
+          "note": null
+        },
+        "reference": {
+          "id": "escaped-fixes.previous",
+          "label": "Previous 30 days",
+          "window": {
+            "start": "2026-01-17T12:00:00.000Z",
+            "end": "2026-02-16T12:00:00.000Z",
+            "label": "previous 30 days"
+          },
+          "source": "bug store merge records and independent verification attempts, GitHub issues and pull requests (reverts, reopens)",
+          "unit": "ratio",
+          "status": "no-data",
+          "value": null,
+          "numerator": null,
+          "denominator": null,
+          "samples": 0,
+          "display": "No data",
+          "note": "No bug fix was merged in the window"
+        }
+      }
+    },
+    "counts": {
+      "issues": 8,
+      "groups": {
+        "Backlog": 1,
+        "Triage": 3,
+        "Fix": 3,
+        "Merged": 1
+      },
+      "statuses": {
+        "not-started": 0,
+        "label-conflict": 0,
+        "queued-triage": 1,
+        "queued-fix": 1,
+        "investigating": 0,
+        "waiting-for-reply": 1,
+        "needs-decision": 1,
+        "fixing": 0,
+        "verifying": 1,
+        "ready-to-merge": 1,
+        "merged": 1,
+        "needs-engineer": 1,
+        "closed": 0
+      },
+      "gates": {
+        "labels": 0,
+        "reply": 1,
+        "decision": 1,
+        "merge": 1,
+        "engineer": 1
+      }
+    },
+    "issues": [
+      {
+        "key": "acme/widgets#1",
+        "number": 1,
+        "title": "Legend overlaps axis on narrow screens",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/1",
+        "issueState": "closed",
+        "status": "merged",
+        "statusLabel": "Merged",
+        "group": "Merged",
+        "attention": {
+          "gate": null,
+          "waitingOn": null,
+          "text": "Merged. Post-merge verification passed."
+        },
+        "recommendation": null,
+        "timestamp": {
+          "kind": "merged",
+          "at": "2026-03-03T15:00:00.000Z"
+        },
+        "pullRequest": {
+          "number": 9,
+          "url": "https://github.com/acme/widgets/pull/9",
+          "state": "merged"
+        },
+        "session": {
+          "id": "session-fix-1",
+          "url": "https://app.devin.ai/sessions/session-fix-1",
+          "state": "starting"
+        },
+        "verification": {
+          "phase": "post-merge",
+          "result": "pass",
+          "reason": "verification pass",
+          "headSha": "9fffffffffffffffffffffffffffffffffffffff",
+          "at": "2026-03-03T15:10:00.000Z",
+          "currentHeadVerified": false
+        }
+      },
+      {
+        "key": "acme/widgets#2",
+        "number": 2,
+        "title": "Tooltip flickers on hover",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/2",
+        "issueState": "open",
+        "status": "needs-decision",
+        "statusLabel": "Needs a decision",
+        "group": "Triage",
+        "attention": {
+          "gate": "decision",
+          "waitingOn": "person",
+          "text": "Decide on GitHub: fix, engineer or close. Devin recommends closing the issue; this is not a decision."
+        },
+        "recommendation": "close",
+        "timestamp": {
+          "kind": "stage-entered",
+          "at": "2026-03-10T11:00:00.000Z"
+        },
+        "session": {
+          "id": "session-triage-2",
+          "url": "https://app.devin.ai/sessions/session-triage-2",
+          "state": "starting"
+        }
+      },
+      {
+        "key": "acme/widgets#3",
+        "number": 3,
+        "title": "CSV export drops the last row",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/3",
+        "issueState": "open",
+        "status": "ready-to-merge",
+        "statusLabel": "Ready to merge",
+        "group": "Fix",
+        "attention": {
+          "gate": "merge",
+          "waitingOn": "person",
+          "text": "Review and merge the pull request on GitHub."
+        },
+        "recommendation": null,
+        "timestamp": {
+          "kind": "stage-entered",
+          "at": "2026-03-12T12:30:00.000Z"
+        },
+        "pullRequest": {
+          "number": 10,
+          "url": "https://github.com/acme/widgets/pull/10",
+          "state": "open"
+        },
+        "session": {
+          "id": "session-fix-3",
+          "url": "https://app.devin.ai/sessions/session-fix-3",
+          "state": "starting"
+        },
+        "verification": {
+          "phase": "pre-merge",
+          "result": "pass",
+          "reason": "verification pass",
+          "headSha": "10aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "at": "2026-03-12T12:30:00.000Z",
+          "currentHeadVerified": true
+        },
+        "review": {
+          "status": "completed",
+          "findings": [
+            {
+              "url": "https://github.com/acme/widgets/pull/10#discussion_r1",
+              "path": "src/export.ts",
+              "line": 42
+            }
+          ]
+        }
+      },
+      {
+        "key": "acme/widgets#4",
+        "number": 4,
+        "title": "Dates render in the wrong timezone",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/4",
+        "issueState": "open",
+        "status": "waiting-for-reply",
+        "statusLabel": "Waiting for a reply",
+        "group": "Triage",
+        "attention": {
+          "gate": "reply",
+          "waitingOn": "person",
+          "text": "Reply on GitHub to Devin's question: Which timezone is the browser set to?"
+        },
+        "recommendation": null,
+        "timestamp": {
+          "kind": "asked",
+          "at": "2026-03-14T10:00:00.000Z"
+        },
+        "session": {
+          "id": "session-triage-4",
+          "url": "https://app.devin.ai/sessions/session-triage-4",
+          "state": "starting"
+        }
+      },
+      {
+        "key": "acme/widgets#5",
+        "number": 5,
+        "title": "Crash when the dataset is empty",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/5",
+        "issueState": "open",
+        "status": "queued-triage",
+        "statusLabel": "Queued for investigation",
+        "group": "Triage",
+        "attention": {
+          "gate": null,
+          "waitingOn": "service",
+          "text": "Queued; the investigation starts when a Devin session is free."
+        },
+        "recommendation": null,
+        "timestamp": {
+          "kind": "stage-entered",
+          "at": "2026-03-17T09:00:00.000Z"
+        }
+      },
+      {
+        "key": "acme/widgets#6",
+        "number": 6,
+        "title": "Zoom resets after refresh",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/6",
+        "issueState": "open",
+        "status": "needs-engineer",
+        "statusLabel": "Needs an engineer",
+        "group": "Backlog",
+        "attention": {
+          "gate": "engineer",
+          "waitingOn": "person",
+          "text": "An engineer is needed: a person asked for an engineer."
+        },
+        "recommendation": null,
+        "timestamp": {
+          "kind": "stage-entered",
+          "at": "2026-03-15T12:00:00.000Z"
+        },
+        "session": {
+          "id": "session-fix-6",
+          "url": "https://app.devin.ai/sessions/session-fix-6",
+          "state": "starting"
+        }
+      },
+      {
+        "key": "acme/widgets#7",
+        "number": 7,
+        "title": "Keyboard focus is lost in the legend",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/7",
+        "issueState": "open",
+        "status": "queued-fix",
+        "statusLabel": "Queued for repair",
+        "group": "Fix",
+        "attention": {
+          "gate": null,
+          "waitingOn": "service",
+          "text": "Queued; the repair starts when a Devin session is free."
+        },
+        "recommendation": null,
+        "timestamp": {
+          "kind": "opened",
+          "at": "2026-03-01T00:07:00.000Z"
+        }
+      },
+      {
+        "key": "acme/widgets#8",
+        "number": 8,
+        "title": "Axis labels overlap at 200% zoom",
+        "kind": "bug",
+        "url": "https://github.com/acme/widgets/issues/8",
+        "issueState": "open",
+        "status": "verifying",
+        "statusLabel": "Verifying",
+        "group": "Fix",
+        "attention": {
+          "gate": null,
+          "waitingOn": "service",
+          "text": "Waiting for verification and review of the current pull request head."
+        },
+        "recommendation": null,
+        "timestamp": {
+          "kind": "stage-entered",
+          "at": "2026-03-16T13:00:00.000Z"
+        },
+        "pullRequest": {
+          "number": 11,
+          "url": "https://github.com/acme/widgets/pull/11",
+          "state": "open"
+        },
+        "session": {
+          "id": "session-fix-8",
+          "url": "https://app.devin.ai/sessions/session-fix-8",
+          "state": "starting"
+        }
+      }
+    ]
+  }
+}

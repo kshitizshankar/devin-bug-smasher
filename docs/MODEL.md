@@ -221,7 +221,7 @@ Counts are per fix session, so a new session after a handoff starts with fresh b
 | `MAX_FIX_RETRIES`      | `1`                     | Non-negative integer                                     |
 | `DEVIN_REVIEW`         | `true`                  | `true` or `false`                                        |
 | `POLL_SECONDS`         | `60`                    | Positive integer                                         |
-| `HOST`                 | `127.0.0.1`             |                                                          |
+| `HOST`                 | `127.0.0.1`             | Loopback only (`127.x.x.x`, `::1`, `localhost`)          |
 | `PORT`                 | `8080`                  | `0` picks a free port (used by tests)                    |
 | `STATIC_DIR`           | `<repo>/dist/web`       |                                                          |
 | `BASELINE_FILTER`      | unset                   | Optional                                                 |
