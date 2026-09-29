@@ -133,6 +133,17 @@ export function validateVerificationAttempt(value: unknown, path: string): Probl
 }
 
 /** Validates a persisted record. Returns a list of problems; empty means valid. */
+export function validateSessionInsights(value: unknown, path: string): Problems {
+  const problems: Problems = [];
+  if (!checkObject(value, path, problems)) return problems;
+  const acu = value.acuUsed;
+  if (acu !== null && (typeof acu !== 'number' || !Number.isFinite(acu) || acu < 0)) {
+    problems.push(`${path}.acuUsed must be null (unknown) or a number >= 0`);
+  }
+  checkNullableString(value.notes, `${path}.notes`, problems);
+  return problems;
+}
+
 export function validateBugRecord(value: unknown, path = 'record'): Problems {
   const problems: Problems = [];
   if (!checkObject(value, path, problems)) return problems;
@@ -196,13 +207,7 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
     checkTimestamp(value.handoff.at, `${path}.handoff.at`, problems);
     checkBoolean(value.handoff.engineerLabelSeen, `${path}.handoff.engineerLabelSeen`, problems);
   }
-  if (value.insights !== null && checkObject(value.insights, `${path}.insights`, problems)) {
-    const acu = value.insights.acuUsed;
-    if (acu !== null && (typeof acu !== 'number' || !Number.isFinite(acu) || acu < 0)) {
-      problems.push(`${path}.insights.acuUsed must be null (unknown) or a number >= 0`);
-    }
-    checkNullableString(value.insights.notes, `${path}.insights.notes`, problems);
-  }
+  if (value.insights !== null) problems.push(...validateSessionInsights(value.insights, `${path}.insights`));
   checkTimestamp(value.createdAt, `${path}.createdAt`, problems);
   checkTimestamp(value.updatedAt, `${path}.updatedAt`, problems);
   return problems;

@@ -17,7 +17,12 @@ import type {
   VerificationAttempt,
   WorkRoute,
 } from './types.ts';
-import { validateFixInfo, validateTriageFindings, validateVerificationAttempt } from './validate.ts';
+import {
+  validateFixInfo,
+  validateSessionInsights,
+  validateTriageFindings,
+  validateVerificationAttempt,
+} from './validate.ts';
 
 export interface ModelOptions {
   labels: LabelSettings;
@@ -35,6 +40,7 @@ export type Effect =
   | { type: 'remove-label'; label: string }
   | { type: 'close-issue' }
   | { type: 'stop-session'; sessionId: string }
+  | { type: 'continue-session'; sessionId: string; route: WorkRoute }
   | { type: 'post-comment'; body: string }
   | { type: 'merge-pr'; prNumber: number; expectedHeadSha: string };
 
@@ -46,7 +52,7 @@ export interface ModelError {
     | 'label-mismatch'
     | 'label-conflict'
     | 'session-active'
-    | 'unknown-session'
+    | 'unknown-pr'
     | 'unknown-question'
     | 'duplicate-question'
     | 'invalid-data'
@@ -76,10 +82,10 @@ export type ModelEvent =
   | { type: 'reply-received'; questionId: string }
   | { type: 'triage-completed'; findings: TriageFindings }
   | { type: 'fix-submitted'; fix: SubmittedFix }
-  | { type: 'head-changed'; headSha: string }
+  | { type: 'head-changed'; prNumber: number; headSha: string }
   | { type: 'verification-recorded'; attempt: Omit<VerificationAttempt, 'sessionId'> }
-  | { type: 'pr-merged'; mergeCommitSha: string }
-  | { type: 'pr-closed' }
+  | { type: 'pr-merged'; prNumber: number; mergeCommitSha: string }
+  | { type: 'pr-closed'; prNumber: number }
   | { type: 'issue-closed' }
   | { type: 'issue-reopened'; labels: string[] }
   | { type: 'insights-recorded'; insights: SessionInsights };
@@ -179,10 +185,29 @@ function newRecord(facts: GitHubFacts, now: Timestamp): BugRecord {
   };
 }
 
-/** Applies a label route to a record that is queued, triaged or with an engineer. */
-function routeFromLabels(record: BugRecord, labels: string[], options: ModelOptions, now: Timestamp): boolean {
+/**
+ * Continues a live investigation session into repair: the record moves straight to `fixing` with the same
+ * session, and the adapter is told to instruct it. Returns null when there is no live investigation session.
+ */
+function continueIntoRepair(record: BugRecord, now: Timestamp): Effect[] | null {
+  const session = record.session;
+  if (record.stage !== 'triaged' || session === null || session.route !== 'triage' || !sessionRunning(record)) {
+    return null;
+  }
+  session.route = 'fix';
+  session.updatedAt = now;
+  record.route = 'fix';
+  moveTo(record, 'fixing', now);
+  return [{ type: 'continue-session', sessionId: session.id, route: 'fix' }];
+}
+
+/**
+ * Applies a label route to a record that is queued, triaged or with an engineer. Returns the effects when
+ * the record changed, or null when the labels change nothing.
+ */
+function routeFromLabels(record: BugRecord, labels: string[], options: ModelOptions, now: Timestamp): Effect[] | null {
   const { route, conflict } = resolveLabels(labels, options.labels);
-  if (conflict !== null || route === null || route === 'engineer') return false;
+  if (conflict !== null || route === null || route === 'engineer') return null;
   const workRoute: WorkRoute = route === 'triage' ? 'triage' : 'fix';
   const kind = route === 'feature' ? 'feature' : 'bug';
 
@@ -191,18 +216,31 @@ function routeFromLabels(record: BugRecord, labels: string[], options: ModelOpti
     record.kind = kind;
     record.route = workRoute;
     moveTo(record, 'queued', now);
-    return true;
+    return [];
   }
   // A queued or triaged record is only upgraded to repair; a triage-only snapshot never downgrades
   // queued repair (it may be stale while the adapter is moving labels). Use the `triage` action instead.
   if ((record.stage === 'queued' || record.stage === 'triaged') && workRoute === 'fix') {
-    if (record.stage === 'queued' && record.route === 'fix' && record.kind === kind) return false;
+    if (record.stage === 'queued' && record.route === 'fix' && record.kind === kind) return null;
     record.kind = kind;
+    const continued = continueIntoRepair(record, now);
+    if (continued !== null) return continued;
     record.route = 'fix';
     moveTo(record, 'queued', now);
-    return true;
+    return [];
   }
-  return false;
+  return null;
+}
+
+/**
+ * Classifies a PR event: `current` for the recorded fix PR, `stale` for an earlier fix PR (to be ignored),
+ * otherwise a failure result.
+ */
+function prEventTarget(record: BugRecord, prNumber: number): 'current' | 'stale' | ModelResult {
+  if (record.fix !== null && record.fix.prNumber === prNumber) return 'current';
+  if (record.priorFixes.some((fix) => fix.prNumber === prNumber)) return 'stale';
+  if (record.fix === null) return fail('no-fix', 'No fix PR is recorded');
+  return fail('unknown-pr', `PR #${prNumber} is not the recorded fix PR #${record.fix.prNumber}`);
 }
 
 /**
@@ -258,7 +296,8 @@ export function applyEvent(
       if (record.stage === 'with-engineer' && record.handoff !== null && !record.handoff.engineerLabelSeen) {
         return unchanged(current);
       }
-      return routeFromLabels(record, event.labels, options, now) ? done(record, now) : unchanged(current);
+      const effects = routeFromLabels(record, event.labels, options, now);
+      return effects === null ? unchanged(current) : done(record, now, effects);
     }
 
     case 'session-started': {
@@ -296,10 +335,11 @@ export function applyEvent(
     }
 
     case 'session-status': {
-      if (record.session === null || record.session.id !== event.sessionId) {
-        return fail('unknown-session', `Session ${event.sessionId} is not the record's current session`);
+      // Statuses from earlier sessions, and any status after `ended` (which is final), are stale.
+      if (record.session === null || record.session.id !== event.sessionId) return unchanged(current);
+      if (record.session.liveState === 'ended' || record.session.liveState === event.liveState) {
+        return unchanged(current);
       }
-      if (record.session.liveState === event.liveState) return unchanged(current);
       record.session.liveState = event.liveState;
       record.session.updatedAt = now;
       if (event.liveState === 'ended' && ACTIVE_WORK_STAGES.includes(record.stage)) {
@@ -356,6 +396,9 @@ export function applyEvent(
     }
 
     case 'head-changed': {
+      const target = prEventTarget(record, event.prNumber);
+      if (target === 'stale') return unchanged(current);
+      if (target !== 'current') return target;
       if (record.fix === null) return fail('no-fix', 'No fix PR is recorded');
       if (!['fixing', 'verifying', 'ready-to-merge'].includes(record.stage)) {
         return fail('invalid-stage', `Head changes only apply to an unmerged fix (stage ${record.stage})`);
@@ -419,6 +462,9 @@ export function applyEvent(
     }
 
     case 'pr-merged': {
+      const target = prEventTarget(record, event.prNumber);
+      if (target === 'stale') return unchanged(current);
+      if (target !== 'current') return target;
       if (record.fix === null) return fail('no-fix', 'No fix PR is recorded');
       if (record.fix.mergeCommitSha !== null) return fail('already-merged', 'The fix PR was already recorded as merged');
       // `closed` is accepted because GitHub may report the issue closed (e.g. "Closes #N") before the merge.
@@ -435,6 +481,9 @@ export function applyEvent(
     }
 
     case 'pr-closed': {
+      const target = prEventTarget(record, event.prNumber);
+      if (target === 'stale') return unchanged(current);
+      if (target !== 'current') return target;
       if (!['fixing', 'verifying', 'ready-to-merge'].includes(record.stage)) return unchanged(current);
       return done(record, now, handOff(record, 'pr-closed-unmerged', null, options, now));
     }
@@ -462,6 +511,8 @@ export function applyEvent(
     }
 
     case 'insights-recorded': {
+      const problems = validateSessionInsights(event.insights, 'insights');
+      if (problems.length > 0) return fail('invalid-data', problems.join('; '));
       record.insights = structuredClone(event.insights);
       return done(record, now);
     }
@@ -509,6 +560,18 @@ export function applyAction(
   switch (request.name) {
     case 'triage':
     case 'fix': {
+      if (request.name === 'fix') {
+        const continued = continueIntoRepair(record, now);
+        if (continued !== null) {
+          const labelEffects = labelMoveEffects(
+            record.kind === 'feature' ? options.labels.feature : options.labels.fix,
+            facts,
+            options,
+          );
+          decide('applied');
+          return done(record, now, [...labelEffects, ...continued]);
+        }
+      }
       const effects = [
         ...labelMoveEffects(
           request.name === 'triage'

@@ -117,14 +117,14 @@ const TABLE: Row[] = [
   },
   {
     scenario: 'merged PR, issue still open',
-    build: () => ({ record: event(ready(), { type: 'pr-merged', mergeCommitSha: MERGE_SHA }), facts: mergedPr('open') }),
+    build: () => ({ record: event(ready(), { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA }), facts: mergedPr('open') }),
     status: 'Merged',
     group: 'Merged',
     actions: ['close'],
   },
   {
     scenario: 'merged PR, issue closed',
-    build: () => ({ record: event(ready(), { type: 'pr-merged', mergeCommitSha: MERGE_SHA }), facts: mergedPr('closed') }),
+    build: () => ({ record: event(ready(), { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA }), facts: mergedPr('closed') }),
     status: 'Merged',
     group: 'Merged',
     actions: [],

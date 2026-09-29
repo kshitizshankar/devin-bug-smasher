@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { presentBug } from '../src/model/presentation.ts';
+import { validateBugRecord } from '../src/model/validate.ts';
 import { applyEvent, type ModelEvent } from '../src/model/transitions.ts';
 import type { BugRecord } from '../src/model/types.ts';
 import {
@@ -95,37 +96,52 @@ describe('investigation, questions and replies', () => {
 });
 
 describe('decision and repair', () => {
-  it('turns a fix decision into a queued repair, label effects and one decision entry', () => {
+  it('turns a fix decision into repair in the same live session, with label effects and one decision entry', () => {
     const triaged = event(triagingRecord(), { type: 'triage-completed', findings: findings() });
     const decided = expectOk(act(triaged, facts([LABEL.triage]), { name: 'fix', actor: 'ana', context: 'go' }));
-    assert.equal(decided.record.stage, 'queued');
+    assert.equal(decided.record.stage, 'fixing');
     assert.equal(decided.record.route, 'fix');
+    assert.equal(decided.record.session?.id, 'session-triage');
+    assert.equal(decided.record.session?.route, 'fix');
     assert.deepEqual(decided.effects, [
       { type: 'add-label', label: LABEL.fix },
       { type: 'remove-label', label: LABEL.triage },
-      { type: 'stop-session', sessionId: 'session-triage' },
+      { type: 'continue-session', sessionId: 'session-triage', route: 'fix' },
     ]);
     assert.equal(decided.record.decisions.length, 1);
     assert.deepEqual(
       { ...decided.record.decisions[0], at: undefined },
       { action: 'fix', outcome: 'applied', actor: 'ana', at: undefined, context: 'go' },
     );
+    assert.equal(decided.record.triage?.title, findings().title, 'triage findings are retained through repair');
+    const submitted = event(decided.record, { type: 'fix-submitted', fix: fixInfo() });
+    assert.equal(submitted.stage, 'verifying');
+  });
+
+  it('queues repair for a new session when the investigation session has ended', () => {
+    const triaged = event(triagingRecord(), { type: 'triage-completed', findings: findings() });
+    const ended = event(triaged, { type: 'session-status', sessionId: 'session-triage', liveState: 'ended' });
+    assert.equal(ended.stage, 'triaged', 'an investigation session ending after triage is not a handoff');
+    const decided = expectOk(act(ended, facts([LABEL.triage]), { name: 'fix', actor: 'ana', context: 'go' }));
+    assert.equal(decided.record.stage, 'queued');
+    assert.equal(decided.record.route, 'fix');
+    assert.deepEqual(decided.effects, [
+      { type: 'add-label', label: LABEL.fix },
+      { type: 'remove-label', label: LABEL.triage },
+    ]);
 
     const stale = [LABEL.triage];
-    const triageEnded = event(decided.record, { type: 'session-status', sessionId: 'session-triage', liveState: 'ended' });
-    assert.equal(triageEnded.stage, 'queued', 'a stopped session ending while queued is not a handoff');
     reject(
-      triageEnded,
+      decided.record,
       { type: 'session-started', session: { id: 's', url: 'u' }, issueState: 'open', labels: stale },
       'label-mismatch',
     );
-    const labelled = [LABEL.triage, LABEL.fix];
     assert.equal(event(decided.record, { type: 'labels-changed', labels: stale }).route, 'fix');
-    const fixing = event(triageEnded, {
+    const fixing = event(decided.record, {
       type: 'session-started',
       session: { id: 'session-fix', url: 'u' },
       issueState: 'open',
-      labels: labelled,
+      labels: [LABEL.triage, LABEL.fix],
     });
     assert.equal(fixing.stage, 'fixing');
     assert.equal(fixing.triage?.title, findings().title, 'triage findings are retained through repair');
@@ -168,7 +184,7 @@ describe('verification failures, errors and retries', () => {
     assert.equal(retry.stage, 'fixing', 'first failure goes back to Devin for one retry');
     assert.equal(retry.handoff, null);
 
-    const reverifying = event(retry, { type: 'head-changed', headSha: HEAD_B });
+    const reverifying = event(retry, { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
     assert.equal(reverifying.stage, 'verifying');
     const handed = event(reverifying, { type: 'verification-recorded', attempt: attempt('fail', HEAD_B) });
     assert.equal(handed.stage, 'with-engineer');
@@ -209,7 +225,7 @@ describe('verification failures, errors and retries', () => {
     record = event(record, { type: 'verification-recorded', attempt: attempt('fail') });
     assert.equal(record.stage, 'fixing', 'two errors do not consume the failed-proof retry');
 
-    record = event(record, { type: 'head-changed', headSha: HEAD_B });
+    record = event(record, { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
     record = event(record, { type: 'verification-recorded', attempt: attempt('pass', HEAD_B) });
     assert.equal(record.stage, 'ready-to-merge', 'errors plus one failure still allow a passing retry');
   });
@@ -217,7 +233,7 @@ describe('verification failures, errors and retries', () => {
   it('does not let failed proofs consume the infrastructure error budget', () => {
     let record = verifyingRecord();
     record = event(record, { type: 'verification-recorded', attempt: attempt('fail') });
-    record = event(record, { type: 'head-changed', headSha: HEAD_B });
+    record = event(record, { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
     record = event(record, { type: 'verification-recorded', attempt: attempt('error', HEAD_B) });
     record = event(record, { type: 'verification-recorded', attempt: attempt('error', HEAD_B) });
     assert.equal(record.stage, 'verifying', 'one failure plus two errors is below both budgets');
@@ -231,7 +247,7 @@ describe('verification failures, errors and retries', () => {
 describe('changed-head invalidation', () => {
   it('invalidates a passing proof when the PR head changes', () => {
     const ready = event(verifyingRecord(), { type: 'verification-recorded', attempt: attempt('pass') });
-    const moved = event(ready, { type: 'head-changed', headSha: HEAD_B });
+    const moved = event(ready, { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
     assert.equal(moved.stage, 'verifying');
     const view = presentBug(moved, facts([LABEL.fix], { pullRequest: { number: 7, state: 'open', headSha: HEAD_B } }), LABEL);
     assert.equal(view.statusLabel, 'Verifying');
@@ -263,7 +279,7 @@ describe('merge, merged and closed', () => {
 
   it('shows an actual merge as Merged and never offers merge again', () => {
     const ready = event(verifyingRecord(), { type: 'verification-recorded', attempt: attempt('pass') });
-    const merged = event(ready, { type: 'pr-merged', mergeCommitSha: MERGE_SHA });
+    const merged = event(ready, { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA });
     assert.equal(merged.stage, 'merged');
     const mergedFacts = facts([LABEL.fix], { pullRequest: { number: 7, state: 'merged', headSha: HEAD_A } });
     const view = presentBug(merged, mergedFacts, LABEL);
@@ -276,12 +292,13 @@ describe('merge, merged and closed', () => {
     assert.deepEqual(presentBug(merged, closedIssue, LABEL).actions, []);
     assert.equal(expectOk(applyEvent(merged, { type: 'issue-closed' }, options, now())).changed, false);
     expectError(act(merged, closedIssue, { name: 'merge', actor: 'ana' }), 'action-not-permitted');
-    reject(merged, { type: 'pr-merged', mergeCommitSha: MERGE_SHA }, 'already-merged');
+    reject(merged, { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA }, 'already-merged');
   });
 
   it('marks a passing post-merge verification as proven and hands off a failing one', () => {
     const merged = event(event(verifyingRecord(), { type: 'verification-recorded', attempt: attempt('pass') }), {
       type: 'pr-merged',
+      prNumber: 7,
       mergeCommitSha: MERGE_SHA,
     });
     const mergedFacts = facts([LABEL.fix], { pullRequest: { number: 7, state: 'merged', headSha: HEAD_A } });
@@ -329,7 +346,7 @@ describe('merge, merged and closed', () => {
 
 describe('handoff and return', () => {
   it('hands off when the fix PR is closed without merging', () => {
-    const handed = event(verifyingRecord(), { type: 'pr-closed' });
+    const handed = event(verifyingRecord(), { type: 'pr-closed', prNumber: 7 });
     assert.equal(handed.stage, 'with-engineer');
     assert.equal(handed.handoff?.reason, 'pr-closed-unmerged');
   });
@@ -362,7 +379,7 @@ describe('handoff and return', () => {
   });
 
   it('returns a handoff to investigation or repair with added context', () => {
-    const handed = event(verifyingRecord(), { type: 'pr-closed' });
+    const handed = event(verifyingRecord(), { type: 'pr-closed', prNumber: 7 });
     const engineerFacts = facts([LABEL.engineer]);
     assert.deepEqual(presentBug(handed, engineerFacts, LABEL).actions, ['triage', 'fix', 'close']);
 
@@ -389,7 +406,7 @@ describe('handoff and return', () => {
   it('resets retry and error budgets for a new fix session after a return', () => {
     let record = verifyingRecord();
     record = event(record, { type: 'verification-recorded', attempt: attempt('fail') });
-    record = event(record, { type: 'head-changed', headSha: HEAD_B });
+    record = event(record, { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
     record = event(record, { type: 'verification-recorded', attempt: attempt('fail', HEAD_B) });
     assert.equal(record.stage, 'with-engineer');
 
@@ -444,7 +461,7 @@ describe('review regressions', () => {
   const failTwice = (): BugRecord => {
     let record = verifyingRecord();
     record = event(record, { type: 'verification-recorded', attempt: attempt('fail') });
-    record = event(record, { type: 'head-changed', headSha: HEAD_B });
+    record = event(record, { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
     return expectOk(
       applyEvent(record, { type: 'verification-recorded', attempt: attempt('fail', HEAD_B) }, options, now()),
     ).record;
@@ -453,7 +470,7 @@ describe('review regressions', () => {
   it('keeps an automatic handoff with the engineer until the engineer label is seen and then removed', () => {
     let record = verifyingRecord();
     record = event(record, { type: 'verification-recorded', attempt: attempt('fail') });
-    record = event(record, { type: 'head-changed', headSha: HEAD_B });
+    record = event(record, { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
     const handed = expectOk(
       applyEvent(record, { type: 'verification-recorded', attempt: attempt('fail', HEAD_B) }, options, now()),
     );
@@ -507,7 +524,7 @@ describe('review regressions', () => {
     const ready = event(verifyingRecord(), { type: 'verification-recorded', attempt: attempt('pass') });
     const closed = event(ready, { type: 'issue-closed' });
     assert.equal(closed.stage, 'closed');
-    const merged = event(closed, { type: 'pr-merged', mergeCommitSha: MERGE_SHA });
+    const merged = event(closed, { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA });
     assert.equal(merged.stage, 'merged');
     assert.equal(merged.fix?.mergeCommitSha, MERGE_SHA);
     const mergedFacts = facts([LABEL.fix], { state: 'closed', pullRequest: { number: 7, state: 'merged', headSha: HEAD_A } });
@@ -516,19 +533,19 @@ describe('review regressions', () => {
     assert.equal(view.history.wasMerged, true);
     const proven = event(merged, { type: 'verification-recorded', attempt: attempt('pass', MERGE_SHA, 'post-merge') });
     assert.equal(presentBug(proven, mergedFacts, LABEL).history.postMergeVerified, true);
-    reject(merged, { type: 'pr-merged', mergeCommitSha: MERGE_SHA }, 'already-merged');
+    reject(merged, { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA }, 'already-merged');
   });
 
   it('refuses post-merge verification for any commit other than the merge commit', () => {
     const ready = event(verifyingRecord(), { type: 'verification-recorded', attempt: attempt('pass') });
-    const merged = event(ready, { type: 'pr-merged', mergeCommitSha: MERGE_SHA });
+    const merged = event(ready, { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA });
     reject(merged, { type: 'verification-recorded', attempt: attempt('pass', 'f'.repeat(40), 'post-merge') }, 'stale-head');
     reject(merged, { type: 'verification-recorded', attempt: attempt('fail', HEAD_A, 'post-merge') }, 'stale-head');
-    reject(ready, { type: 'pr-merged', mergeCommitSha: 'not-a-sha' }, 'invalid-data');
+    reject(ready, { type: 'pr-merged', prNumber: 7, mergeCommitSha: 'not-a-sha' }, 'invalid-data');
   });
 
   it('presents restarted repair as active work, not the old closed PR', () => {
-    const handed = event(verifyingRecord(), { type: 'pr-closed' });
+    const handed = event(verifyingRecord(), { type: 'pr-closed', prNumber: 7 });
     const closedOldPr = facts([LABEL.fix], { pullRequest: { number: 7, state: 'closed', headSha: HEAD_A } });
     const back = expectOk(act(handed, facts([LABEL.engineer]), { name: 'fix', actor: 'ana' })).record;
     assert.equal(back.fix, null);
@@ -545,5 +562,78 @@ describe('review regressions', () => {
     assert.equal(view.status, 'fixing');
     assert.equal(view.group, 'Fix');
     assert.deepEqual(view.actions, ['engineer', 'close']);
+  });
+});
+
+describe('second review regressions', () => {
+  const triaged = (): BugRecord => event(triagingRecord(), { type: 'triage-completed', findings: findings() });
+
+  it('continues the live investigation session when a repair label is added after triage', () => {
+    const upgraded = expectOk(
+      applyEvent(triaged(), { type: 'labels-changed', labels: [LABEL.triage, LABEL.fix] }, options, now()),
+    );
+    assert.equal(upgraded.record.stage, 'fixing');
+    assert.equal(upgraded.record.session?.id, 'session-triage');
+    assert.equal(upgraded.record.session?.stopRequestedAt, null, 'the session is not stopped');
+    assert.deepEqual(upgraded.effects, [{ type: 'continue-session', sessionId: 'session-triage', route: 'fix' }]);
+    const again = expectOk(
+      applyEvent(upgraded.record, { type: 'labels-changed', labels: [LABEL.triage, LABEL.fix] }, options, now()),
+    );
+    assert.equal(again.changed, false);
+    assert.equal(event(upgraded.record, { type: 'fix-submitted', fix: fixInfo() }).stage, 'verifying');
+  });
+
+  it('ignores PR events for an earlier fix PR after work restarts', () => {
+    const handed = event(verifyingRecord(), { type: 'pr-closed', prNumber: 7 });
+    const back = expectOk(act(handed, facts([LABEL.engineer]), { name: 'fix', actor: 'ana' })).record;
+    const ended = event(back, { type: 'session-status', sessionId: 'session-fix', liveState: 'ended' });
+    let record = event(ended, {
+      type: 'session-started',
+      session: { id: 'session-2', url: 'u' },
+      issueState: 'open',
+      labels: [LABEL.fix],
+    });
+    record = event(record, { type: 'fix-submitted', fix: { ...fixInfo(HEAD_B), prNumber: 8 } });
+    for (const stale of [
+      { type: 'pr-closed', prNumber: 7 },
+      { type: 'pr-merged', prNumber: 7, mergeCommitSha: MERGE_SHA },
+      { type: 'head-changed', prNumber: 7, headSha: HEAD_A },
+    ] satisfies ModelEvent[]) {
+      const result = expectOk(applyEvent(record, stale, options, now()));
+      assert.equal(result.changed, false, `${stale.type} for the old PR is ignored`);
+      assert.equal(result.record.stage, 'verifying');
+      assert.equal(result.record.fix?.headSha, HEAD_B);
+    }
+    reject(record, { type: 'pr-closed', prNumber: 99 }, 'unknown-pr');
+    assert.equal(event(record, { type: 'pr-closed', prNumber: 8 }).stage, 'with-engineer');
+  });
+
+  it('ignores late statuses for an ended session and for earlier sessions', () => {
+    const ended = event(triaged(), { type: 'session-status', sessionId: 'session-triage', liveState: 'ended' });
+    const late = expectOk(
+      applyEvent(ended, { type: 'session-status', sessionId: 'session-triage', liveState: 'running' }, options, now()),
+    );
+    assert.equal(late.changed, false);
+    assert.equal(late.record.session?.liveState, 'ended');
+
+    const queued = expectOk(act(ended, facts([LABEL.triage]), { name: 'fix', actor: 'ana' })).record;
+    const fixing = event(queued, {
+      type: 'session-started',
+      session: { id: 'session-fix', url: 'u' },
+      issueState: 'open',
+      labels: [LABEL.fix],
+    });
+    assert.equal(fixing.session?.id, 'session-fix', 'the replacement is not blocked by the late status');
+    const stale = expectOk(
+      applyEvent(fixing, { type: 'session-status', sessionId: 'session-triage', liveState: 'ended' }, options, now()),
+    );
+    assert.equal(stale.changed, false, 'an earlier session ending does not hand off the new work');
+    assert.equal(stale.record.stage, 'fixing');
+  });
+
+  it('refuses insights the store could not save', () => {
+    reject(fixingRecord(), { type: 'insights-recorded', insights: { acuUsed: -1, notes: null } }, 'invalid-data');
+    const recorded = event(fixingRecord(), { type: 'insights-recorded', insights: { acuUsed: null, notes: 'n' } });
+    assert.deepEqual(validateBugRecord(recorded), []);
   });
 });

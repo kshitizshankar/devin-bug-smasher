@@ -116,11 +116,17 @@ are appended once per actual change; repeated identical events return `changed: 
 
 Events (`ModelEvent`): `labels-changed`, `session-started`, `session-status`, `question-asked`,
 `reply-received`, `triage-completed`, `fix-submitted`, `head-changed`, `verification-recorded`,
-`pr-merged`, `pr-closed`, `issue-closed`, `issue-reopened`, `insights-recorded`.
+`pr-merged`, `pr-closed`, `issue-closed`, `issue-reopened`, `insights-recorded` (validated like stored
+insights; invalid data is refused with `invalid-data`).
+
+Stale events are ignored (`changed: false`): `head-changed`, `pr-merged` and `pr-closed` carry `prNumber`,
+and events for an earlier fix PR in `priorFixes` change nothing (a PR number that was never recorded is
+refused with `unknown-pr`). `session-status` for any session other than the current one, or after the
+current session reported `ended` (which is final), changes nothing.
 
 Effects (`Effect`), to be applied in order by an adapter: `add-label`, `remove-label` (a no-op when the
 label is absent), `close-issue`, `stop-session` (emitted once per session; recorded as `stopRequestedAt`),
-`post-comment`, `merge-pr { prNumber, expectedHeadSha }`. The `merge` action records a `requested` decision and emits
+`continue-session { sessionId, route }` (instruct a live session to continue with new work), `post-comment`, `merge-pr { prNumber, expectedHeadSha }`. The `merge` action records a `requested` decision and emits
 `merge-pr`; the record only becomes `merged` on a later `pr-merged { mergeCommitSha }` event, which is
 also accepted after `issue-closed` (GitHub may close the issue before reporting the merge).
 
@@ -130,8 +136,10 @@ stop was requested, so a stopping session and its replacement never overlap.
 Main flows:
 
 - `queued` → `triaging` (session started; labels must match the queued route; closed issues refused) →
-  `needs-input` ⇄ `triaging` (questions / replies) → `triaged` (findings) → person `fix` → `queued` →
-  `fixing` → `verifying` (fix submitted) → `ready-to-merge` (current-head pass) → `merged`.
+  `needs-input` ⇄ `triaging` (questions / replies) → `triaged` (findings) → person `fix` (or a repair
+  label) → `fixing` → `verifying` (fix submitted) → `ready-to-merge` (current-head pass) → `merged`.
+  If the investigation session is still live, repair continues in that same session (`continue-session`,
+  no stop); otherwise the record is `queued` for a new session.
 - Session ended while `triaging`/`needs-input`/`fixing`, PR closed unmerged, failed or errored
   verification, or the engineer label/action → `with-engineer`, with reason and time recorded and any
   running session stopped. Automatic handoffs also emit `add-label` engineer and `remove-label` for the
