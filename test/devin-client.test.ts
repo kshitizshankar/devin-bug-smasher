@@ -217,6 +217,35 @@ describe('Devin client: malformed provider answers', () => {
     assert.match(error.message, /end_cursor/);
   });
 
+  it('fails lookups when a page omits has_next_page', async () => {
+    const { offline, client } = offlineClient();
+    offline.failNext({ method: 'GET', path: '/sessions', status: 200, body: { items: [] } });
+    const error = await devinError(client.findBugSessions(BUG));
+    assert.equal(error.kind, 'invalid-response');
+    assert.match(error.message, /has_next_page/);
+  });
+
+  it('refuses a plaintext base URL except for loopback hosts', () => {
+    const base = { apiKey: API_KEY, orgId: ORG_ID, maxAcuPerSession: 5, reviewEnabled: true };
+    assert.throws(() => new DevinClient({ ...base, baseUrl: 'http://api.devin.ai' }), (error) => error instanceof DevinError && error.kind === 'not-configured');
+    assert.doesNotThrow(() => new DevinClient({ ...base, baseUrl: 'http://127.0.0.1:9999' }));
+    assert.doesNotThrow(() => new DevinClient({ ...base, baseUrl: 'https://api.devin.ai/' }));
+  });
+
+  it('scrubs credentials from provider text before it can reach model events', async () => {
+    const { offline, client } = offlineClient();
+    const created = await client.createSession(INPUT);
+    assert.ok(created.outcome === 'created');
+    const github = 'ghp_' + 'A'.repeat(36);
+    offline.updateSession(created.session.id, {
+      structured_output: { phase: 'triage', status: 'needs_input', question: `Is ${API_KEY} or ${github} the right token?` },
+    });
+    const session = await client.getSession(created.session.id);
+    const text = JSON.stringify(session);
+    assert.ok(!text.includes(API_KEY) && !text.includes(github));
+    assert.ok(session.structuredOutput.status === 'valid');
+  });
+
   it('treats out-of-range timestamps as an unusable create answer, not a crash', async () => {
     const { offline, client } = offlineClient();
     const created = await client.createSession(INPUT);

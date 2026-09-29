@@ -23,7 +23,7 @@ operations (including the v3beta1 endpoints) are a separate client in `src/devin
 All requests use `Authorization: Bearer <DEVIN_API_KEY>` against `https://api.devin.ai`
 ([authentication](https://docs.devin.ai/api-reference/authentication)). Lists use `first`/`after` cursor
 pagination and return `items`, `has_next_page`, `end_cursor` (a next page without a cursor is an
-`invalid-response`, never a silently shorter list)
+`invalid-response`, as is a page without a boolean `has_next_page`; never a silently shorter list)
 ([pagination](https://docs.devin.ai/api-reference/concepts/pagination)). Errors are ProblemDetail bodies.
 
 | Operation | Method and path | Documentation |
@@ -146,7 +146,8 @@ await devin.sendReviewCorrections(sessionId, findings.unresolved); // same-sessi
 
 The Review API reports status per commit only. Findings are the PR review threads that
 `devin-ai-integration[bot]` started on the reviewed commit and nobody resolved; the orchestrator passes
-those threads in (`ReviewThreadInput`, including the thread's `commitSha`, GitHub `originalCommit.oid`)
+those threads in (`ReviewThreadInput`, including the thread's `commitSha`, GitHub `originalCommit.oid`;
+full and abbreviated SHAs of at least 7 characters match)
 from the GitHub adapter. Open bot threads from other or unknown commits are returned as `earlier` and do
 not count against the review. `REVIEW_AUTO_FIX` records that Auto-Fix is an admin-only web
 app setting (Devin Review sidebar "Enable auto-fix", or Settings > Devin > Pull requests > Responding to
@@ -172,7 +173,10 @@ null unless both are known. Metrics and consumption return `Availability<T>`, `u
 Failures throw `DevinError` with `kind` (`not-configured`, `auth`, `forbidden`, `not-found`, `conflict`,
 `invalid-request`, `rate-limited`, `provider`, `network`, `timeout`, `invalid-response`), `status`,
 `retryAfterSeconds` (numeric `Retry-After` on 429) and `ambiguous`. The API key is held in private fields
-and removed (with anything shaped like `Bearer …`, `cog_…` or `apk_…`) from every message.
+and removed (with anything shaped like `Bearer …`, `cog_…`, `apk_…`, `ghp_…`/`gho_…`/`ghu_…`/`ghs_…`/`ghr_…`
+or `github_pat_…`) from every message and from every string in provider responses, so structured output,
+messages and Insights cannot carry a credential into records or comments. The base URL must be `https`
+(plain `http` only for loopback hosts).
 
 ### Offline stand-in
 

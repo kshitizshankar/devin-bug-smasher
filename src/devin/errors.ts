@@ -67,9 +67,14 @@ export class DevinError extends Error {
   }
 }
 
-const TOKEN_PATTERNS = [/\bBearer\s+[^\s"',;]+/gi, /\b(?:cog|apk)_[A-Za-z0-9_-]+/g];
+const TOKEN_PATTERNS = [
+  /\bBearer\s+[^\s"',;]+/gi,
+  /\b(?:cog|apk)_[A-Za-z0-9_-]+/g,
+  /\bgh[pousr]_[A-Za-z0-9]{20,}/g,
+  /\bgithub_pat_[A-Za-z0-9_]{20,}/g,
+];
 
-/** Removes the given secrets and anything shaped like a Devin credential or bearer token. */
+/** Removes the given secrets and anything shaped like a Devin or GitHub credential or bearer token. */
 export function redact(text: string, secrets: readonly string[]): string {
   let result = text;
   for (const secret of secrets) {

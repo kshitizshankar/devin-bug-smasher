@@ -140,6 +140,12 @@ describe('Devin Review', () => {
     assert.ok(findings.status === 'known');
     assert.deepEqual(findings.unresolved, []);
     assert.deepEqual(findings.earlier.map((finding) => finding.threadId), ['old', 'unknown']);
+
+    stored.commit_sha = HEAD_SHA.slice(0, 7);
+    const abbreviated = await client.getReview(PR_URL, HEAD_SHA.slice(0, 7));
+    const current = reviewFindings(abbreviated, [thread('now', DEVIN_REVIEW_BOT_LOGIN)]);
+    assert.ok(current.status === 'known');
+    assert.deepEqual(current.unresolved.map((finding) => finding.threadId), ['now'], 'abbreviated review SHA matches full thread SHA');
   });
 
   it('sends findings back to the same session as a separate corrective capability', async () => {

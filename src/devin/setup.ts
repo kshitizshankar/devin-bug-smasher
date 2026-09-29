@@ -176,18 +176,23 @@ export class DevinSetupClient {
   async #list<T>(operation: string, path: string, query: DevinRequest['query'], requiredField: string): Promise<T[]> {
     const items: T[] = [];
     let after: string | undefined;
-    for (let page = 0; page < 20; page += 1) {
+    const seen = new Set<string>();
+    for (;;) {
       const body = await this.#transport.request({ operation, method: 'GET', path, query: { ...query, first: 100, after } });
       if (!isRecord(body) || !Array.isArray(body.items) || !body.items.every((item) => isRecord(item) && item[requiredField] !== undefined)) {
         throw this.#transport.invalidResponse(operation, 'expected a paginated response', false);
       }
       items.push(...(body.items as T[]));
-      if (body.has_next_page !== true) return items;
+      if (typeof body.has_next_page !== 'boolean') {
+        throw this.#transport.invalidResponse(operation, 'has_next_page must be a boolean', false);
+      }
+      if (!body.has_next_page) return items;
       if (typeof body.end_cursor !== 'string' || body.end_cursor === '') {
         throw this.#transport.invalidResponse(operation, 'has_next_page is true but end_cursor is missing', false);
       }
+      if (seen.has(body.end_cursor)) throw this.#transport.invalidResponse(operation, 'end_cursor repeated', false);
+      seen.add(body.end_cursor);
       after = body.end_cursor;
     }
-    throw this.#transport.invalidResponse(operation, 'too many pages', false);
   }
 }

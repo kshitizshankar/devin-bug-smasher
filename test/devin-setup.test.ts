@@ -104,6 +104,19 @@ describe('Devin setup client (separately callable, includes beta endpoints)', ()
     assert.equal(calls[2]?.query.get('repo_name'), 'acme/widgets');
   });
 
+  it('reads collections of any length and rejects malformed or looping pages', async () => {
+    const pages = Array.from({ length: 25 }, (_, index) => ({
+      items: [{ playbook_id: `playbook-${index}`, title: 't', body: 'b', macro: null, updated_at: 1 }],
+      has_next_page: index < 24,
+      end_cursor: index < 24 ? `c${index}` : null,
+    }));
+    assert.equal((await recorder(pages).client.listPlaybooks()).length, 25);
+
+    await assert.rejects(recorder([{ items: [] }]).client.listPlaybooks(), /has_next_page/);
+    const loop = { items: [], has_next_page: true, end_cursor: 'same' };
+    await assert.rejects(recorder([loop, loop]).client.listPlaybooks(), /end_cursor repeated/);
+  });
+
   it('reports provider errors with the key redacted', async () => {
     const { client } = recorder([new Response(JSON.stringify({ title: 'Unauthorized', status: 401, detail: `bad ${API_KEY}` }), { status: 401 })]);
     await assert.rejects(client.listPlaybooks(), (error) => {

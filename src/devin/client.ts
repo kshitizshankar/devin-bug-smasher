@@ -405,7 +405,10 @@ export class DevinClient {
       const body = (await this.#transport.request({ operation, method: 'GET', path, query: { ...query, first: PAGE_SIZE, after } })) as Partial<WirePage<unknown>> | null;
       if (!isRecord(body) || !Array.isArray(body.items)) throw this.#transport.invalidResponse(operation, 'expected a paginated response with items', false);
       items.push(...body.items);
-      if (body.has_next_page !== true) return items;
+      if (typeof body.has_next_page !== 'boolean') {
+        throw this.#transport.invalidResponse(operation, 'has_next_page must be a boolean', false);
+      }
+      if (!body.has_next_page) return items;
       if (typeof body.end_cursor !== 'string' || body.end_cursor === '') {
         throw this.#transport.invalidResponse(operation, 'has_next_page is true but end_cursor is missing', false);
       }

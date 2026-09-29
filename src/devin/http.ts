@@ -45,8 +45,19 @@ export class DevinTransport {
         ambiguous: false,
       });
     }
+    const baseUrl = (options.baseUrl ?? DEVIN_API_BASE_URL).replace(/\/+$/, '');
+    if (!isSecureBaseUrl(baseUrl)) {
+      throw new DevinError({
+        kind: 'not-configured',
+        operation: 'configure',
+        status: null,
+        message: 'The Devin API base URL must use https (plain http is allowed only for loopback hosts)',
+        retryAfterSeconds: null,
+        ambiguous: false,
+      });
+    }
     this.#apiKey = options.apiKey;
-    this.#baseUrl = (options.baseUrl ?? DEVIN_API_BASE_URL).replace(/\/+$/, '');
+    this.#baseUrl = baseUrl;
     this.#fetch = options.fetch ?? ((url, init) => fetch(url, init));
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
@@ -99,10 +110,20 @@ export class DevinTransport {
     }
     if (text.trim() === '') return null;
     try {
-      return JSON.parse(text) as unknown;
+      return this.#scrub(JSON.parse(text) as unknown);
     } catch {
       throw this.#error(request.operation, 'invalid-response', response.status, mayHaveApplied, 'Response is not JSON');
     }
+  }
+
+  /** Redacts credentials from every string in a provider body, so none reach records, comments or logs. */
+  #scrub(value: unknown): unknown {
+    if (typeof value === 'string') return this.redact(value);
+    if (Array.isArray(value)) return value.map((item) => this.#scrub(item));
+    if (typeof value === 'object' && value !== null) {
+      return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, this.#scrub(item)]));
+    }
+    return value;
   }
 
   /** Builds a redacted `invalid-response` error for a body that does not match the documented shape. */
@@ -128,6 +149,17 @@ export class DevinTransport {
       ambiguous,
     });
   }
+}
+
+function isSecureBaseUrl(baseUrl: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(baseUrl);
+  } catch {
+    return false;
+  }
+  if (url.protocol === 'https:') return true;
+  return url.protocol === 'http:' && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
 }
 
 function parseRetryAfter(value: string | null): number | null {

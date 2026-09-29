@@ -28,7 +28,8 @@ export type ReviewUnavailableReason =
   /** The provider returned a status this adapter does not know. */
   | 'unknown-status';
 
-function sameCommit(a: string, b: string): boolean {
+/** Full or abbreviated (at least 7 hex characters) SHAs naming the same commit. */
+export function sameCommit(a: string, b: string): boolean {
   const x = a.toLowerCase();
   const y = b.toLowerCase();
   return x.length >= 7 && y.length >= 7 && (x.startsWith(y) || y.startsWith(x));
@@ -122,7 +123,7 @@ export function reviewFindings(
   for (const thread of threads) {
     const first = thread.comments[0];
     if (thread.isResolved || first === undefined || first.authorLogin !== botLogin) continue;
-    (thread.commitSha === review.commitSha ? unresolved : earlier).push({
+    (thread.commitSha !== null && sameCommit(thread.commitSha, review.commitSha) ? unresolved : earlier).push({
       threadId: thread.id,
       path: thread.path,
       line: thread.line,
