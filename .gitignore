@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Generated build assets
+dist/
+*.tsbuildinfo
+
+# Credentials and local environment files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+.npmrc
+
+# Runtime logs
+logs/
+*.log
+npm-debug.log*
+
+# Local runtime data (future JSON persistence)
+data/
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
