@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { after, before, describe, it, type TestContext } from 'node:test';
 import { isLoopbackHost, loadSettings } from '../src/config/settings.ts';
-import { Dashboard } from '../src/dashboard/dashboard.ts';
+import { Dashboard, overviewIssue } from '../src/dashboard/dashboard.ts';
 import type { MetricsResponse, OverviewIssue, OverviewResponse, SettingsResponse } from '../src/dashboard/types.ts';
 import { parseBugKey } from '../src/model/keys.ts';
 import { attention, GATES, OVERVIEW_GROUPS, presentBug, STATUS_CODES, type Gate, type OverviewGroup, type StatusCode } from '../src/model/presentation.ts';
@@ -251,6 +251,31 @@ describe('dashboard API: refresh from GitHub', () => {
     assert.equal(item.pullRequest?.state, 'merged');
     assert.equal(overview.overview?.counts.statuses.merged, 1);
     assert.equal(issueOf(await cycle(), fixing.number).status, 'merged');
+  });
+});
+
+describe('dashboard API: refresh ordering and GitHub authority', () => {
+  it('runs another refresh when one is requested while a refresh is in flight', async (t) => {
+    const w = await fixtureWorld();
+    t.after(() => w.close());
+    const first = w.dashboard.refresh();
+    const added = w.tracker.seedIssue({ title: 'Opened during a refresh', labels: ['needs-triage'] });
+    const second = w.dashboard.refresh();
+    const third = w.dashboard.refresh();
+    await Promise.all([first, second, third]);
+    const response = w.dashboard.overview();
+    assert.equal(response.refresh.state, 'current');
+    assert.equal(issueOf(response, added.number).title, 'Opened during a refresh');
+  });
+
+  it('takes the merge time from GitHub over the stored record', async (t) => {
+    const w = await fixtureWorld();
+    t.after(() => w.close());
+    const record = w.store.list().find((item) => parseBugKey(item.key)?.number === ISSUE.merged);
+    const issue = await w.tracker.getIssue(ISSUE.merged);
+    const pr = { ...(await w.tracker.getPullRequest(PR.merged)), mergedAt: '2026-03-04T08:00:00.000Z' };
+    const presentation = presentBug(record, toGitHubFacts(w.tracker.repo, issue, pr), w.settings.labels);
+    assert.deepEqual(overviewIssue(issue, record, pr, presentation).timestamp, { kind: 'merged', at: '2026-03-04T08:00:00.000Z' });
   });
 });
 

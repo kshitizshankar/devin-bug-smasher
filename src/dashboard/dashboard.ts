@@ -68,7 +68,7 @@ function timestampFor(issue: TrackerIssue, record: BugRecord | undefined, pr: Tr
     case 'closed':
       return { kind: 'closed', at: issue.closedAt ?? stageAt ?? issue.updatedAt };
     case 'merged':
-      return { kind: 'merged', at: record?.fix?.mergedAt ?? pr?.mergedAt ?? stageAt ?? issue.updatedAt };
+      return { kind: 'merged', at: pr?.mergedAt ?? record?.fix?.mergedAt ?? stageAt ?? issue.updatedAt };
     case 'waiting-for-reply':
       if (presentation.history.outstandingQuestion !== null) return { kind: 'asked', at: presentation.history.outstandingQuestion.askedAt };
   }
@@ -127,6 +127,7 @@ export class Dashboard implements DashboardApi {
   #lastAttemptAt: string | null = null;
   #problems: RefreshProblem[] = [{ source: 'workflow', reason: 'No refresh has completed yet' }];
   #refreshing: Promise<void> | null = null;
+  #queued: Promise<void> | null = null;
 
   constructor(options: DashboardOptions) {
     this.#settings = options.settings;
@@ -144,12 +145,19 @@ export class Dashboard implements DashboardApi {
     this.#problems = [{ source: 'workflow', reason }];
   }
 
-  /** Serialized: a call while a refresh is in flight joins it. */
+  /** Serialized: a call while a refresh is in flight runs one more refresh after it, shared by every such call. */
   refresh(): Promise<void> {
-    this.#refreshing ??= this.#refresh().finally(() => {
-      this.#refreshing = null;
+    if (this.#refreshing === null) {
+      this.#refreshing = this.#refresh().finally(() => {
+        this.#refreshing = null;
+      });
+      return this.#refreshing;
+    }
+    this.#queued ??= this.#refreshing.then(() => {
+      this.#queued = null;
+      return this.refresh();
     });
-    return this.#refreshing;
+    return this.#queued;
   }
 
   overview(): OverviewResponse {

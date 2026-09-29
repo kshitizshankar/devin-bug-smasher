@@ -98,7 +98,7 @@ function records(): BugRecord[] {
   return [merged, recommendClose, openPr, waiting, noProviderData, engineer, verifying].map((bug) => bug.record);
 }
 
-function seedGitHub(tracker: InMemoryTracker): void {
+function seedGitHub(tracker: InMemoryTracker, setClock: (at: string) => void): void {
   const issues: [string, string[]][] = [
     ['Legend overlaps axis on narrow screens', [LABEL.fix]],
     ['Tooltip flickers on hover', [LABEL.triage]],
@@ -119,6 +119,7 @@ function seedGitHub(tracker: InMemoryTracker): void {
     const pr = tracker.seedPullRequest({ title: `Fix #${issue}`, body: `Fixes #${issue}`, headSha: headSha(number), references: [issue] });
     if (pr.number !== number) throw new Error(`fixture PR numbered ${pr.number}, expected ${number}`);
   }
+  setClock('2026-03-03T15:00:00.000Z');
   tracker.externalMerge(PR.merged, 'maria', mergeSha(PR.merged));
 }
 
@@ -138,9 +139,12 @@ export interface DashboardWorld {
 export async function fixtureWorld(env: Env = FIXTURE_ENV): Promise<DashboardWorld> {
   let tick = Date.parse('2026-03-01T00:00:00.000Z');
   const clock = (): string => new Date((tick += 60_000)).toISOString();
+  const setClock = (at: string): void => {
+    tick = Date.parse(at) - 60_000;
+  };
   const settings = loadSettings(env);
   const tracker = new InMemoryTracker({ now: clock });
-  seedGitHub(tracker);
+  seedGitHub(tracker, setClock);
   const offline = new OfflineDevin({ apiKey: API_KEY, orgId: ORG_ID, now: () => NOW });
   const devin = new DevinClient({ apiKey: API_KEY, orgId: ORG_ID, maxAcuPerSession: 5, reviewEnabled: true, fetch: offline.fetch });
   const dir = await mkdtemp(join(tmpdir(), 'bug-smasher-dashboard-'));
