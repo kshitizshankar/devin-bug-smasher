@@ -2,21 +2,25 @@ import { effectiveSettings, type Settings } from '../config/settings.ts';
 import { redact } from '../devin/errors.ts';
 import { calculateMetrics } from '../metrics/calculate.ts';
 import { readDevinEvidence, readGitHubEvidence, type EvidenceDevin, type EvidenceTracker } from '../metrics/evidence.ts';
-import type { MetricsReport, Sourced } from '../metrics/types.ts';
+import type { MetricsReport, RecordMode, Sourced } from '../metrics/types.ts';
 import { parseBugKey } from '../model/keys.ts';
 import { attention, GATES, OVERVIEW_GROUPS, presentBug, STATUS_CODES, type Presentation } from '../model/presentation.ts';
 import type { BugRecord } from '../model/types.ts';
 import { toGitHubFacts } from '../tracker/common.ts';
 import type { Tracker, TrackerIssue, TrackerPullRequest } from '../tracker/types.ts';
 import type {
+  DataSource,
   MetricsResponse,
   Overview,
   OverviewIssue,
   OverviewResponse,
   RefreshProblem,
   RefreshStatus,
+  ReplayProvenance,
   SettingsResponse,
 } from './types.ts';
+
+export const LIVE_DATA: DataSource = { mode: 'live', simulated: false, replay: null };
 
 export type DashboardTracker = EvidenceTracker & Pick<Tracker, 'listOpenIssues'>;
 
@@ -31,6 +35,12 @@ export interface DashboardSources {
 export interface DashboardOptions {
   settings: Settings;
   now?: () => Date;
+  /** Cohort the store's records belong to; `replay` for the credential-free replay. Defaults to `live`. */
+  mode?: RecordMode;
+  /** Served with every response; defaults to live, not simulated. */
+  data?: () => DataSource;
+  /** Replay mode: the recording scenario of a bug key. */
+  provenance?: (key: string) => ReplayProvenance | null;
 }
 
 /** What the API serves. */
@@ -122,6 +132,9 @@ export class Dashboard implements DashboardApi {
   readonly #settings: Settings;
   readonly #now: () => Date;
   readonly #secrets: string[];
+  readonly #mode: RecordMode;
+  readonly #data: () => DataSource;
+  readonly #provenance: (key: string) => ReplayProvenance | null;
   #sources: DashboardSources | null = null;
   #snapshot: Snapshot | null = null;
   #lastAttemptAt: string | null = null;
@@ -132,6 +145,9 @@ export class Dashboard implements DashboardApi {
   constructor(options: DashboardOptions) {
     this.#settings = options.settings;
     this.#now = options.now ?? (() => new Date());
+    this.#mode = options.mode ?? 'live';
+    this.#data = options.data ?? (() => LIVE_DATA);
+    this.#provenance = options.provenance ?? (() => null);
     this.#secrets = [options.settings.github.token, options.settings.devin.apiKey].filter((value): value is string => value !== null);
   }
 
@@ -169,15 +185,15 @@ export class Dashboard implements DashboardApi {
   }
 
   overview(): OverviewResponse {
-    return this.#sanitize({ refresh: this.#status(), overview: this.#snapshot?.overview ?? null });
+    return this.#sanitize({ data: this.#data(), refresh: this.#status(), overview: this.#snapshot?.overview ?? null });
   }
 
   metrics(): MetricsResponse {
-    return this.#sanitize({ refresh: this.#status(), metrics: this.#snapshot?.metrics ?? null });
+    return this.#sanitize({ data: this.#data(), refresh: this.#status(), metrics: this.#snapshot?.metrics ?? null });
   }
 
   settings(): SettingsResponse {
-    return this.#sanitize({ refresh: this.#status(), settings: effectiveSettings(this.#settings) });
+    return this.#sanitize({ data: this.#data(), refresh: this.#status(), settings: effectiveSettings(this.#settings) });
   }
 
   #status(): RefreshStatus {
@@ -220,7 +236,7 @@ export class Dashboard implements DashboardApi {
     const metrics = calculateMetrics({
       now,
       target: repository,
-      recordSets: [{ mode: 'live', engine: 'current', records }],
+      recordSets: [{ mode: this.#mode, engine: 'current', records }],
       settings: { ...this.#settings.cost, maxAcuPerSession: this.#settings.devin.maxAcuPerSession, baselineFilter: this.#settings.baselineFilter },
       evidence: { github, devin, orchestrator: { status: 'available', value: { lastCycleAt: sources.lastCycleAt() } } },
     });
@@ -245,7 +261,10 @@ export class Dashboard implements DashboardApi {
       const record = tracked.get(issue.number);
       const pr = record?.fix == null ? null : await tracker.getPullRequest(record.fix.prNumber);
       const presentation = presentBug(record, toGitHubFacts(tracker.repo, issue, pr), labels);
-      result.push(overviewIssue(issue, record, pr, presentation));
+      const item = overviewIssue(issue, record, pr, presentation);
+      const provenance = this.#provenance(item.key);
+      if (provenance !== null) item.replay = provenance;
+      result.push(item);
     }
     return result;
   }
@@ -259,7 +278,10 @@ export class Dashboard implements DashboardApi {
       statuses[issue.status] += 1;
       if (issue.attention.gate !== null) gates[issue.attention.gate] += 1;
     }
-    const keys = metrics.live?.keys ?? null;
+    const cohort = this.#mode === 'live'
+      ? metrics.live
+      : metrics.otherCohorts.find((other) => other.repository === repository && other.mode === this.#mode && other.engine === 'current') ?? null;
+    const keys = cohort?.keys ?? null;
     return {
       repository,
       headline: keys === null

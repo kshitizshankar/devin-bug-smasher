@@ -5,7 +5,11 @@ import { Orchestrator } from '../orchestrator/orchestrator.ts';
 import { Prompts } from '../orchestrator/prompts.ts';
 import { BugStore } from '../store/bug-store.ts';
 import { GitHubTracker } from '../tracker/github.ts';
-import { Dashboard } from '../dashboard/dashboard.ts';
+import { Dashboard, type DashboardApi } from '../dashboard/dashboard.ts';
+import { loadRecording } from '../replay/recording.ts';
+import { replayPaths } from '../replay/replay.ts';
+import { ReplayService, unavailableReplayDashboard } from '../replay/service.ts';
+import { replaySettings } from '../replay/world.ts';
 import { verifierFromSettings, verifierSettingsProblems } from '../verify/verifier.ts';
 import { createApp } from './app.ts';
 
@@ -22,8 +26,15 @@ try {
 
 const { host, port, staticDir } = settings.server;
 
+/** Neither provider credential is configured: serve the credential-free replay instead of live data. */
+const replayMode = settings.github.token === null && settings.devin.apiKey === null;
+
 const dashboard = new Dashboard({ settings });
-const server = createApp({ staticDir, dashboard });
+let served: DashboardApi = replayMode ? unavailableReplayDashboard(settings, 'The replay is loading') : dashboard;
+const server = createApp({
+  staticDir,
+  dashboard: { overview: () => served.overview(), metrics: () => served.metrics(), settings: () => served.settings() },
+});
 
 server.listen(port, host, () => {
   const address = server.address() as AddressInfo;
@@ -31,7 +42,21 @@ server.listen(port, host, () => {
   console.log(`Bug Smasher scaffold listening on http://${displayHost}:${address.port}`);
 });
 
+async function startReplay(): Promise<null> {
+  const loaded = await loadRecording();
+  const paths = replayPaths(process.env.REPLAY_DIR);
+  const replay = new ReplayService(paths, loaded, replaySettings(loaded.recording));
+  served = replay;
+  console.log(
+    `Replay mode: GITHUB_TOKEN and DEVIN_API_KEY are not set, so the service serves simulated data from ${paths.dir} ` +
+      `(recording ${loaded.recording.id}, stand-in GitHub and Devin; no provider is contacted). Advance it with "npm run replay -- next".`,
+  );
+  await replay.start();
+  return null;
+}
+
 async function startOrchestrator(settings: Settings): Promise<Orchestrator | null> {
+  if (replayMode) return startReplay();
   const problems = liveSettingsProblems(settings);
   if (problems.length > 0) {
     const message = `Workflow polling is off until live settings are complete: ${problems.join('; ')}`;
@@ -70,9 +95,11 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
 }
 
 const orchestrator = startOrchestrator(settings).catch((error: unknown) => {
-  const message = `Workflow polling failed to start: ${error instanceof Error ? error.message : String(error)}`;
+  const reason = error instanceof Error ? error.message : String(error);
+  const message = replayMode ? `Replay failed to start: ${reason}` : `Workflow polling failed to start: ${reason}`;
   console.error(message);
   dashboard.disconnect(message);
+  if (replayMode) served = unavailableReplayDashboard(settings, message);
   return null;
 });
 

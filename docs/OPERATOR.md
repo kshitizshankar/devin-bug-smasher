@@ -5,6 +5,9 @@ Repeatable commands for setting up and operating Bug Smasher against one target 
 
 ```sh
 npm start                                   # run: HTTP service, plus workflow polling when live settings are complete
+                                            #      (offline replay when GITHUB_TOKEN and DEVIN_API_KEY are both unset)
+npm run replay -- status|next [N]|all|reset|report [--full] [--out FILE]   # offline replay, docs/REPLAY.md
+npm run verify-check -- [--image IMAGE]     # prove a throwaway fixture with the real verifier in Docker
 npm run setup -- --dry-run                  # list every change setup would make; writes nothing
 npm run setup                               # configure GitHub and Devin for the target
 npm run env-status                          # latest Devin environment build, step by step
@@ -24,9 +27,10 @@ is not a clean success), `2` bad arguments or settings. Output and errors never 
 
 ## run
 
-Starts the HTTP service (dashboard and `/api/health`) first, then the orchestrator. Missing live settings
-(`GITHUB_REPO`, `GITHUB_TOKEN`, `DEVIN_API_KEY`, `DEVIN_ORG_ID`, `CHECK_COMMAND`) switch workflow polling
-off with a logged reason; the service still starts. With complete settings the orchestrator polls every
+Starts the HTTP service (dashboard and `/api/health`) first, then the orchestrator. With neither
+`GITHUB_TOKEN` nor `DEVIN_API_KEY` set it serves the offline replay instead ([`docs/REPLAY.md`](REPLAY.md)),
+contacting no provider. Otherwise, missing live settings (`GITHUB_REPO`, `GITHUB_TOKEN`, `DEVIN_API_KEY`,
+`DEVIN_ORG_ID`, `CHECK_COMMAND`) switch workflow polling off with a logged reason; the service still starts. With complete settings the orchestrator polls every
 `POLL_SECONDS`. The dashboard stays read-only: every change goes through GitHub labels and comments, or
 through these commands.
 
@@ -114,6 +118,20 @@ headline numbers, liveness, spend with its source and read time, the Devin cross
 `GITHUB_TOKEN` it reads GitHub, and with `DEVIN_API_KEY` and `DEVIN_ORG_ID` it reads Devin; it never writes to
 either. Missing sources show as `Unavailable`, empty samples as `No data`, and credentials are redacted.
 
+## replay
+
+Plays the offline replay against its own store (`REPLAY_DIR`, default `data/replay/`) and never opens the
+live store or a provider, whatever credentials are set. `status`, `next [N]`, `all`, `reset` and
+`report [--full] [--out FILE]` are described in [`docs/REPLAY.md`](REPLAY.md). The report is labelled
+simulated and puts every record in the replay cohort.
+
+## verify-check
+
+Creates a throwaway git repository with a failing base and a fixed head under `VERIFY_WORK_DIR`, then runs the
+real `CheckedVerifier` and `DockerRuntime` on it with `--image` (or `VERIFY_IMAGE`; any Node 22.18+ image).
+Exit `0` means the test failed on base and passed on head in sibling containers, which checks the Docker
+socket and the same-path workspace mount. It needs no credentials and never contacts GitHub or Devin.
+
 ## Permissions
 
 GitHub token (`GITHUB_TOKEN`; a fine-grained token limited to the target repository is enough for setup):
@@ -135,7 +153,9 @@ Devin API key (`DEVIN_API_KEY`, a service user in `DEVIN_ORG_ID`), per the Devin
 | Create or update Knowledge notes | `ManageOrgKnowledge` |
 | Blueprints, their contents, builds and build logs | `ManageRepoBlueprints` |
 
-`env-status` needs only the blueprint/build read permission; `report` needs no credentials.
+`env-status` needs only the blueprint/build read permission; `report`, `replay` and `verify-check` need no
+credentials. Verification (live and `verify-check`) needs access to the Docker daemon, which is equivalent to
+root on the host ([`docs/DOCKER.md`](DOCKER.md)).
 
 ## Live setup checks
 

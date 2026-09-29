@@ -16,6 +16,9 @@ import { GitHubTracker } from '../tracker/github.ts';
 import { parsePitfalls } from './assets.ts';
 import { envStatus } from './env-status.ts';
 import { mirrorIssue } from './mirror.ts';
+import { REPLAY_USAGE, replayCommand, ReplayUsageError } from './replay.ts';
+import { verifyCheck } from './verify-check.ts';
+import { DockerRuntime } from '../verify/docker.ts';
 import { renderResults } from './report.ts';
 import { describeChange, planSetup, SetupStopped } from './setup.ts';
 
@@ -33,7 +36,9 @@ Commands:
   mirror OWNER/REPO#N [--triage | --fix] [--dry-run]
                                         Copy an issue into the target repository
   report [--store FILE] [--replay-store FILE] [--v1-store FILE] [--out FILE]
-                                        Write RESULTS.md (records and metrics) from the bug stores`;
+                                        Write RESULTS.md (records and metrics) from the bug stores
+${REPLAY_USAGE}
+  verify-check [--image IMAGE]          Prove verification runs in sibling Docker containers (VERIFY_IMAGE, VERIFY_WORK_DIR)`;
 
 export interface OperatorIO {
   env: Env;
@@ -249,6 +254,26 @@ async function reportCommand(args: readonly string[], io: OperatorIO): Promise<n
   return 0;
 }
 
+async function verifyCheckCommand(args: readonly string[], io: OperatorIO): Promise<number> {
+  const parsed = parseArgs(args, [], ['--image']);
+  if (parsed.positionals.length > 0) throw new UsageError('verify-check takes no arguments');
+  const settings = loadSettings(io.env);
+  const image = parsed.values.get('--image') ?? settings.verify.image;
+  if (image === null) throw new UsageError('verify-check needs --image or VERIFY_IMAGE (an image with node, for example node:22.18.0-bookworm-slim)');
+  io.out(`Verifying a throwaway fixture in sibling containers of ${image}; workspaces under ${settings.verify.workDir}`);
+  const result = await verifyCheck({ runtime: new DockerRuntime(), image, workDir: settings.verify.workDir, timeoutSeconds: settings.verify.timeoutSeconds });
+  if (result.outcome.status !== 'completed') {
+    io.err(`verify-check: the verifier was unavailable: ${result.outcome.reason}`);
+    return 1;
+  }
+  const { attempt } = result.outcome;
+  for (const run of attempt.evidence?.runs ?? []) {
+    io.out(`  ${run.role} ${run.sha.slice(0, 12)} ${run.step}: ${run.outcome} (exit ${run.exitCode ?? 'none'})`);
+  }
+  io.out(`verify-check: ${attempt.result} - ${attempt.reason}`);
+  return attempt.result === 'pass' ? 0 : 1;
+}
+
 /** Replaces terminal control characters (other than tab and newline), which provider data may contain. */
 function printable(text: string): string {
   return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, '\uFFFD');
@@ -273,6 +298,8 @@ export async function runCommand(argv: readonly string[], io: OperatorIO): Promi
       return null;
     }
     if (command === 'report') return await reportCommand(args, safe);
+    if (command === 'replay') return await replayCommand(args, safe);
+    if (command === 'verify-check') return await verifyCheckCommand(args, safe);
     if (command !== 'setup' && command !== 'env-status' && command !== 'mirror') {
       throw new UsageError(command === undefined ? 'No command given' : `Unknown command ${command}`);
     }
@@ -281,7 +308,7 @@ export async function runCommand(argv: readonly string[], io: OperatorIO): Promi
     if (command === 'env-status') return await envStatusCommand(args, settings, safe);
     return await mirrorCommand(args, settings, safe);
   } catch (error) {
-    if (error instanceof UsageError) {
+    if (error instanceof UsageError || error instanceof ReplayUsageError) {
       safe.err(`${error.message}\n\n${USAGE}`);
       return 2;
     }

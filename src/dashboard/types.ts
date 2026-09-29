@@ -1,9 +1,11 @@
 import type { EffectiveSettings } from '../config/settings.ts';
 import type { CohortMetrics, MetricsReport } from '../metrics/types.ts';
 import type { Attention, Gate, OverviewGroup, StatusCode } from '../model/presentation.ts';
+import type { ScenarioOutcome, ScenarioSource } from '../replay/recording.ts';
 import type {
   Recommendation,
   ReviewRoundStatus,
+  Stage,
   SessionLiveState,
   TaskKind,
   Timestamp,
@@ -32,6 +34,45 @@ export interface RefreshStatus {
   lastAttemptAt: Timestamp | null;
   /** Why the latest refresh did not produce current data; empty when current. */
   problems: RefreshProblem[];
+}
+
+/** Which scenario of the replay recording an issue belongs to and where its events came from. */
+export interface ReplayProvenance {
+  scenario: string;
+  source: ScenarioSource;
+}
+
+export interface ReplayScenarioView {
+  id: string;
+  title: string;
+  /** Bug key of the scenario's issue; `null` until the step that opens it has been played. */
+  issue: string | null;
+  source: ScenarioSource;
+  synthetic: boolean;
+  /** Where the full replay leaves the issue. */
+  expected: ScenarioOutcome;
+  current: { stage: Stage; status: StatusCode } | null;
+  reached: boolean;
+}
+
+export interface ReplayInfo {
+  recording: { id: string; title: string };
+  played: number;
+  total: number;
+  /** The simulated clock after the last played step. */
+  simulatedTime: Timestamp;
+  next: { step: number; title: string; scenario: string } | null;
+  scenarios: ReplayScenarioView[];
+}
+
+/**
+ * What the served data is. `simulated` is true in replay mode: records come from the replay recording
+ * driven through stand-in GitHub and Devin providers, never from a live repository.
+ */
+export interface DataSource {
+  mode: 'live' | 'replay';
+  simulated: boolean;
+  replay: ReplayInfo | null;
 }
 
 export interface OverviewIssue {
@@ -66,10 +107,12 @@ export interface OverviewIssue {
   };
   /** Present only when a Devin Review round is recorded for the current PR head. */
   review?: { status: ReviewRoundStatus; findings: { url: string; path: string | null; line: number | null }[] };
+  /** Replay mode only: the recording scenario this issue replays. */
+  replay?: ReplayProvenance;
 }
 
 export interface Headline {
-  /** The live cohort's key figures, exactly as the shared metrics calculation reports them. */
+  /** The served cohort's key figures (live, or replay in replay mode), exactly as the shared metrics calculation reports them. */
   fixThroughput: CohortMetrics['keys']['fixThroughput'];
   timeToFixMedian: CohortMetrics['keys']['timeToFixMedian'];
   firstTimePass: CohortMetrics['keys']['firstTimePass'];
@@ -90,16 +133,19 @@ export interface Overview {
 }
 
 export interface OverviewResponse {
+  data: DataSource;
   refresh: RefreshStatus;
   overview: Overview | null;
 }
 
 export interface MetricsResponse {
+  data: DataSource;
   refresh: RefreshStatus;
   metrics: MetricsReport | null;
 }
 
 export interface SettingsResponse {
+  data: DataSource;
   refresh: RefreshStatus;
   settings: EffectiveSettings;
 }
