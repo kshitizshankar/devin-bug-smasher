@@ -149,7 +149,9 @@ CI never runs setup against live providers. After configuring credentials, an op
   the steps are reported as unknown (exit `1`) and the log must be read in the web app.
 - **Builds are organization-wide.** The build endpoint takes no repository, so a triggered build rebuilds
   the organization's environment snapshot. Setup triggers one only when the target's blueprint changed or
-  has not been built since its last update.
+  has not been built since its last update. Timestamps have one-second resolution and a build started in
+  the same second as the update counts as built; the API links no build to a blueprint, so in that rare case
+  rebuild from the Devin web app.
 - **Blueprint listing filter.** Whether `repo_name` filters the list is not documented, so setup filters the
   result itself.
 - **Nothing is deleted.** Renamed labels, notes or Playbooks created under other names are left in place.
