@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
+import { DevinError } from '../src/devin/errors.ts';
 import { toModelInsights } from '../src/devin/insights.ts';
 import { correctionMessage, DEVIN_REVIEW_BOT_LOGIN, REVIEW_AUTO_FIX, reviewFindings, type ReviewThreadInput } from '../src/devin/review.ts';
 import { validateSessionInsights } from '../src/model/validate.ts';
@@ -76,6 +77,17 @@ describe('Devin Review', () => {
     const other = await client.getReview(PR_URL, HEAD_SHA);
     assert.ok(other.status === 'unavailable');
     assert.equal(other.reason, 'different-commit');
+  });
+
+  it('rejects a review response without its created_at timestamp', async () => {
+    const { offline, client } = offlineClient();
+    offline.pullRequestHeads.set(PR_URL, HEAD_SHA);
+    await client.requestReview(PR_URL, HEAD_SHA);
+    const stored = offline.reviews.get(PR_URL);
+    assert.ok(stored);
+    const { created_at: _omitted, ...withoutTimestamp } = { ...stored, status: 'completed' };
+    offline.failNext({ method: 'GET', path: '/pr-reviews', status: 200, body: withoutTimestamp });
+    await assert.rejects(client.getReview(PR_URL, HEAD_SHA), (error) => error instanceof DevinError && error.kind === 'invalid-response');
   });
 
   it('reports Review unavailable when disabled, forbidden or never requested', async () => {

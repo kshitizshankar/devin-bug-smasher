@@ -77,7 +77,8 @@ export class DevinTransport {
       Authorization: `Bearer ${this.#apiKey}`,
       Accept: 'application/json',
     };
-    const init: RequestInit = { method: request.method, headers, signal: AbortSignal.timeout(this.#timeoutMs) };
+    // A redirect could carry the Authorization header to another host.
+    const init: RequestInit = { method: request.method, headers, redirect: 'error', signal: AbortSignal.timeout(this.#timeoutMs) };
     if (request.body !== undefined) {
       headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(request.body);

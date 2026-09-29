@@ -201,6 +201,7 @@ after applying the request (`applyFirst`) to model a lost create answer.
 - **Structured output finality.** The API returns the latest `structured_output` with no `is_final` flag.
   After an answer, the previous `needs_input` output remains until Devin replaces it; the stable
   `questionId` lets the orchestrator ignore a question it already recorded.
+- **Redirects.** Requests use `redirect: 'error'`, so the Authorization header never follows a redirect to another host.
 - **Timestamps.** `created_at`/`updated_at` are documented as Unix timestamps; they are read as seconds
   (values above 10^12 as milliseconds). Values outside the `Date` range make the response invalid.
 - **Fix-phase questions.** The shared model accepts `question-asked` only in `triaging`, so a fix session's

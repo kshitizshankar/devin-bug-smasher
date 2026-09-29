@@ -217,6 +217,32 @@ describe('Devin client: malformed provider answers', () => {
     assert.match(error.message, /end_cursor/);
   });
 
+  it('lists long conversations in full across many pages', async () => {
+    const { client } = offlineClient({}, { maxPageSize: 1 });
+    const created = await client.createSession(INPUT);
+    assert.ok(created.outcome === 'created');
+    for (let index = 0; index < 25; index += 1) await client.sendMessage(created.session.id, `reply ${index}`);
+    const messages = await client.listMessages(created.session.id);
+    assert.equal(messages.length, 25);
+    assert.equal(messages.at(-1)?.text, 'reply 24');
+  });
+
+  it('refuses to follow redirects that could carry the API key elsewhere', async () => {
+    const inits: RequestInit[] = [];
+    const client = new DevinClient({
+      apiKey: API_KEY,
+      orgId: ORG_ID,
+      maxAcuPerSession: 5,
+      reviewEnabled: true,
+      fetch: async (_url, init) => {
+        inits.push(init);
+        return new Response(JSON.stringify({ items: [], has_next_page: false, end_cursor: null }), { status: 200 });
+      },
+    });
+    await client.findBugSessions(BUG);
+    assert.equal(inits[0]?.redirect, 'error');
+  });
+
   it('fails lookups when a page omits has_next_page', async () => {
     const { offline, client } = offlineClient();
     offline.failNext({ method: 'GET', path: '/sessions', status: 200, body: { items: [] } });

@@ -91,7 +91,6 @@ export interface PrMetrics {
 export type GenerateInsightsResult = { status: 'started' } | { status: 'already-exists' } | { status: 'unknown'; providerStatus: string };
 
 const PAGE_SIZE = 100;
-const MAX_PAGES = 20;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -401,7 +400,8 @@ export class DevinClient {
   async #paginate(operation: string, path: string, query: DevinRequest['query']): Promise<unknown[]> {
     const items: unknown[] = [];
     let after: string | undefined;
-    for (let page = 0; page < MAX_PAGES; page += 1) {
+    const seen = new Set<string>();
+    for (;;) {
       const body = (await this.#transport.request({ operation, method: 'GET', path, query: { ...query, first: PAGE_SIZE, after } })) as Partial<WirePage<unknown>> | null;
       if (!isRecord(body) || !Array.isArray(body.items)) throw this.#transport.invalidResponse(operation, 'expected a paginated response with items', false);
       items.push(...body.items);
@@ -412,9 +412,10 @@ export class DevinClient {
       if (typeof body.end_cursor !== 'string' || body.end_cursor === '') {
         throw this.#transport.invalidResponse(operation, 'has_next_page is true but end_cursor is missing', false);
       }
+      if (seen.has(body.end_cursor)) throw this.#transport.invalidResponse(operation, 'end_cursor repeated', false);
+      seen.add(body.end_cursor);
       after = body.end_cursor;
     }
-    throw this.#transport.invalidResponse(operation, `more than ${MAX_PAGES * PAGE_SIZE} items; narrow the query`, false);
   }
 
   async #review(operation: string, request: Omit<DevinRequest, 'operation'>, expectedHeadSha: string | null): Promise<ReviewState> {
@@ -435,7 +436,8 @@ export class DevinClient {
       typeof body.status !== 'string' ||
       typeof body.commit_sha !== 'string' ||
       typeof body.pr_number !== 'number' ||
-      typeof body.repo_path !== 'string'
+      typeof body.repo_path !== 'string' ||
+      typeof body.created_at !== 'string'
     ) {
       throw this.#transport.invalidResponse(operation, 'response does not match PrReviewResponse', request.method !== 'GET');
     }
