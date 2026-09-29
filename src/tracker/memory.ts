@@ -500,6 +500,7 @@ export class InMemoryTracker implements Tracker {
   // Internals ----------------------------------------------------------------------------------------------
 
   #maybeFail(point: FailurePoint, reportAs: TrackerOperation = point): void {
+    this.#applied = null;
     const failure = this.#failures.get(point)?.shift();
     if (failure === undefined) return;
     const write = WRITE_POINTS.has(point);

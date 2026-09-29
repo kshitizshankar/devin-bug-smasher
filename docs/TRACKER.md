@@ -36,7 +36,7 @@ All methods are async and either return complete normalized data or throw `Track
 | `getIssue(n)` | `GET /issues/{n}` | Any state or labels; a PR number throws `not-an-issue` |
 | `createIssue({ title, body, labels? })` | `POST /issues` | |
 | `listComments(n)` | `GET /issues/{n}/comments` | All pages, deduplicated by comment ID |
-| `postComment(n, body, { key? })` | `GET` then `POST /issues/{n}/comments` | Appends `<!-- bug-smasher key=... -->`; an existing comment with the same key is returned instead of posting |
+| `postComment(n, body, { key? })` | `GET` then `POST /issues/{n}/comments` | Appends `<!-- bug-smasher key=... -->`; an existing comment with the same key is returned instead of posting; concurrent posts with the same key in one tracker run one at a time |
 | `listIssueEvents(n)` | `GET /issues/{n}/events` | `labeled`, `unlabeled`, `closed`, `reopened` only, with actor and time |
 | `addLabels(n, labels)` | `POST /issues/{n}/labels` | Returns resulting labels |
 | `removeLabel(n, label)` | `DELETE /issues/{n}/labels/{label}` | Absent label is a no-op (GitHub's `Label does not exist` 404) |
@@ -58,7 +58,8 @@ Paths above are relative to `/repos/{owner}/{repo}`.
 
 Listings follow `Link: rel="next"` until the last page. A listing needing more than `maxPages` pages throws
 `incomplete` rather than returning partial data, and pagination links to another origin are refused
-(`invalid-response`), so the token is never sent elsewhere. Items are deduplicated by stable ID, so an item
+(`invalid-response`), as are redirects to another origin (same-origin redirects, such as a renamed
+repository, are followed), so the token is never sent elsewhere. Items are deduplicated by stable ID, so an item
 that shifts between pages while paging is returned once.
 
 ### Linked pull requests

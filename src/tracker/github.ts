@@ -81,6 +81,8 @@ const EVENT_TYPES: ReadonlySet<string> = new Set<IssueEventType>(['labeled', 'un
 const SHA_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
 const MAX_MESSAGE_LENGTH = 300;
 const DEFAULT_SECONDARY_RETRY_SECONDS = 60;
+const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
 const REVIEW_STATES: Record<string, ReviewState> = {
   APPROVED: 'approved',
   CHANGES_REQUESTED: 'changes_requested',
@@ -138,6 +140,7 @@ export class GitHubTracker implements Tracker {
   readonly #perPage: number;
   readonly #maxPages: number;
   readonly #now: () => number;
+  readonly #keyedPosts = new Map<string, Promise<unknown>>();
 
   constructor(options: GitHubTrackerOptions) {
     this.repo = { ...options.repo };
@@ -199,13 +202,30 @@ export class GitHubTracker implements Tracker {
   async postComment(issueNumber: number, body: string, options: PostCommentOptions = {}): Promise<TrackerComment> {
     const op = 'postComment';
     this.#checkNumber(op, issueNumber);
-    if (options.key !== undefined) {
-      if (!isValidCommentKey(options.key)) this.#invalidInput(op, 'comment key must match [A-Za-z0-9._:/-]{1,100}');
-      const existing = (await this.#comments(op, issueNumber)).find((comment) => comment.serviceKey === options.key);
-      if (existing !== undefined) return existing;
+    const key = options.key;
+    if (key === undefined) return this.#createComment(issueNumber, body, undefined);
+    if (!isValidCommentKey(key)) this.#invalidInput(op, 'comment key must match [A-Za-z0-9._:/-]{1,100}');
+    // Keyed posts for the same issue and key run one at a time so the second finds the first's comment.
+    const slot = `${issueNumber} ${key}`;
+    const previous = this.#keyedPosts.get(slot) ?? Promise.resolve();
+    const current = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const existing = (await this.#comments(op, issueNumber)).find((comment) => comment.serviceKey === key);
+        return existing ?? this.#createComment(issueNumber, body, key);
+      });
+    this.#keyedPosts.set(slot, current);
+    try {
+      return await current;
+    } finally {
+      if (this.#keyedPosts.get(slot) === current) this.#keyedPosts.delete(slot);
     }
+  }
+
+  async #createComment(issueNumber: number, body: string, key: string | undefined): Promise<TrackerComment> {
+    const op = 'postComment';
     const response = await this.#send(op, 'POST', this.#repoPath(`issues/${issueNumber}/comments`), {
-      body: { body: withServiceMarker(body, options.key) },
+      body: { body: withServiceMarker(body, key) },
     });
     return this.#comment(op, issueNumber, this.#object(op, this.#json(op, response), 'comment'));
   }
@@ -571,14 +591,24 @@ export class GitHubTracker implements Tracker {
     let response: Response;
     let text: string;
     try {
-      response = await this.#fetch(url, {
-        method,
-        headers,
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-        signal: AbortSignal.timeout(this.#timeoutMs),
-      });
+      const signal = AbortSignal.timeout(this.#timeoutMs);
+      const body = options.body === undefined ? undefined : JSON.stringify(options.body);
+      let target = url;
+      for (let redirects = 0; ; redirects += 1) {
+        response = await this.#fetch(target, { method, headers, body, redirect: 'manual', signal });
+        const location = REDIRECT_STATUSES.has(response.status) ? response.headers.get('location') : null;
+        if (location === null) break;
+        await response.body?.cancel();
+        const next = new URL(location, target);
+        if (next.origin !== this.#baseUrl.origin) {
+          this.#badResponse(op, `redirect to another origin (${next.origin}); refusing to follow it`);
+        }
+        if (redirects >= MAX_REDIRECTS) this.#badResponse(op, `more than ${MAX_REDIRECTS} redirects`);
+        target = next;
+      }
       text = await response.text();
     } catch (error) {
+      if (error instanceof TrackerError) throw error;
       const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
       const cause = error instanceof Error && error.cause instanceof Error ? ` (${error.cause.message})` : '';
       const detail = error instanceof Error ? `${error.message}${cause}` : String(error);

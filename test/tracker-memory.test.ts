@@ -25,6 +25,17 @@ describe('InMemoryTracker', () => {
     assert.deepEqual((await tracker.getIssue(issue.number)).labels, ['bug-smasher', 'needs-engineer']);
   });
 
+  it('does not report a blocked merge\'s injected failure on the next write', async () => {
+    const tracker = new InMemoryTracker();
+    const issue = tracker.seedIssue({ title: 'bug' });
+    const pr = tracker.seedPullRequest({ title: 'fix', headSha: HEAD_1 });
+    tracker.blockMerge(pr.number, 'Required status check "ci" is failing');
+    tracker.failNext('mergePullRequest', { code: 'server-error', applied: true });
+    await rejectsWith(tracker.mergePullRequest(pr.number, { expectedHeadSha: HEAD_1 }), 'not-mergeable');
+    const comment = await tracker.postComment(issue.number, 'still here');
+    assert.equal(comment.body.startsWith('still here'), true);
+  });
+
   it('refuses issue operations on pull request numbers', async () => {
     const tracker = new InMemoryTracker();
     const pr = tracker.seedPullRequest({ title: 'fix', headSha: HEAD_1 });

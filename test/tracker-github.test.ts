@@ -118,6 +118,49 @@ describe('GitHubTracker requests', () => {
     assert.equal(foreignRequests, 0);
   });
 
+  it('follows same-origin redirects but refuses a redirect to another origin', async () => {
+    let foreignRequests = 0;
+    const foreign = createServer((_req, res) => {
+      foreignRequests += 1;
+      res.end('[]');
+    });
+    foreign.listen(0, '127.0.0.1');
+    await once(foreign, 'listening');
+    const foreignUrl = `http://127.0.0.1:${(foreign.address() as AddressInfo).port}`;
+    try {
+      await withFake(async (fake, tracker) => {
+        const issue = fake.seedIssue({ title: 'bug' });
+        const route = `/repos/${fake.repo.owner}/${fake.repo.name}/issues/${issue.number}`;
+        fake.respondOnce((request) => request.route === `issues/${issue.number}`, {
+          status: 301,
+          headers: { location: `${fake.baseUrl}${route}?renamed=1` },
+        });
+        assert.equal((await tracker.getIssue(issue.number)).number, issue.number);
+
+        fake.respondOnce((request) => request.route.endsWith('/events'), {
+          status: 302,
+          headers: { location: `${foreignUrl}/steal` },
+        });
+        await rejectsWith(tracker.listIssueEvents(issue.number), 'invalid-response');
+      });
+    } finally {
+      foreign.close();
+    }
+    assert.equal(foreignRequests, 0);
+  });
+
+  it('posts a keyed comment once when the same key is posted concurrently', async () => {
+    await withFake(async (fake, tracker) => {
+      const issue = fake.seedIssue({ title: 'bug' });
+      const [first, second] = await Promise.all([
+        tracker.postComment(issue.number, 'question', { key: 'q1' }),
+        tracker.postComment(issue.number, 'question', { key: 'q1' }),
+      ]);
+      assert.equal(first.id, second.id);
+      assert.equal(fake.requestsFor('postComment').filter((request) => request.method === 'POST').length, 1);
+    });
+  });
+
   it('filters timeline references to pull requests in the same repository', async () => {
     await withFake(async (fake, tracker) => {
       const issue = fake.seedIssue({ title: 'bug' });
