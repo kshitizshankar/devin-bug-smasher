@@ -89,11 +89,21 @@ to `https` links, and terminal control characters in log text are replaced befor
 ## mirror
 
 Reads `owner/repo#N` from any repository the token can read and creates one issue in the target with the
-same title and body, a provenance line (source link, author, date) and a
-`<!-- bug-smasher mirror-of=owner/repo#N -->` marker. Plain mirroring adds no labels; `--triage` or `--fix`
+same title and a neutralised copy of the body, a provenance line (the source in code formatting and the date
+it was opened) and a `<!-- bug-smasher mirror-of=owner/repo#N -->` marker. Plain mirroring adds no labels; `--triage` or `--fix`
 add exactly that label at creation. Before creating, every target issue (open and closed) is checked for the
 marker: a repeat reports the existing mirror as a duplicate and creates or changes nothing. The source is
-only read; the target is the only repository written.
+only read; the target is the only repository written. `--dry-run` prints the exact body it would create.
+
+Mirrored issues are neutralised so that the copy never notifies or links to anything outside the target.
+Mirroring usually copies from an open-source project into a public target, and a live mention or link has
+effects that cannot be undone: an `@` mention notifies a person who has nothing to do with this work, a link
+to an issue or pull request adds a backlink its maintainers can see, and a bare `#123` links to an unrelated
+issue in the target. So the provenance line names the source only in code formatting, without a link or the
+author's handle, and in the copied text every `@user` or `@org/team` mention, GitHub issue or pull request
+URL (Markdown links keep their text and show the URL in code), `owner/repo#N` reference and bare `#N` or
+`GH-N` reference is put in code formatting. Fenced code blocks and inline code are copied unchanged, since
+GitHub does not link inside them. The title is copied as it is.
 
 ## report
 
