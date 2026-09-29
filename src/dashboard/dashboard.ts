@@ -145,12 +145,20 @@ export class Dashboard implements DashboardApi {
     this.#problems = [{ source: 'workflow', reason }];
   }
 
-  /** Serialized: a call while a refresh is in flight runs one more refresh after it, shared by every such call. */
+  /**
+   * Never rejects: a failure is recorded as a problem. Serialized: a call while a refresh is in flight runs
+   * one more refresh after it, shared by every such call.
+   */
   refresh(): Promise<void> {
     if (this.#refreshing === null) {
-      this.#refreshing = this.#refresh().finally(() => {
-        this.#refreshing = null;
-      });
+      this.#refreshing = this.#refresh()
+        .catch((error: unknown) => {
+          this.#lastAttemptAt = this.#now().toISOString();
+          this.#problems = [{ source: 'workflow', reason: describe(error) }];
+        })
+        .finally(() => {
+          this.#refreshing = null;
+        });
       return this.#refreshing;
     }
     this.#queued ??= this.#refreshing.then(() => {

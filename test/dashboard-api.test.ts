@@ -268,6 +268,28 @@ describe('dashboard API: refresh ordering and GitHub authority', () => {
     assert.equal(issueOf(response, added.number).title, 'Opened during a refresh');
   });
 
+  it('keeps refreshing after a refresh with a queued follow-up fails', async (t) => {
+    const w = await fixtureWorld();
+    t.after(() => w.close());
+    let failures = 1;
+    const store = {
+      list: () => {
+        if (failures-- > 0) throw new Error('store unreadable');
+        return w.store.list();
+      },
+    };
+    w.dashboard.connect({ store, tracker: w.tracker, devin: w.devin, lastCycleAt: () => null });
+    const failing = w.dashboard.refresh();
+    const queued = w.dashboard.refresh();
+    await failing;
+    assert.deepEqual(w.dashboard.overview().refresh.problems, [{ source: 'workflow', reason: 'store unreadable' }]);
+    await queued;
+    const first = w.dashboard.refresh();
+    const later = w.dashboard.refresh();
+    await Promise.all([first, later]);
+    assert.equal(w.dashboard.overview().refresh.state, 'current');
+  });
+
   it('takes the merge time from GitHub over the stored record', async (t) => {
     const w = await fixtureWorld();
     t.after(() => w.close());

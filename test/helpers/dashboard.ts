@@ -127,6 +127,7 @@ export interface DashboardWorld {
   settings: Settings;
   tracker: InMemoryTracker;
   offline: OfflineDevin;
+  devin: DevinClient;
   store: BugStore;
   dashboard: Dashboard;
   close(): Promise<void>;
@@ -152,7 +153,7 @@ export async function fixtureWorld(env: Env = FIXTURE_ENV): Promise<DashboardWor
   for (const record of records()) await store.update(record.key, () => record);
   const dashboard = new Dashboard({ settings, now: () => NOW });
   dashboard.connect({ store, tracker, devin, lastCycleAt: () => '2026-03-18T11:59:00.000Z' });
-  return { settings, tracker, offline, store, dashboard, close: () => rm(dir, { recursive: true, force: true }) };
+  return { settings, tracker, offline, devin, store, dashboard, close: () => rm(dir, { recursive: true, force: true }) };
 }
 
 export interface Listening {
