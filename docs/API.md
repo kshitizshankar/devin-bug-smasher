@@ -13,6 +13,21 @@ goes through GitHub labels and comments, as the workflow requires.
 Types are in `src/dashboard/types.ts`; sanitized example responses are in `test/fixtures/api/` (regenerate
 with `UPDATE_API_FIXTURES=1 node --test test/dashboard-api.test.ts`).
 
+## Live or replay data
+
+Every response except `/api/health` has `data`:
+
+```json
+{ "mode": "live", "simulated": false, "replay": null }
+```
+
+In replay mode ([`docs/REPLAY.md`](REPLAY.md)) `mode` is `"replay"`, `simulated` is `true` and `replay` gives
+the recording (`id`, `title`), `played` and `total` steps, the `simulatedTime`, the `next` step and each
+scenario with its `source` (`synthetic` with a reason, or `recorded` and sanitized), expected outcome,
+issue and whether it was `reached`. Each overview issue then has `replay` (`scenario`, `source`). Replay
+metrics are the replay cohort: live headline figures are `null` there. The data is simulated and must not
+be presented as live outcomes.
+
 ## Refresh and freshness
 
 After every orchestrator cycle the dashboard re-reads GitHub (open workflow-labelled issues, every tracked
@@ -40,7 +55,8 @@ appear only when the source data has them: `pullRequest` (number, GitHub's URL, 
 ## Local only
 
 - `HOST` must be a loopback address (`127.0.0.1`, any `127.x.x.x`, `::1` or `localhost`); anything else
-  stops startup.
+  stops startup. The container image sets `BUG_SMASHER_CONTAINER=true`, which also allows `0.0.0.0` or `::`
+  inside the container; Compose publishes the port on the host loopback only.
 - Requests whose `Host` header is not a loopback host are refused with `403` (DNS-rebinding protection).
 - `POST`, `PUT`, `PATCH`, `DELETE` and every other non-GET/HEAD method on `/api` or `/api/*` return `405`
   with `Allow: GET, HEAD` and change nothing.

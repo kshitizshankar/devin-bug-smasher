@@ -1,0 +1,19 @@
+# Build context: only sources. Credentials, local data, dependencies and build output never enter an image.
+.git
+node_modules
+dist
+data
+logs
+*.log
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+secrets*.json
+.npmrc
+.DS_Store
+.idea
+.vscode

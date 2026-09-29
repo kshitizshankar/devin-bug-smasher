@@ -101,6 +101,23 @@ async function writeAtomically(path: string, contents: string): Promise<void> {
  */
 const openStores = new Map<string, Promise<BugStore>>();
 
+/**
+ * Reads a store file's records without opening (or caching) a `BugStore`: for readers that must see the
+ * file as it is now, such as a service following a store another process writes. A missing file is empty.
+ */
+export async function readBugRecords(path: string): Promise<BugRecord[]> {
+  const absolute = resolve(path);
+  let text: string;
+  try {
+    text = await readFile(absolute, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    throw new BugStoreError('read-failed', absolute, 'Failed to read bug store', { cause: error });
+  }
+  const records = parseStoreFile(absolute, text);
+  return [...records.keys()].sort().map((key) => records.get(key) as BugRecord);
+}
+
 export class BugStore {
   readonly path: string;
   #records: Map<string, BugRecord>;

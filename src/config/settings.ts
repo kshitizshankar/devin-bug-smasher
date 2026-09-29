@@ -296,7 +296,10 @@ export function loadSettings(env: Env = process.env): Settings {
     },
   };
 
-  if (!isLoopbackHost(settings.server.host)) {
+  // The image sets BUG_SMASHER_CONTAINER: inside its own network namespace the service must listen on the
+  // container interface, and Compose publishes that port on the host's 127.0.0.1 only.
+  const inContainer = read.boolean('BUG_SMASHER_CONTAINER', false);
+  if (!isLoopbackHost(settings.server.host) && !(inContainer && CONTAINER_HOSTS.includes(settings.server.host))) {
     read.problems.push(`HOST must be a loopback address (127.0.0.1, ::1 or localhost); the service listens only on localhost, got ${JSON.stringify(settings.server.host)}`);
   }
 
@@ -305,6 +308,9 @@ export function loadSettings(env: Env = process.env): Settings {
   }
   return settings;
 }
+
+/** Wildcard addresses accepted for `HOST` only when `BUG_SMASHER_CONTAINER=true`. */
+export const CONTAINER_HOSTS: readonly string[] = ['0.0.0.0', '::'];
 
 /** True for `localhost`, `::1` and IPv4 loopback addresses (`127.0.0.0/8`). */
 export function isLoopbackHost(host: string): boolean {

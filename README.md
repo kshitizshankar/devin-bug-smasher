@@ -4,9 +4,42 @@ Bug Smasher will investigate reported bugs with Devin, ask people for missing co
 proposed fixes, and track pull requests through merge.
 
 **This repository is currently an unfinished scaffold.** It contains a small Node.js service that serves a
-placeholder React frontend and a health endpoint, the workflow orchestrator (which polls GitHub and drives
-Devin sessions only when live GitHub and Devin settings are complete), plus build, typecheck, test and CI
-tooling.
+placeholder React frontend, a health endpoint and a read-only dashboard API, the workflow orchestrator (which
+polls GitHub and drives Devin sessions only when live GitHub and Devin settings are complete), an offline
+replay, Docker packaging, plus build, typecheck, test and CI tooling.
+
+## Quick start without credentials
+
+```sh
+docker compose up --build -d                              # one service on http://127.0.0.1:8080
+docker compose exec bug-smasher npm run replay -- all     # play the offline replay
+curl http://127.0.0.1:8080/api/overview                   # "data": {"mode": "replay", "simulated": true, ...}
+```
+
+or without Docker: `npm ci && npm run build && npm start`, then `npm run replay -- next` in another terminal.
+With neither `GITHUB_TOKEN` nor `DEVIN_API_KEY` set, the service serves the offline replay: the real
+orchestrator against stand-in GitHub and Devin providers, with simulated, clearly labelled data and a store
+separate from live data. See [`docs/REPLAY.md`](docs/REPLAY.md) and [`docs/DOCKER.md`](docs/DOCKER.md).
+
+## Evidence
+
+- [`replay/RESULTS.md`](replay/RESULTS.md): results of the full offline replay. **Simulated**, from a
+  synthetic recording; not live outcomes.
+- Live results: pending. The live demonstration against a real target repository is issue #15; no live
+  `RESULTS.md` exists yet and manual acceptance of a live run is still pending.
+
+## Architecture
+
+```
+GitHub issues/labels/comments ──> GitHubTracker ─┐
+                                                 ├─> Orchestrator (src/orchestrator) ─> BugStore (data/bugs.json)
+Devin API v3 ───────────────────> DevinClient ───┘        │                                   │
+                                                          ├─> CheckedVerifier ─> Docker (sibling containers)
+                                                          └─> policies        Dashboard (read-only API + web)
+Replay: InMemoryTracker + OfflineDevin + RecordedVerifier ─> same Orchestrator ─> data/replay/bugs.json
+```
+
+People act only on GitHub (labels, comments, merges); the dashboard and API never write.
 
 ## Verification
 
@@ -24,7 +57,8 @@ closes an issue. See [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md#decision-an
 
 `npm run setup` configures the target repository's labels and bug issue form on GitHub and its route Playbooks,
 Knowledge notes, indexing, blueprint and build on Devin, changing only what differs; `env-status`, `mirror`
-and `report` inspect builds, copy issues in and write `RESULTS.md`. Every command that writes to GitHub or
+and `report` inspect builds, copy issues in and write `RESULTS.md`; `replay` plays the offline replay and
+`verify-check` proves a throwaway fixture with the real verifier and Docker runtime. Every command that writes to GitHub or
 Devin supports `--dry-run`; `report` is the exception, as it only writes a local `RESULTS.md`. See
 [`docs/OPERATOR.md`](docs/OPERATOR.md).
 
@@ -33,7 +67,7 @@ Devin supports `--dry-run`; `report` is the exception, as it only writes a local
 None of the following exists yet:
 
 - **Dashboard** – the frontend is a placeholder page only.
-- **Docker packaging** – there is no Dockerfile or container image.
+- **Live results** – no live run has been recorded yet (issue #15).
 
 ## Prerequisites
 
@@ -41,7 +75,9 @@ None of the following exists yet:
   stripping, which is enabled by default from 22.18.0.
 - npm (bundled with Node.js).
 
-No GitHub, Devin or other provider credentials are needed to build, run or test the scaffold.
+No GitHub, Devin or other provider credentials are needed to build, run or test the scaffold. Docker (with
+Compose v2) is needed only for the container and for verification. Live mode needs a GitHub token and a Devin
+service-user API key with the permissions in [`docs/OPERATOR.md`](docs/OPERATOR.md#permissions).
 
 ## Installation
 
@@ -57,6 +93,9 @@ npm ci
 | Typecheck service, tests and web app | `npm run typecheck`               |
 | Production build of the frontend     | `npm run build`                   |
 | Start the service                    | `npm start`                       |
+| Offline replay (status, next, all, reset, report) | `npm run replay -- <command>` ([`docs/REPLAY.md`](docs/REPLAY.md)) |
+| Verifier and Docker check            | `npm run verify-check -- --image node:22.18.0-bookworm-slim` |
+| Run in Docker                        | `docker compose up --build -d` ([`docs/DOCKER.md`](docs/DOCKER.md)) |
 | Operator commands (setup, env-status, mirror, report) | see [`docs/OPERATOR.md`](docs/OPERATOR.md) |
 | Frontend development server (Vite)   | `npm run dev:web`                 |
 | Run all smoke tests                  | `npm test`                        |
@@ -86,8 +125,11 @@ a clear error):
 | Variable     | Default           | Purpose                                     |
 | ------------ | ----------------- | ------------------------------------------- |
 | `PORT`       | `8080`            | Port to listen on (`0` picks a free port)   |
-| `HOST`       | `127.0.0.1`       | Loopback interface to bind (non-loopback values are refused) |
+| `HOST`       | `127.0.0.1`       | Loopback interface to bind (non-loopback values are refused, except `0.0.0.0`/`::` with `BUG_SMASHER_CONTAINER=true`) |
 | `STATIC_DIR` | `<repo>/dist/web` | Directory of built frontend assets to serve |
+| `REPLAY_DIR` | `<repo>/data/replay` | Replay state and store (never the live `data/bugs.json`) |
+| `BUG_SMASHER_CONTAINER` | unset     | Set by the image; allows the in-container `0.0.0.0` listener |
+| `BUG_SMASHER_PORT` | `8080`      | Compose only: host loopback port to publish |
 
 ### Frontend development
 
@@ -129,7 +171,13 @@ src/config/      Typed environment settings
 src/devin/       Devin API v3 adapter and offline stand-in (see docs/DEVIN.md)
 src/tracker/     GitHub tracker interface, REST adapter and in-memory stand-in
 src/orchestrator/ Polling workflow: dispatch, questions, repair, prompts (see docs/ORCHESTRATION.md)
-src/operator/    Operator commands: run, setup, env-status, mirror, report (see docs/OPERATOR.md)
+src/operator/    Operator commands: run, setup, env-status, mirror, report, replay, verify-check (see docs/OPERATOR.md)
+src/replay/      Offline replay: recording schema, stand-in world, replay store and service (see docs/REPLAY.md)
+src/verify/      Independent verifier and Docker runtime (see docs/VERIFICATION.md)
+src/metrics/     Shared metrics calculation and evidence readers (see docs/METRICS.md)
+src/dashboard/   Read-only dashboard API projection (see docs/API.md)
+replay/          Replay recording and its RESULTS.md (simulated)
+Dockerfile, compose.yaml  One image, one service (see docs/DOCKER.md)
 prompts/         Repository-owned Devin prompt templates and route Playbooks (see docs/DEVIN-PROMPTS.md)
 web/             React + Vite frontend source
 test/            Smoke and behaviour tests (node:test)

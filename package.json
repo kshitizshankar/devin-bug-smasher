@@ -13,6 +13,8 @@
     "env-status": "node src/operator/main.ts env-status",
     "mirror": "node src/operator/main.ts mirror",
     "report": "node src/operator/main.ts report",
+    "replay": "node src/operator/main.ts replay",
+    "verify-check": "node src/operator/main.ts verify-check",
     "dev:web": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
