@@ -9,6 +9,10 @@
   },
   "scripts": {
     "start": "node src/server/main.ts",
+    "setup": "node src/operator/main.ts setup",
+    "env-status": "node src/operator/main.ts env-status",
+    "mirror": "node src/operator/main.ts mirror",
+    "report": "node src/operator/main.ts report",
     "dev:web": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",

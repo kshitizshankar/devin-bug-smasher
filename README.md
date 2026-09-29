@@ -20,6 +20,14 @@ Fixes are verified independently in Docker against exact base and head commits; 
 Every automatic decision records its checks and evidence, merges only the exact verified head, and never
 closes an issue. See [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md#decision-and-merge-policies).
 
+## Operator commands
+
+`npm run setup` configures the target repository's labels and bug issue form on GitHub and its Playbook,
+Knowledge notes, indexing, blueprint and build on Devin, changing only what differs; `env-status`, `mirror`
+and `report` inspect builds, copy issues in and write `RESULTS.md`. Every command that writes to GitHub or
+Devin supports `--dry-run`; `report` is the exception, as it only writes a local `RESULTS.md`. See
+[`docs/OPERATOR.md`](docs/OPERATOR.md).
+
 ## Not yet implemented
 
 None of the following exists yet:
@@ -49,6 +57,7 @@ npm ci
 | Typecheck service, tests and web app | `npm run typecheck`               |
 | Production build of the frontend     | `npm run build`                   |
 | Start the service                    | `npm start`                       |
+| Operator commands (setup, env-status, mirror, report) | see [`docs/OPERATOR.md`](docs/OPERATOR.md) |
 | Frontend development server (Vite)   | `npm run dev:web`                 |
 | Run all smoke tests                  | `npm test`                        |
 | Run a selected test file             | `node --test test/health.test.ts` |
@@ -117,6 +126,7 @@ src/config/      Typed environment settings
 src/devin/       Devin API v3 adapter and offline stand-in (see docs/DEVIN.md)
 src/tracker/     GitHub tracker interface, REST adapter and in-memory stand-in
 src/orchestrator/ Polling workflow: dispatch, questions, repair, prompts (see docs/ORCHESTRATION.md)
+src/operator/    Operator commands: run, setup, env-status, mirror, report (see docs/OPERATOR.md)
 prompts/         Repository-owned Devin prompt templates
 web/             React + Vite frontend source
 test/            Smoke and behaviour tests (node:test)

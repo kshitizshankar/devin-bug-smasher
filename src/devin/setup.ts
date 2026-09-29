@@ -2,8 +2,8 @@ import { DevinError } from './errors.ts';
 import { DevinTransport, type DevinFetch, type DevinRequest } from './http.ts';
 
 /**
- * Devin environment setup operations for the later setup task: Playbooks and Knowledge notes (v3), and
- * repository indexing, blueprints and snapshot builds (v3beta1). Kept apart from `DevinClient` so the
+ * Devin environment setup operations used by the operator `setup` and `env-status` commands: Playbooks and
+ * Knowledge notes (v3), and repository availability, indexing, blueprints and snapshot builds (v3beta1). Kept apart from `DevinClient` so the
  * service's session work never depends on beta endpoints.
  */
 
@@ -51,6 +51,19 @@ export interface SnapshotBuild {
   pinned: boolean;
   started_at: string | number | null;
   completed_at: string | number | null;
+  created_at?: string | number | null;
+}
+
+/** A repository the organization's Devin connections can reach. */
+export interface DevinRepository {
+  repo_path: string;
+  repo_name?: string;
+}
+
+/** Short-lived download link for a blueprint's YAML or a build's log file. */
+export interface PresignedDownload {
+  url: string;
+  expires_at: number;
 }
 
 export interface DevinSetupClientOptions {
@@ -65,9 +78,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const MAX_DOWNLOAD_REDIRECTS = 5;
+
+/** `https` only; plain `http` is allowed for loopback addresses (tests). */
+function downloadAllowed(url: URL): boolean {
+  const loopback = url.hostname === '127.0.0.1' || url.hostname === 'localhost' || url.hostname === '[::1]';
+  return url.protocol === 'https:' || (url.protocol === 'http:' && loopback);
+}
+
 export class DevinSetupClient {
   readonly #transport: DevinTransport;
   readonly #org: string;
+  readonly #fetch: DevinFetch;
+  readonly #timeoutMs: number;
 
   constructor(options: DevinSetupClientOptions) {
     if (options.orgId.trim() === '') {
@@ -75,6 +98,15 @@ export class DevinSetupClient {
     }
     this.#transport = new DevinTransport(options);
     this.#org = encodeURIComponent(options.orgId);
+    this.#fetch = options.fetch ?? ((url, init) => fetch(url, init));
+    this.#timeoutMs = options.timeoutMs ?? 30_000;
+  }
+
+  // Repositories (v3beta1)
+
+  /** Repositories Devin can reach through the organization's connections, limited to `repoPaths`. */
+  listRepositories(repoPaths: readonly string[]): Promise<DevinRepository[]> {
+    return this.#list('list-repositories', `/v3beta1/organizations/${this.#org}/repositories`, { only_repo_paths: repoPaths }, 'repo_path');
   }
 
   // Playbooks (v3)
@@ -109,11 +141,20 @@ export class DevinSetupClient {
     }, 'note_id');
   }
 
-  updateKnowledgeNote(noteId: string, input: { name: string; body: string; trigger: string; pinnedRepo?: string | null }): Promise<KnowledgeNote> {
+  updateKnowledgeNote(
+    noteId: string,
+    input: { name: string; body: string; trigger: string; pinnedRepo?: string | null; isEnabled?: boolean },
+  ): Promise<KnowledgeNote> {
     return this.#object('update-knowledge-note', {
       method: 'PUT',
       path: `/v3/organizations/${this.#org}/knowledge/notes/${encodeURIComponent(noteId)}`,
-      body: { name: input.name, body: input.body, trigger: input.trigger, pinned_repo: input.pinnedRepo ?? null },
+      body: {
+        name: input.name,
+        body: input.body,
+        trigger: input.trigger,
+        pinned_repo: input.pinnedRepo ?? null,
+        ...(input.isEnabled === undefined ? {} : { is_enabled: input.isEnabled }),
+      },
     }, 'note_id');
   }
 
@@ -151,12 +192,82 @@ export class DevinSetupClient {
     }, 'blueprint_id');
   }
 
+  getBlueprintContents(blueprintId: string): Promise<PresignedDownload> {
+    return this.#download('get-blueprint-contents', `/v3beta1/organizations/${this.#org}/snapshot-setup/blueprints/${encodeURIComponent(blueprintId)}/contents`);
+  }
+
+  listBuilds(): Promise<SnapshotBuild[]> {
+    return this.#list('list-builds', `/v3beta1/organizations/${this.#org}/snapshot-setup/builds`, {}, 'build_id');
+  }
+
+  getBuildLogs(buildId: string): Promise<PresignedDownload> {
+    return this.#download('get-build-logs', `/v3beta1/organizations/${this.#org}/snapshot-setup/builds/${encodeURIComponent(buildId)}/logs`);
+  }
+
+  /**
+   * Downloads a presigned file. The link carries its own signature, so no Devin credential is sent, and the
+   * link itself (signature included) never appears in errors.
+   */
+  async fetchDownload(operation: string, download: PresignedDownload): Promise<string> {
+    let url: URL;
+    try {
+      url = new URL(download.url);
+    } catch {
+      throw this.#transport.invalidResponse(operation, 'download url is not a URL', false);
+    }
+    if (!downloadAllowed(url)) throw this.#transport.invalidResponse(operation, 'download url must use https', false);
+    const failure = (kind: 'network' | 'timeout' | 'provider', status: number | null, detail: string): DevinError =>
+      new DevinError({
+        kind,
+        operation,
+        status,
+        message: this.#transport.redact(`Devin ${operation} download from ${url.host} failed: ${detail}`),
+        retryAfterSeconds: null,
+        ambiguous: false,
+      });
+    const signal = AbortSignal.timeout(this.#timeoutMs);
+    let current = url;
+    let response: Response;
+    // Redirects are followed by hand so that every hop is held to the same https rule.
+    for (let hops = 0; ; hops += 1) {
+      try {
+        response = await this.#fetch(current.toString(), { method: 'GET', redirect: 'manual', signal });
+      } catch (error) {
+        const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+        throw failure(timedOut ? 'timeout' : 'network', null, timedOut ? 'timed out' : 'network error');
+      }
+      const location = response.status >= 300 && response.status < 400 ? response.headers.get('location') : null;
+      if (location === null) break;
+      await response.body?.cancel();
+      if (hops >= MAX_DOWNLOAD_REDIRECTS) throw failure('provider', response.status, 'too many redirects');
+      let next: URL;
+      try {
+        next = new URL(location, current);
+      } catch {
+        throw failure('provider', response.status, 'redirect location is not a URL');
+      }
+      if (!downloadAllowed(next)) throw failure('provider', response.status, 'redirected to a link that is not https');
+      current = next;
+    }
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw failure('provider', response.status, `HTTP ${response.status} (the link may have expired; retry)`);
+    }
+    return this.#transport.redact(await response.text());
+  }
+
   triggerBuild(): Promise<SnapshotBuild> {
     return this.#object('trigger-build', { method: 'POST', path: `/v3beta1/organizations/${this.#org}/snapshot-setup/builds`, body: {} }, 'build_id');
   }
 
   getBuild(buildId: string): Promise<SnapshotBuild> {
     return this.#object('get-build', { method: 'GET', path: `/v3beta1/organizations/${this.#org}/snapshot-setup/builds/${encodeURIComponent(buildId)}` }, 'build_id');
+  }
+
+  async #download(operation: string, path: string): Promise<PresignedDownload> {
+    const body = await this.#object<PresignedDownload>(operation, { method: 'GET', path }, 'url');
+    if (typeof body.url !== 'string') throw this.#transport.invalidResponse(operation, 'url must be a string', false);
+    return body;
   }
 
   #indexingPath(repositoryPath: string): string {

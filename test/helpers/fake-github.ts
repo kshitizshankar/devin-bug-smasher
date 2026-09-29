@@ -195,6 +195,9 @@ export class FakeGitHub {
   readonly #checkRuns = new Map<string, object[]>();
   readonly #branches = new Map<string, FakeBranch>([['main', { sha: '0'.repeat(40), protected: false, requiredChecks: [] }]]);
   #defaultBranch = 'main';
+  readonly #repoLabels: { name: string; color: string; description: string | null }[] = [];
+  readonly #files = new Map<string, { sha: string; content: string }>();
+  readonly #foreignIssues = new Map<string, { number: number; title: string; body: string; user: FakeUser; created_at: string; state: 'open' | 'closed'; pull: boolean }>();
   readonly #overrides: Override[] = [];
   #baseUrl = '';
   #nextNumber = 1;
@@ -247,6 +250,42 @@ export class FakeGitHub {
       response: failureResponse(spec),
       applied: spec.applied === true,
     });
+  }
+
+  /** A label defined on the target repository (not on any issue). */
+  seedLabel(label: { name: string; color: string; description?: string | null }): void {
+    this.#repoLabels.push({ name: label.name, color: label.color, description: label.description ?? null });
+  }
+
+  /** The target repository's label definitions. */
+  repositoryLabels(): { name: string; color: string; description: string | null }[] {
+    return this.#repoLabels.map((label) => ({ ...label }));
+  }
+
+  seedFile(path: string, content: string): void {
+    this.#files.set(path, { sha: this.#blobSha(content), content });
+  }
+
+  file(path: string): string | undefined {
+    return this.#files.get(path)?.content;
+  }
+
+  /** An issue in another repository on the same server; it can be read but never written. */
+  seedForeignIssue(repo: GitHubRepo, seed: { number: number; title: string; body?: string; author?: string; pullRequest?: boolean }): void {
+    this.#foreignIssues.set(`${repo.owner}/${repo.name}#${seed.number}`.toLowerCase(), {
+      number: seed.number,
+      title: seed.title,
+      body: seed.body ?? '',
+      user: user(seed.author ?? 'reporter'),
+      created_at: this.#tick(),
+      state: 'open',
+      pull: seed.pullRequest ?? false,
+    });
+  }
+
+  /** Recorded requests that could change state (anything but GET). */
+  writes(): RecordedRequest[] {
+    return this.requests.filter((request) => request.method !== 'GET');
   }
 
   seedIssue(seed: SeedIssue): { number: number } {
@@ -516,6 +555,68 @@ export class FakeGitHub {
       this.#removeLabel(issue, name, this.actor);
       return { status: 200, body: issue.labels.map((label) => this.#labelJson(label)) };
     }
+    if (route === 'labels' && method === 'GET') {
+      return this.#page(url, this.#repoLabels.map((label) => ({ id: user(label.name).id, ...label, default: false })));
+    }
+    if (route === 'labels' && method === 'POST') {
+      const name = String(body.name ?? '');
+      if (name === '' || this.#repoLabels.some((label) => label.name.toLowerCase() === name.toLowerCase())) {
+        return this.#error(422, 'Validation Failed');
+      }
+      const label = { name, color: String(body.color), description: typeof body.description === 'string' ? body.description : null };
+      this.#repoLabels.push(label);
+      return { status: 201, body: { id: user(name).id, ...label, default: false } };
+    }
+    if ((match = /^labels\/(.+)$/.exec(route)) && method === 'PATCH') {
+      const name = decodeURIComponent(match[1] ?? '');
+      const label = this.#repoLabels.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
+      if (label === undefined) return this.#error(404, 'Not Found');
+      if (typeof body.new_name === 'string') label.name = body.new_name;
+      if (typeof body.color === 'string') label.color = body.color;
+      if (typeof body.description === 'string') label.description = body.description;
+      return { status: 200, body: { id: user(label.name).id, ...label, default: false } };
+    }
+    if ((match = /^contents\/(.+)$/.exec(route))) {
+      const path = match[1] ?? '';
+      const file = this.#files.get(path);
+      if (method === 'GET') {
+        if (file === undefined) return this.#error(404, 'Not Found');
+        return { status: 200, body: { type: 'file', path, sha: file.sha, encoding: 'base64', content: Buffer.from(file.content).toString('base64') } };
+      }
+      if (method === 'PUT') {
+        if (file !== undefined && body.sha !== file.sha) return this.#error(409, `${path} does not match ${String(body.sha)}`);
+        if (file === undefined && body.sha !== undefined) return this.#error(422, 'sha given for a new file');
+        const content = Buffer.from(String(body.content), 'base64').toString('utf8');
+        this.seedFile(path, content);
+        return { status: file === undefined ? 201 : 200, body: { content: { path, sha: this.#blobSha(content) }, commit: { sha: 'f'.repeat(40) } } };
+      }
+    }
+    if ((match = /^\/repos\/([^/]+)\/([^/]+)\/issues\/(\d+)$/.exec(route))) {
+      const [, owner, name, number] = match;
+      const foreign = this.#foreignIssues.get(`${owner}/${name}#${number}`.toLowerCase());
+      if (method !== 'GET') return this.#error(403, 'Resource not accessible by integration');
+      if (foreign === undefined) return this.#error(404, 'Not Found');
+      return {
+        status: 200,
+        body: {
+          id: 7_000_000 + foreign.number,
+          number: foreign.number,
+          title: foreign.title,
+          body: foreign.body === '' ? null : foreign.body,
+          state: foreign.state,
+          state_reason: null,
+          labels: [],
+          user: foreign.user,
+          html_url: `https://github.com/${owner}/${name}/${foreign.pull ? 'pull' : 'issues'}/${foreign.number}`,
+          repository_url: `${this.#baseUrl}/repos/${owner}/${name}`,
+          created_at: foreign.created_at,
+          updated_at: foreign.created_at,
+          closed_at: null,
+          ...(foreign.pull ? { pull_request: { url: `${this.#baseUrl}/repos/${owner}/${name}/pulls/${foreign.number}` } } : {}),
+        },
+      };
+    }
+    if (/^\/repos\//.test(route) && method !== 'GET') return this.#error(403, 'Resource not accessible by integration');
     if ((match = /^pulls\/(\d+)$/.exec(route)) && method === 'GET') {
       const issue = this.#issues.get(Number(match[1]));
       if (issue?.pull == null) return this.#error(404, 'Not Found');
@@ -758,6 +859,10 @@ export class FakeGitHub {
 
   #repoUrl(): string {
     return `${this.#baseUrl}/repos/${this.repo.owner}/${this.repo.name}`;
+  }
+
+  #blobSha(content: string): string {
+    return createHash('sha1').update(`blob ${Buffer.byteLength(content)}\0${content}`).digest('hex');
   }
 
   #labelJson(name: string): object {

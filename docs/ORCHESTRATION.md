@@ -15,7 +15,7 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 
 ## Service wiring
 
-`npm start` starts polling only when `liveSettingsProblems(settings)` is empty; otherwise it logs why and
+`npm start` (the `run` operator command, [`docs/OPERATOR.md`](OPERATOR.md)) starts polling only when `liveSettingsProblems(settings)` is empty; otherwise it logs why and
 serves the scaffold as before. Live wiring: `BugStore.open()` (`data/bugs.json`), `GitHubTracker`,
 `DevinClient.fromSettings`, `Prompts.load()`, `requireLiveResults: true` (stub verifiers/policies are
 refused), `verifierFromSettings` when `verifierSettingsProblems` is empty (otherwise the unavailable
