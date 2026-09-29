@@ -254,6 +254,7 @@ export class Orchestrator {
   readonly #model: ModelOptions;
   readonly #repo: GitHubRepo;
   #cycle = 0;
+  #lastCycleAt: string | null = null;
   #inFlight: Promise<void> | null = null;
   #lock: Promise<unknown> = Promise.resolve();
   #timer: NodeJS.Timeout | null = null;
@@ -312,6 +313,11 @@ export class Orchestrator {
     await this.#inFlight?.catch(() => {});
   }
 
+  /** When the last cycle finished; `null` until one has. */
+  get lastCycleAt(): string | null {
+    return this.#lastCycleAt;
+  }
+
   /** Runs one cycle. A call while a cycle is running joins it instead of starting an overlapping one. */
   runCycle(): Promise<void> {
     if (this.#inFlight !== null) {
@@ -363,7 +369,7 @@ export class Orchestrator {
       open = await this.#tracker.listOpenIssues(labels);
     } catch (error) {
       this.#emit(null, 'error', { during: 'listOpenIssues', message: describe(error) });
-      this.#emit(null, 'cycle-finished');
+      this.#finishCycle();
       return;
     }
     const issues = new Map(open.map((issue) => [issue.number, issue]));
@@ -384,6 +390,11 @@ export class Orchestrator {
         this.#emit(issue.key, 'error', { during: 'step', message: describe(error) });
       }
     }
+    this.#finishCycle();
+  }
+
+  #finishCycle(): void {
+    this.#lastCycleAt = this.#nowIso();
     this.#emit(null, 'cycle-finished');
   }
 
