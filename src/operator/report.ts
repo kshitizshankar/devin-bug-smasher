@@ -87,7 +87,7 @@ export function renderResults(report: MetricsReport, storeLabel: string): string
   const lines = [
     '# Bug Smasher results',
     '',
-    `Written by \`report\` from the bug store (\`${storeLabel}\`) at ${report.generatedAt}. Times are ${report.timezone}; weeks start on ${report.weekStartsOn} 00:00. Every figure comes from the shared metrics calculation the dashboard API reads.`,
+    `Written by \`report\` from the bug store (${text(storeLabel)}) at ${report.generatedAt}. Times are ${report.timezone}; weeks start on ${report.weekStartsOn} 00:00. Every figure comes from the shared metrics calculation the dashboard API reads.`,
     '',
     `Sources: ${text(report.sources.github)}. ${text(report.sources.devin)}. ${text(report.sources.orchestrator)}.`,
     '',
@@ -108,11 +108,11 @@ export function renderResults(report: MetricsReport, storeLabel: string): string
     lines.push(
       report.target === null
         ? 'GITHUB_REPO is not set, so no records count as live outcomes.'
-        : `No live records for ${report.target}, so there are no live outcomes yet.`,
+        : `No live records for ${text(report.target)}, so there are no live outcomes yet.`,
       '',
     );
   } else {
-    lines.push(`Live bugs of ${report.live.repository}: ${report.live.bugs} bugs, ${report.live.features} feature requests (never counted in bug outcomes).`, '');
+    lines.push(`Live bugs of ${text(report.live.repository)}: ${report.live.bugs} bugs, ${report.live.features} feature requests (never counted in bug outcomes).`, '');
     cohortSections(lines, report.live, '###');
   }
   lines.push('### Liveness', '');
@@ -137,7 +137,7 @@ export function renderResults(report: MetricsReport, storeLabel: string): string
   if (report.otherCohorts.length > 0) {
     lines.push('## Other cohorts', '', 'Reported separately; none of these count in live outcomes.', '');
     for (const cohort of report.otherCohorts) {
-      lines.push(`### ${cohort.label}`, '', `${cohort.bugs} bugs, ${cohort.features} feature requests.`, '');
+      lines.push(`### ${text(cohort.label)}`, '', `${cohort.bugs} bugs, ${cohort.features} feature requests.`, '');
       cohortSections(lines, cohort, '####');
     }
   }

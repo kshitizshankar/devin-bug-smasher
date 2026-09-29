@@ -571,7 +571,9 @@ describe('operator report', () => {
   it('escapes HTML and link syntax from provider text', () => {
     const reason = '<img src=x onerror=alert(1)> [click](https://evil.example)';
     const metrics = calculateMetrics(metricsInput([], { evidence: { ...unavailableEvidence(), github: { status: 'unavailable', reason } } }));
-    const text = renderResults(metrics, 'data/bugs.json');
+    const text = renderResults(metrics, 'data/<b>bugs</b>.json');
+    assert.equal(text.includes('<b>'), false);
+    assert.ok(text.includes('data/&lt;b&gt;bugs&lt;/b&gt;.json'));
     assert.equal(text.includes('<img'), false);
     assert.equal(text.includes('[click]('), false);
     assert.ok(text.includes('&lt;img src=x onerror=alert(1)&gt; \\[click\\](https://evil.example)'));
