@@ -729,3 +729,30 @@ describe('third review regressions', () => {
     assert.equal(triageOnly.stage, 'triaged');
   });
 });
+
+describe('existing pull request handoff', () => {
+  it('hands queued repair to an engineer with the reason recorded and work labels moved', () => {
+    const queued = enroll([LABEL.fix]);
+    const result = expectOk(
+      applyEvent(queued, { type: 'handoff-requested', reason: 'existing-pr', detail: 'Open PR #3 already addresses this' }, options, now()),
+    );
+    assert.equal(result.record.stage, 'with-engineer');
+    assert.equal(result.record.handoff?.reason, 'existing-pr');
+    assert.deepEqual(result.effects[0], { type: 'add-label', label: LABEL.engineer });
+    assert.ok(result.effects.some((effect) => effect.type === 'remove-label' && effect.label === LABEL.fix));
+    assert.deepEqual(validateBugRecord(result.record), []);
+  });
+
+  it('rejects malformed workflow bookkeeping', () => {
+    const record = enroll([LABEL.fix]);
+    record.workflow = {
+      dispatch: { route: 'fix', requestedAt: 'yesterday', attemptTag: null, checks: -1, commentIds: [] },
+      outbox: [{ type: 'send-message', sessionId: '', marker: 'm', message: 'x' }],
+      relayedCommentIds: [],
+      handledEventIds: [],
+      workQuestion: null,
+      notices: [],
+    };
+    assert.ok(validateBugRecord(record).length >= 2);
+  });
+});

@@ -49,6 +49,8 @@ export const HANDOFF_REASONS = [
   'verification-error',
   'verification-failed',
   'post-merge-verification-failed',
+  /** An open PR already addresses the issue, so repair would duplicate it. */
+  'existing-pr',
 ] as const;
 export type HandoffReason = (typeof HANDOFF_REASONS)[number];
 
@@ -172,8 +174,66 @@ export interface BugRecord {
   stageHistory: StageEntry[];
   handoff: Handoff | null;
   insights: SessionInsights | null;
+  /** Orchestrator bookkeeping; absent on records the orchestrator has not handled yet. */
+  workflow?: WorkflowState;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+}
+
+/** A session create the orchestrator persisted before calling Devin, so a lost answer is reconciled, never repeated. */
+export interface PendingDispatch {
+  route: WorkRoute;
+  requestedAt: Timestamp;
+  /** The attempt tag once a create returned an ambiguous result; null while the request is in flight. */
+  attemptTag: string | null;
+  /** Reconciliation lookups that found no session so far. */
+  checks: number;
+  /** Human comments included in the prompt; marked delivered once the session is recorded. */
+  commentIds: string[];
+}
+
+export const WORKFLOW_OPERATION_TYPES = [
+  'add-label',
+  'remove-label',
+  'close-issue',
+  'stop-session',
+  'post-comment',
+  'send-message',
+  'merge-pr',
+] as const;
+
+/** A side effect accepted with a transition and not yet confirmed applied. Every operation is idempotent. */
+export type WorkflowOperation =
+  | { type: 'add-label'; label: string }
+  | { type: 'remove-label'; label: string }
+  | { type: 'close-issue' }
+  | { type: 'stop-session'; sessionId: string }
+  /** `key` is the tracker idempotency key, so a repeated post returns the existing comment. */
+  | { type: 'post-comment'; key: string; body: string }
+  /** `marker` is part of `message`; a message already carrying it in the session is not sent again. */
+  | { type: 'send-message'; sessionId: string; marker: string; message: string }
+  | { type: 'merge-pr'; prNumber: number; expectedHeadSha: string };
+
+/** Question a repair or feature session asked; the model tracks investigation questions itself. */
+export interface WorkQuestion {
+  id: string;
+  sessionId: string;
+  summary: string;
+  askedAt: Timestamp;
+}
+
+/** Persisted orchestrator state that lets a restarted service continue without repeating or losing effects. */
+export interface WorkflowState {
+  dispatch: PendingDispatch | null;
+  /** Operations still to apply, in order. */
+  outbox: WorkflowOperation[];
+  /** GitHub comments already delivered to a Devin session (relayed or included in a prompt). */
+  relayedCommentIds: string[];
+  /** Issue label events already considered as person decisions. */
+  handledEventIds: string[];
+  workQuestion: WorkQuestion | null;
+  /** One-time notices already queued, e.g. `triage-pr:<sessionId>`. */
+  notices: string[];
 }
 
 /** Latest GitHub snapshot used as input to derivation. */

@@ -1,5 +1,10 @@
 import type { AddressInfo } from 'node:net';
-import { loadSettings, SettingsError, type Settings } from '../config/settings.ts';
+import { liveSettingsProblems, loadSettings, SettingsError, type Settings } from '../config/settings.ts';
+import { DevinClient } from '../devin/client.ts';
+import { Orchestrator } from '../orchestrator/orchestrator.ts';
+import { Prompts } from '../orchestrator/prompts.ts';
+import { BugStore } from '../store/bug-store.ts';
+import { GitHubTracker } from '../tracker/github.ts';
 import { createApp } from './app.ts';
 
 let settings: Settings;
@@ -23,9 +28,41 @@ server.listen(port, host, () => {
   console.log(`Bug Smasher scaffold listening on http://${displayHost}:${address.port}`);
 });
 
+async function startOrchestrator(settings: Settings): Promise<Orchestrator | null> {
+  const problems = liveSettingsProblems(settings);
+  if (problems.length > 0) {
+    console.log(`Workflow polling is off until live settings are complete: ${problems.join('; ')}`);
+    return null;
+  }
+  const repo = settings.github.repo as NonNullable<Settings['github']['repo']>;
+  const orchestrator = new Orchestrator({
+    store: await BugStore.open(),
+    tracker: new GitHubTracker({ repo, token: settings.github.token as string }),
+    devin: DevinClient.fromSettings(settings),
+    settings,
+    prompts: await Prompts.load(),
+    requireLiveResults: true,
+    trace: (event) => {
+      if (event.type === 'error' || event.type === 'effect-failed' || event.type === 'refused') {
+        console.error(`[workflow] ${event.type} ${event.key ?? ''} ${JSON.stringify(event.detail)}`);
+      }
+    },
+  });
+  orchestrator.start();
+  console.log(`Workflow polling ${repo.owner}/${repo.name} every ${settings.pollSeconds} s`);
+  return orchestrator;
+}
+
+const orchestrator = startOrchestrator(settings).catch((error: unknown) => {
+  console.error(`Workflow polling failed to start: ${error instanceof Error ? error.message : String(error)}`);
+  return null;
+});
+
 function shutdown(signal: NodeJS.Signals): void {
   console.log(`Received ${signal}, shutting down`);
-  server.close(() => process.exit(0));
+  void orchestrator
+    .then((running) => running?.stop())
+    .finally(() => server.close(() => process.exit(0)));
   server.closeAllConnections();
 }
 
