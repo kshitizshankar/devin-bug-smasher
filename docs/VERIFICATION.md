@@ -102,6 +102,16 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
   proof hands off (`verification-failed`). Errors retry without spending fix attempts; the third hands off
   (`verification-error`).
 - A new PR head moves the record back to `verifying`; earlier proof no longer counts.
+- Reproduction for the Rule decision (`CheckedVerifier.reproduce`): one `reproduction` run on the
+  default-branch head with the proposed test (triage's `test_code` written at `test_file`, or the
+  committed file). Same path validation, sandbox, secret redaction and configured runner as verification;
+  triage's `command` is never run. `failed` → `reproduced`, `passed` → `not-reproduced`, anything else
+  (missing file and no code, rejected path, setup error, no result) → `unknown`, which never counts as
+  reproduced.
+- Merge policies require the latest pre-merge `pass` for the current head (Rule also requires no
+  violations or flags; Automatic allows deletion-only flags). Branch protection requiring
+  `bug-smasher/verification` is reported in every merge evaluation (`required`, `missing`, or `unknown`
+  when the token cannot read the protection).
 - `merged`: the merge commit is verified (`post-merge`) until it has a `pass` or `fail`, or three errors.
   A failure hands off (`post-merge-verification-failed`); an error never counts as success.
 
@@ -126,6 +136,7 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
 | Three infrastructure errors hand off without spending fix attempts | `test/orchestrator-verification.test.ts` › retries infrastructure errors… |
 | Post-merge verification of the actual merge commit; failure hands off; pass recorded once | `test/orchestrator-verification.test.ts` › verifies the actual merge commit…, records a passing post-merge proof… |
 | Evidence validated on load | `test/verify.test.ts` › V1 (`validateVerificationAttempt`) |
+| Reproduction: committed test, triage test code, not reproduced, unknown without running anything, no triage command | `test/verify.test.ts` › reproducing the proposed test on the default branch |
 | Settings: `VERIFY_*` defaults/overrides; live verifier only when configured | `test/settings.test.ts` › loads verification defaults…; `test/verify.test.ts` › keeps the live verifier off… |
 
 Run the real-Docker test locally with

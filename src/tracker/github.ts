@@ -30,8 +30,10 @@ import {
   type PullRequestFile,
   type PullRequestFiles,
   type RateLimitInfo,
+  type Branch,
   type Review,
   type ReviewState,
+  type ReviewThread,
   type Tracker,
   type TrackerComment,
   type TrackerErrorCode,
@@ -90,6 +92,19 @@ const REVIEW_STATES: Record<string, ReviewState> = {
   DISMISSED: 'dismissed',
   PENDING: 'pending',
 };
+const REVIEW_THREADS_QUERY = `query($owner: String!, $name: String!, $number: Int!, $cursor: String) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          id isResolved isOutdated path line
+          comments(first: 1) { nodes { author { login __typename } body url createdAt originalCommit { oid } } }
+        }
+      }
+    }
+  }
+}`;
 const COMMIT_STATES: readonly CommitStatusState[] = ['error', 'failure', 'pending', 'success'];
 
 /** Creates the live tracker from settings; requires `GITHUB_REPO` and `GITHUB_TOKEN`. */
@@ -361,6 +376,80 @@ export class GitHubTracker implements Tracker {
       };
     });
     return uniqueBy(reviews, (review) => review.id);
+  }
+
+  async listReviewThreads(number: number): Promise<ReviewThread[]> {
+    const op = 'listReviewThreads';
+    this.#checkNumber(op, number);
+    const threads: ReviewThread[] = [];
+    let cursor: string | null = null;
+    for (let pages = 0; ; pages += 1) {
+      if (pages >= this.#maxPages) {
+        throw new TrackerError({ code: 'incomplete', operation: op, message: `listing exceeded ${this.#maxPages} pages; refusing to return partial data` });
+      }
+      const response = await this.#send(op, 'POST', 'graphql', {
+        body: { query: REVIEW_THREADS_QUERY, variables: { owner: this.repo.owner, name: this.repo.name, number, cursor } },
+      });
+      const json = this.#object(op, this.#json(op, response), 'GraphQL response');
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        const first = json.errors[0] as { message?: unknown; type?: unknown };
+        const message = typeof first.message === 'string' ? this.#redact(first.message) : 'GraphQL error';
+        throw new TrackerError({ code: first.type === 'NOT_FOUND' ? 'not-found' : 'invalid-response', operation: op, message });
+      }
+      const repository = this.#object(op, this.#object(op, json.data, 'data').repository, 'repository');
+      if (repository.pullRequest === null) {
+        throw new TrackerError({ code: 'not-found', operation: op, message: `PR #${number} was not found` });
+      }
+      const connection = this.#object(op, this.#object(op, repository.pullRequest, 'pullRequest').reviewThreads, 'reviewThreads');
+      if (!Array.isArray(connection.nodes)) this.#badResponse(op, 'reviewThreads.nodes is not an array');
+      for (const raw of connection.nodes) threads.push(this.#reviewThread(op, this.#object(op, raw, 'review thread')));
+      const pageInfo = this.#object(op, connection.pageInfo, 'pageInfo');
+      if (pageInfo.hasNextPage !== true) break;
+      cursor = this.#string(op, pageInfo, 'endCursor');
+    }
+    return uniqueBy(threads, (thread) => thread.id);
+  }
+
+  async getBranch(name: string): Promise<Branch> {
+    const op = 'getBranch';
+    this.#checkRef(op, name);
+    const response = await this.#send(op, 'GET', this.#repoPath(`branches/${encodeURIComponent(name)}`));
+    const item = this.#object(op, this.#json(op, response), 'branch');
+    const isProtected = item.protected === true;
+    let classic: string[] | null = isProtected ? null : [];
+    if (isProtected && item.protection !== undefined && item.protection !== null) {
+      const protection = this.#object(op, item.protection, 'branch protection');
+      classic = protection.enabled === false ? [] : this.#requiredContexts(op, protection.required_status_checks);
+    }
+    const rules = await this.#send(op, 'GET', this.#repoPath(`rules/branches/${encodeURIComponent(name)}`), {
+      tolerate: (status) => status === 403 || status === 404,
+    });
+    let ruleset: string[] | null = null;
+    if (rules.status < 300) {
+      const list = this.#json(op, rules);
+      if (!Array.isArray(list)) this.#badResponse(op, 'branch rules are not an array');
+      ruleset = list.flatMap((raw) => {
+        const rule = this.#object(op, raw, 'branch rule');
+        if (rule.type !== 'required_status_checks') return [];
+        const parameters = this.#object(op, rule.parameters, 'rule parameters');
+        const checks = parameters.required_status_checks;
+        if (!Array.isArray(checks)) this.#badResponse(op, 'required_status_checks is not an array');
+        return checks.map((check) => this.#string(op, this.#object(op, check, 'required check'), 'context'));
+      });
+    }
+    return {
+      name: this.#string(op, item, 'name'),
+      sha: this.#string(op, this.#object(op, item.commit, 'branch commit'), 'sha'),
+      protected: isProtected || (ruleset?.length ?? 0) > 0,
+      requiredChecks: classic === null || ruleset === null ? null : [...new Set([...classic, ...ruleset])],
+    };
+  }
+
+  async getDefaultBranch(): Promise<Branch> {
+    const op = 'getDefaultBranch';
+    const response = await this.#send(op, 'GET', `repos/${encodeURIComponent(this.repo.owner)}/${encodeURIComponent(this.repo.name)}`);
+    const name = this.#string(op, this.#object(op, this.#json(op, response), 'repository'), 'default_branch');
+    return this.getBranch(name);
   }
 
   async listCheckRuns(ref: string): Promise<CheckRuns> {
@@ -863,6 +952,47 @@ export class GitHubTracker implements Tracker {
       changedFiles: this.#number(op, item, 'changed_files'),
       additions: this.#number(op, item, 'additions'),
       deletions: this.#number(op, item, 'deletions'),
+    };
+  }
+
+  #requiredContexts(op: TrackerOperation, value: unknown): string[] {
+    if (value === undefined || value === null) return [];
+    const checks = this.#object(op, value, 'required status checks');
+    const contexts = Array.isArray(checks.contexts) ? checks.contexts.map(String) : [];
+    const named = Array.isArray(checks.checks)
+      ? checks.checks.map((check) => this.#string(op, this.#object(op, check, 'required check'), 'context'))
+      : [];
+    return [...new Set([...contexts, ...named])];
+  }
+
+  #reviewThread(op: TrackerOperation, item: JsonObject): ReviewThread {
+    const comments = this.#object(op, item.comments, 'thread comments');
+    if (!Array.isArray(comments.nodes)) this.#badResponse(op, 'thread comments are not an array');
+    const parsed = comments.nodes.map((raw) => {
+      const comment = this.#object(op, raw, 'thread comment');
+      const author = comment.author === null || comment.author === undefined ? null : this.#object(op, comment.author, 'author');
+      const login = author === null ? 'ghost' : this.#string(op, author, 'login');
+      const bot = author?.__typename === 'Bot' && !login.endsWith('[bot]');
+      const commit = comment.originalCommit === null || comment.originalCommit === undefined
+        ? null
+        : this.#optionalString(op, this.#object(op, comment.originalCommit, 'originalCommit'), 'oid');
+      return {
+        authorLogin: bot ? `${login}[bot]` : login,
+        body: this.#optionalString(op, comment, 'body') ?? '',
+        url: this.#optionalString(op, comment, 'url') ?? '',
+        createdAt: this.#string(op, comment, 'createdAt'),
+        commit,
+      };
+    });
+    const line = item.line;
+    return {
+      id: this.#string(op, item, 'id'),
+      isResolved: item.isResolved === true,
+      isOutdated: item.isOutdated === true,
+      path: this.#optionalString(op, item, 'path'),
+      line: typeof line === 'number' ? line : null,
+      commitSha: parsed[0]?.commit ?? null,
+      comments: parsed.map(({ commit: _commit, ...comment }) => comment),
     };
   }
 

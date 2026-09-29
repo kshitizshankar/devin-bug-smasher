@@ -6,8 +6,11 @@ import type {
   BugRecord,
   GitHubFacts,
   Handoff,
+  PolicyCheck,
+  PolicyEvaluation,
   Question,
   Recommendation,
+  ReviewRound,
   TaskKind,
   VerificationAttempt,
 } from './types.ts';
@@ -85,6 +88,51 @@ export interface Presentation {
     handoff: Handoff | null;
     outstandingQuestion: Question | null;
     wasMerged: boolean;
+  };
+  /** Read-only policy, Review and merge-readiness evidence recorded by the service. */
+  automation: Automation;
+}
+
+export interface Automation {
+  /** Latest recorded decision evaluation (Rule or Automatic), with its checks and reproduction. */
+  decision: PolicyEvaluation | null;
+  /** Latest Devin Review round for the current PR head. */
+  review: ReviewRound | null;
+  /** Findings resolved across every reviewed head. */
+  resolvedFindings: number;
+  /** Latest merge evaluation for the current PR head; its checks carry CI and branch-protection state. */
+  merge: PolicyEvaluation | null;
+  ci: PolicyCheck | null;
+  /** Whether branch protection requires the verification status (`branch-protection` check). */
+  requiredVerification: PolicyCheck | null;
+  /** Why the workflow is waiting for a person now; empty when nothing is blocking. */
+  blockers: string[];
+}
+
+/** Policy, Review and merge evidence for the current head, derived from the record only. */
+export function automation(record: BugRecord | undefined): Automation {
+  const evaluations = record?.evaluations ?? [];
+  const fix = record?.fix ?? null;
+  const head = fix?.headSha ?? null;
+  const decision = evaluations.findLast((evaluation) => evaluation.kind === 'decision') ?? null;
+  const merge = head === null ? null : (evaluations.findLast((evaluation) => evaluation.kind === 'merge' && evaluation.subject === head) ?? null);
+  const review = fix === null ? null : (record?.review?.rounds.findLast((round) => round.prNumber === fix.prNumber && round.headSha === fix.headSha) ?? null);
+  const blockers: string[] = [];
+  if (record?.stage === 'triaged' && decision?.outcome === 'wait') {
+    blockers.push(...decision.checks.filter((check) => check.blocking && !check.ok).map((check) => check.detail));
+  }
+  if (review?.blocker !== null && review?.blocker !== undefined) blockers.push(review.blocker);
+  if (record?.stage === 'ready-to-merge' && merge?.outcome === 'wait') {
+    blockers.push(...merge.checks.filter((check) => check.blocking && !check.ok).map((check) => check.detail));
+  }
+  return {
+    decision,
+    review,
+    resolvedFindings: record?.review?.resolutions.length ?? 0,
+    merge,
+    ci: merge?.checks.find((check) => check.name === 'ci') ?? null,
+    requiredVerification: merge?.checks.find((check) => check.name === 'branch-protection') ?? null,
+    blockers,
   };
 }
 
@@ -238,5 +286,6 @@ export function presentBug(
       outstandingQuestion: record === undefined ? null : outstandingQuestion(record),
       wasMerged: record !== undefined && wasMerged(record),
     },
+    automation: automation(record),
   };
 }

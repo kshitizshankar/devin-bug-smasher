@@ -1,11 +1,17 @@
 import { parseBugKey } from './keys.ts';
 import {
   ACTION_NAMES,
+  AUTOMATIC_POLICIES,
   CONFIDENCES,
   DECISION_OUTCOMES,
   DIFF_CHECKS,
+  FINDING_RESOLUTIONS,
   HANDOFF_REASONS,
+  POLICY_KINDS,
+  POLICY_OUTCOMES,
   RECOMMENDATIONS,
+  REPRODUCTION_OUTCOMES,
+  REVIEW_ROUND_STATUSES,
   RUN_OUTCOMES,
   SESSION_LIVE_STATES,
   STAGES,
@@ -104,6 +110,7 @@ export function validateTriageFindings(value: unknown, path: string): Problems {
     checkString(value.proposedTest.description, `${path}.proposedTest.description`, problems);
     checkString(value.proposedTest.file, `${path}.proposedTest.file`, problems);
     checkString(value.proposedTest.command, `${path}.proposedTest.command`, problems);
+    if (value.proposedTest.code !== undefined) checkString(value.proposedTest.code, `${path}.proposedTest.code`, problems);
   }
   checkOneOf(value.recommendation, RECOMMENDATIONS, `${path}.recommendation`, problems);
   checkString(value.reason, `${path}.reason`, problems);
@@ -120,6 +127,8 @@ export function validateFixInfo(value: unknown, path: string): Problems {
   checkArray(value.testFiles, `${path}.testFiles`, problems, checkStringItem);
   checkString(value.summary, `${path}.summary`, problems);
   if (value.mergeCommitSha !== null) checkSha(value.mergeCommitSha, `${path}.mergeCommitSha`, problems);
+  if (value.mergedBy !== undefined) checkNullableString(value.mergedBy, `${path}.mergedBy`, problems);
+  if (value.mergedAt !== undefined) checkNullableTimestamp(value.mergedAt, `${path}.mergedAt`, problems);
   return problems;
 }
 
@@ -145,24 +154,93 @@ function checkFinding(item: unknown, path: string, problems: Problems): void {
   checkString(item.detail, `${path}.detail`, problems);
 }
 
+function checkRun(item: unknown, itemPath: string, list: Problems): void {
+  if (!checkObject(item, itemPath, list)) return;
+  checkOneOf(item.role, VERIFICATION_RUN_ROLES, `${itemPath}.role`, list);
+  checkOneOf(item.step, VERIFICATION_STEPS, `${itemPath}.step`, list);
+  checkSha(item.sha, `${itemPath}.sha`, list);
+  checkArray(item.command, `${itemPath}.command`, list, checkStringItem);
+  checkTimestamp(item.startedAt, `${itemPath}.startedAt`, list);
+  checkTimestamp(item.endedAt, `${itemPath}.endedAt`, list);
+  if (item.exitCode !== null && (typeof item.exitCode !== 'number' || !Number.isSafeInteger(item.exitCode))) {
+    list.push(`${itemPath}.exitCode must be null or an integer`);
+  }
+  checkOneOf(item.outcome, RUN_OUTCOMES, `${itemPath}.outcome`, list);
+  checkString(item.reason, `${itemPath}.reason`, list);
+  checkString(item.outputTail, `${itemPath}.outputTail`, list);
+}
+
+function checkNullableLine(value: unknown, path: string, problems: Problems): void {
+  if (value !== null) checkPositiveInteger(value, path, problems);
+}
+
+export function validateReviewRecord(value: unknown, path: string): Problems {
+  const problems: Problems = [];
+  if (!checkObject(value, path, problems)) return problems;
+  checkArray(value.rounds, `${path}.rounds`, problems, (item, itemPath, list) => {
+    if (!checkObject(item, itemPath, list)) return;
+    checkPositiveInteger(item.prNumber, `${itemPath}.prNumber`, list);
+    checkSha(item.headSha, `${itemPath}.headSha`, list);
+    checkOneOf(item.status, REVIEW_ROUND_STATUSES, `${itemPath}.status`, list);
+    checkTimestamp(item.requestedAt, `${itemPath}.requestedAt`, list);
+    checkNullableTimestamp(item.completedAt, `${itemPath}.completedAt`, list);
+    checkNullableString(item.detail, `${itemPath}.detail`, list);
+    checkArray(item.findings, `${itemPath}.findings`, list, (finding, findingPath, findingList) => {
+      if (!checkObject(finding, findingPath, findingList)) return;
+      checkString(finding.threadId, `${findingPath}.threadId`, findingList, { nonEmpty: true });
+      checkNullableString(finding.path, `${findingPath}.path`, findingList);
+      checkNullableLine(finding.line, `${findingPath}.line`, findingList);
+      checkString(finding.body, `${findingPath}.body`, findingList);
+      checkString(finding.url, `${findingPath}.url`, findingList);
+      checkBoolean(finding.outdated, `${findingPath}.outdated`, findingList);
+    });
+    checkNullableTimestamp(item.correctionSentAt, `${itemPath}.correctionSentAt`, list);
+    checkNullableString(item.blocker, `${itemPath}.blocker`, list);
+  });
+  checkArray(value.resolutions, `${path}.resolutions`, problems, (item, itemPath, list) => {
+    if (!checkObject(item, itemPath, list)) return;
+    checkString(item.threadId, `${itemPath}.threadId`, list, { nonEmpty: true });
+    checkString(item.url, `${itemPath}.url`, list);
+    checkSha(item.foundOnHead, `${itemPath}.foundOnHead`, list);
+    checkSha(item.resolvedOnHead, `${itemPath}.resolvedOnHead`, list);
+    checkOneOf(item.via, FINDING_RESOLUTIONS, `${itemPath}.via`, list);
+    checkTimestamp(item.at, `${itemPath}.at`, list);
+  });
+  return problems;
+}
+
+export function validatePolicyEvaluation(value: unknown, path: string): Problems {
+  const problems: Problems = [];
+  if (!checkObject(value, path, problems)) return problems;
+  checkOneOf(value.kind, POLICY_KINDS, `${path}.kind`, problems);
+  checkOneOf(value.policy, AUTOMATIC_POLICIES, `${path}.policy`, problems);
+  checkString(value.rule, `${path}.rule`, problems, { nonEmpty: true });
+  checkString(value.subject, `${path}.subject`, problems, { nonEmpty: true });
+  checkOneOf(value.outcome, POLICY_OUTCOMES, `${path}.outcome`, problems);
+  checkArray(value.checks, `${path}.checks`, problems, (item, itemPath, list) => {
+    if (!checkObject(item, itemPath, list)) return;
+    checkString(item.name, `${itemPath}.name`, list, { nonEmpty: true });
+    checkBoolean(item.ok, `${itemPath}.ok`, list);
+    checkBoolean(item.blocking, `${itemPath}.blocking`, list);
+    checkString(item.detail, `${itemPath}.detail`, list);
+  });
+  if (value.reproduction !== null && checkObject(value.reproduction, `${path}.reproduction`, problems)) {
+    const reproduction = value.reproduction;
+    checkSha(reproduction.sha, `${path}.reproduction.sha`, problems);
+    checkString(reproduction.testFile, `${path}.reproduction.testFile`, problems);
+    checkOneOf(reproduction.outcome, REPRODUCTION_OUTCOMES, `${path}.reproduction.outcome`, problems);
+    checkString(reproduction.reason, `${path}.reproduction.reason`, problems);
+    checkTimestamp(reproduction.at, `${path}.reproduction.at`, problems);
+    checkArray(reproduction.runs, `${path}.reproduction.runs`, problems, checkRun);
+  }
+  checkTimestamp(value.at, `${path}.at`, problems);
+  return problems;
+}
+
 export function validateVerificationEvidence(value: unknown, path: string): Problems {
   const problems: Problems = [];
   if (!checkObject(value, path, problems)) return problems;
-  checkArray(value.runs, `${path}.runs`, problems, (item, itemPath, list) => {
-    if (!checkObject(item, itemPath, list)) return;
-    checkOneOf(item.role, VERIFICATION_RUN_ROLES, `${itemPath}.role`, list);
-    checkOneOf(item.step, VERIFICATION_STEPS, `${itemPath}.step`, list);
-    checkSha(item.sha, `${itemPath}.sha`, list);
-    checkArray(item.command, `${itemPath}.command`, list, checkStringItem);
-    checkTimestamp(item.startedAt, `${itemPath}.startedAt`, list);
-    checkTimestamp(item.endedAt, `${itemPath}.endedAt`, list);
-    if (item.exitCode !== null && (typeof item.exitCode !== 'number' || !Number.isSafeInteger(item.exitCode))) {
-      list.push(`${itemPath}.exitCode must be null or an integer`);
-    }
-    checkOneOf(item.outcome, RUN_OUTCOMES, `${itemPath}.outcome`, list);
-    checkString(item.reason, `${itemPath}.reason`, list);
-    checkString(item.outputTail, `${itemPath}.outputTail`, list);
-  });
+  checkArray(value.runs, `${path}.runs`, problems, checkRun);
   checkArray(value.violations, `${path}.violations`, problems, checkFinding);
   checkArray(value.flags, `${path}.flags`, problems, checkFinding);
   return problems;
@@ -304,6 +382,12 @@ export function validateBugRecord(value: unknown, path = 'record'): Problems {
     checkBoolean(value.handoff.engineerLabelSeen, `${path}.handoff.engineerLabelSeen`, problems);
   }
   if (value.insights !== null) problems.push(...validateSessionInsights(value.insights, `${path}.insights`));
+  if (value.review !== undefined) problems.push(...validateReviewRecord(value.review, `${path}.review`));
+  if (value.evaluations !== undefined) {
+    checkArray(value.evaluations, `${path}.evaluations`, problems, (item, itemPath, list) => {
+      list.push(...validatePolicyEvaluation(item, itemPath));
+    });
+  }
   if (value.workflow !== undefined) problems.push(...validateWorkflowState(value.workflow, `${path}.workflow`));
   checkTimestamp(value.createdAt, `${path}.createdAt`, problems);
   checkTimestamp(value.updatedAt, `${path}.updatedAt`, problems);

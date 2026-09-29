@@ -153,6 +153,12 @@ not count against the review. `REVIEW_AUTO_FIX` records that Auto-Fix is an admi
 app setting (Devin Review sidebar "Enable auto-fix", or Settings > Devin > Pull requests > Responding to
 bots) with no API; the adapter never assumes it is on.
 
+The orchestrator requests one Review per verified PR head, polls it, sends unresolved findings back to
+the same session (capped), and persists every round, blocker and resolution (`BugRecord.review`); see
+`docs/ORCHESTRATION.md` › Decision and merge policies. Triage may supply `proposed_check.test_code` (the
+full test file when `test_file` is not on the default branch); it is data for the reproducer, never a
+command.
+
 ### Insights, usage and metrics
 
 ```ts

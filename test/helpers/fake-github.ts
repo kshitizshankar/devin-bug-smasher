@@ -72,7 +72,24 @@ interface FakePull {
   changed_files: number;
   diff: string | null;
   reviews: Array<{ id: number; user: FakeUser; state: string; commit_id: string; submitted_at: string | null; body: string }>;
+  threads: FakeThread[];
   mergeBlock: string | null;
+}
+
+/** A review thread in GraphQL shape: bot logins without `[bot]`, `__typename` telling bots apart. */
+interface FakeThread {
+  id: string;
+  isResolved: boolean;
+  isOutdated: boolean;
+  path: string | null;
+  line: number | null;
+  comments: { author: { login: string; __typename: string }; body: string; url: string; createdAt: string; originalCommit: { oid: string } | null }[];
+}
+
+interface FakeBranch {
+  sha: string;
+  protected: boolean;
+  requiredChecks: string[] | null;
 }
 
 interface FakeIssue {
@@ -123,6 +140,9 @@ const ROUTES: Record<FailurePoint, { method: string; pattern: RegExp; diff?: boo
   getCombinedStatus: { method: 'GET', pattern: /^commits\/[^/]+\/status$/ },
   createCommitStatus: { method: 'POST', pattern: /^statuses\/[^/]+$/ },
   mergePullRequest: { method: 'PUT', pattern: /^pulls\/\d+\/merge$/ },
+  listReviewThreads: { method: 'POST', pattern: /^\/graphql$/ },
+  getBranch: { method: 'GET', pattern: /^branches\/[^/]+$/ },
+  getDefaultBranch: { method: 'GET', pattern: /^\/repos\/[^/]+\/[^/]+$/ },
 };
 
 const OPEN_PR_TEST_MERGE_SHA = 'e'.repeat(40);
@@ -173,6 +193,8 @@ export class FakeGitHub {
   readonly #issues = new Map<number, FakeIssue>();
   readonly #statuses = new Map<string, FakeStatus[]>();
   readonly #checkRuns = new Map<string, object[]>();
+  readonly #branches = new Map<string, FakeBranch>([['main', { sha: '0'.repeat(40), protected: false, requiredChecks: [] }]]);
+  #defaultBranch = 'main';
   readonly #overrides: Override[] = [];
   #baseUrl = '';
   #nextNumber = 1;
@@ -252,6 +274,7 @@ export class FakeGitHub {
       changed_files: seed.changedFiles ?? files.length,
       diff: seed.diff === undefined ? '' : seed.diff,
       reviews: [],
+      threads: [],
       mergeBlock: null,
     });
     const pull = issue.pull as FakePull;
@@ -299,6 +322,48 @@ export class FakeGitHub {
 
   blockMerge(prNumber: number, reason: string | null): void {
     this.#pull(this.#issue(prNumber)).mergeBlock = reason;
+  }
+
+  addReviewThread(
+    prNumber: number,
+    thread: { author: string; body: string; path?: string; line?: number; commitSha?: string; outdated?: boolean },
+  ): { id: string } {
+    const pull = this.#pull(this.#issue(prNumber));
+    const id = `PRRT_${this.#nextId++}`;
+    const bot = thread.author.endsWith('[bot]');
+    pull.threads.push({
+      id,
+      isResolved: false,
+      isOutdated: thread.outdated ?? false,
+      path: thread.path ?? null,
+      line: thread.line ?? null,
+      comments: [
+        {
+          author: { login: bot ? thread.author.slice(0, -'[bot]'.length) : thread.author, __typename: bot ? 'Bot' : 'User' },
+          body: thread.body,
+          url: `https://github.com/${this.repo.owner}/${this.repo.name}/pull/${prNumber}#discussion_${id}`,
+          createdAt: this.#tick(),
+          originalCommit: { oid: thread.commitSha ?? pull.head_sha },
+        },
+      ],
+    });
+    return { id };
+  }
+
+  resolveReviewThread(prNumber: number, threadId: string): void {
+    const thread = this.#pull(this.#issue(prNumber)).threads.find((candidate) => candidate.id === threadId);
+    if (thread === undefined) throw new Error(`No review thread ${threadId}`);
+    thread.isResolved = true;
+  }
+
+  setBranch(name: string, branch: { sha: string; protected?: boolean; requiredChecks?: string[] | null; default?: boolean }): void {
+    const requiredChecks = branch.requiredChecks === undefined ? [] : branch.requiredChecks;
+    this.#branches.set(name, {
+      sha: branch.sha,
+      protected: branch.protected ?? (requiredChecks === null || requiredChecks.length > 0),
+      requiredChecks: requiredChecks === null ? null : [...requiredChecks],
+    });
+    if (branch.default === true) this.#defaultBranch = name;
   }
 
   addReview(prNumber: number, review: { reviewer: string; state: ReviewState; commitId?: string; body?: string }): { id: string } {
@@ -494,6 +559,50 @@ export class FakeGitHub {
       if (pull.mergeBlock !== null) return this.#error(405, pull.mergeBlock);
       const sha = this.#merge(issue, this.actor);
       return { status: 200, body: { sha, merged: true, message: 'Pull Request successfully merged' } };
+    }
+    if (route === '/graphql' && method === 'POST') {
+      const variables = (body.variables ?? {}) as { number?: number; cursor?: string | null };
+      const issue = this.#issues.get(Number(variables.number));
+      if (issue?.pull == null) {
+        return { status: 200, body: { data: { repository: { pullRequest: null } }, errors: [{ type: 'NOT_FOUND', message: 'Could not resolve to a PullRequest' }] } };
+      }
+      const start = Number(variables.cursor ?? 0);
+      const nodes = issue.pull.threads.slice(start, start + 2);
+      const next = start + nodes.length;
+      const hasNextPage = next < issue.pull.threads.length;
+      return {
+        status: 200,
+        body: {
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  pageInfo: { hasNextPage, endCursor: hasNextPage ? String(next) : null },
+                  nodes: nodes.map((thread) => ({ ...thread, comments: { nodes: thread.comments } })),
+                },
+              },
+            },
+          },
+        },
+      };
+    }
+    if (route === `/repos/${this.repo.owner}/${this.repo.name}` && method === 'GET') {
+      return { status: 200, body: { name: this.repo.name, full_name: `${this.repo.owner}/${this.repo.name}`, default_branch: this.#defaultBranch } };
+    }
+    if ((match = /^branches\/([^/]+)$/.exec(route)) && method === 'GET') {
+      const name = decodeURIComponent(match[1] ?? '');
+      const branch = this.#branches.get(name);
+      if (branch === undefined) return this.#error(404, 'Branch not found');
+      const protection =
+        branch.requiredChecks === null
+          ? undefined
+          : { enabled: branch.protected, required_status_checks: { enforcement_level: 'everyone', contexts: branch.requiredChecks, checks: branch.requiredChecks.map((context) => ({ context, app_id: null })) } };
+      return { status: 200, body: { name, commit: { sha: branch.sha }, protected: branch.protected, ...(protection === undefined ? {} : { protection }) } };
+    }
+    if ((match = /^rules\/branches\/([^/]+)$/.exec(route)) && method === 'GET') {
+      const branch = this.#branches.get(decodeURIComponent(match[1] ?? ''));
+      if (branch?.requiredChecks === null) return this.#error(403, 'Resource not accessible by integration');
+      return { status: 200, body: [] };
     }
     if ((match = /^commits\/([^/]+)\/check-runs$/.exec(route))) {
       const runs = this.#checkRuns.get(this.#resolve(decodeURIComponent(match[1] ?? ''))) ?? [];

@@ -6,7 +6,7 @@ import { DevinClient } from '../../src/devin/client.ts';
 import { OfflineDevin } from '../../src/devin/offline.ts';
 import type { WireSession } from '../../src/devin/wire.ts';
 import type { BugRecord } from '../../src/model/types.ts';
-import type { DecisionPolicy, Verifier } from '../../src/orchestrator/contracts.ts';
+import type { DecisionPolicy, Reproducer, Verifier } from '../../src/orchestrator/contracts.ts';
 import { Orchestrator, type TraceEvent } from '../../src/orchestrator/orchestrator.ts';
 import { Prompts } from '../../src/orchestrator/prompts.ts';
 import { BugStore } from '../../src/store/bug-store.ts';
@@ -19,6 +19,8 @@ export interface HarnessOptions {
   env?: Env;
   verifier?: Verifier;
   policy?: DecisionPolicy;
+  reproducer?: Reproducer;
+  maxReviewRepairs?: number;
   requireLiveResults?: boolean;
 }
 
@@ -80,6 +82,8 @@ export class Harness {
       prompts: this.prompts,
       verifier: this.#options.verifier,
       policy: this.#options.policy,
+      reproducer: this.#options.reproducer,
+      maxReviewRepairs: this.#options.maxReviewRepairs,
       requireLiveResults: this.#options.requireLiveResults,
       now: this.clock,
       trace: (event) => this.trace.push(event),

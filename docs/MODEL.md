@@ -32,14 +32,16 @@ The store keeps only orchestration and evidence data (`BugRecord` in `src/model/
 | `stage`         | One of the ten internal stages below                                                               |
 | `route`         | Work queued or running: `triage`, `fix` or `null`                                                  |
 | `session`       | Devin session `id`, `url`, `route`, `liveState` (`starting`/`running`/`blocked`/`ended`), timestamps, `stopRequestedAt` |
-| `triage`        | Findings: title, summary, reproduction steps, expected/actual, suspected cause, affected files, reproduced + notes, proposed test (description, file, command — **data only, never executed**), recommendation (`devin_fix`/`needs_engineer`/`close`), reason, confidence |
-| `fix`           | PR number/URL, current head SHA, test files, summary, `mergeCommitSha` (set by `pr-merged`)        |
+| `triage`        | Findings: title, summary, reproduction steps, expected/actual, suspected cause, affected files, reproduced + notes, proposed test (description, file, command — **data only, never executed** — and optional `code`, the full test file when it is not on the default branch), recommendation (`devin_fix`/`needs_engineer`/`close`), reason, confidence |
+| `fix`           | PR number/URL, current head SHA, test files, summary, `mergeCommitSha`, `mergedBy` (`github:<login>`) and `mergedAt` (set by `pr-merged`) |
 | `priorFixes`    | Earlier fix PRs, moved here when work is returned to investigation or repair                      |
 | `verifications` | Attempts: phase (`pre-merge`/`post-merge`), base and head SHAs, `pass`/`fail`/`error`, reason, output tail, time, session ID, optional `evidence` (per-run role/step/SHA/command/times/exit/outcome/output, diff `violations` and `flags`) |
 | `decisions`     | Person actions: action, outcome (`applied`/`requested`), actor, time, context                      |
 | `questions`     | id, summary, asked time, answered time (`null` while outstanding)                                  |
 | `stageHistory`  | One `{ stage, at }` entry per actual stage change                                                  |
 | `handoff`       | Latest reason, detail and time work was handed to an engineer, and `engineerLabelSeen`             |
+| `review`        | Optional Devin Review record: one round per reviewed `{prNumber, headSha}` (`pending`/`completed`/`unavailable`, detail, unresolved findings with thread ID/path/line/body/URL, `correctionSentAt`, durable `blocker`) and `resolutions` (thread, head it was found on and resolved on, `same-session` or `github`) |
+| `evaluations`   | Optional Rule/Automatic policy evaluations: `kind` (`decision`/`merge`), policy, rule, subject (triage commit or PR head), outcome (`fix`/`engineer`/`merge`/`wait`), every check (`name`, `ok`, `blocking`, `detail`), reproduction evidence (`sha`, test file, `reproduced`/`not-reproduced`/`unknown`, reason, runs) |
 | `insights`      | Optional session insights (`acuUsed` — `null` when unknown, never zero — and notes)                |
 
 Display strings (status labels, groups, actions) are **not** persisted.
@@ -68,7 +70,10 @@ when its labels are removed. `enrollBug` refuses closed issues.
 
 `presentBug(record | undefined, facts, settings.labels)` is the single server-side derivation of
 `status`, `statusLabel`, `group`, `actions` and `history` (recommendation, latest verification,
-`currentHeadVerified`, `postMergeVerified`, handoff, outstanding question, `wasMerged`).
+`currentHeadVerified`, `postMergeVerified`, handoff, outstanding question, `wasMerged`) and `automation`:
+the latest decision evaluation, the Review round and merge evaluation for the current head only, the
+number of resolved findings, the merge evaluation's `ci` and `branch-protection` (required verification
+status) checks, and `blockers` — why a person is needed now. It is read-only and derived from the record.
 
 ### State/action table
 
@@ -117,7 +122,9 @@ are appended once per actual change; repeated identical events return `changed: 
 
 Events (`ModelEvent`): `labels-changed`, `session-started`, `session-status`, `question-asked`,
 `reply-received`, `triage-completed`, `fix-submitted`, `head-changed`, `verification-recorded`,
-`pr-merged`, `pr-closed`, `issue-closed`, `issue-reopened`, `insights-recorded`. An event whose resulting
+`pr-merged` (with optional `mergedBy`/`mergedAt`), `pr-closed`, `issue-closed`, `issue-reopened`,
+`insights-recorded`, `review-recorded { review }` (replaces the Review record) and
+`policy-evaluated { evaluation }` (appends one evaluation). Neither of the last two changes the stage. An event whose resulting
 record would fail `validateBugRecord` (e.g. negative usage, a malformed SHA, an empty session ID) is refused
 with `invalid-data`, so every accepted event can be persisted.
 
@@ -206,8 +213,9 @@ Counts are per fix session, so a new session after a handoff starts with fresh b
 | `FIX_LABEL`            | `bug-smasher`           |                                                          |
 | `ENGINEER_LABEL`       | `needs-engineer`        |                                                          |
 | `FEATURE_LABEL`        | `devin-builds-feature`  |                                                          |
-| `DECISION`, `MERGE`    | `person`                | `person`, `rule` or `auto`                               |
-| `MERGE_MAX_LINES`      | `200`                   | Positive integer                                         |
+| `DECISION`, `MERGE`    | `person`                | `person`, `rule` or `auto` (`docs/ORCHESTRATION.md`)     |
+| `DECISION_RULE_CLASSES` | empty                  | Comma-separated class labels the Rule decision may fix; trimmed, no blanks or case-insensitive duplicates, at most 50 characters each; empty → Rule always waits |
+| `MERGE_MAX_LINES`      | `200`                   | Positive integer; Rule merge accepts additions + deletions up to and including it |
 | `MAX_ACTIVE_SESSIONS`  | `3`                     | Positive integer                                         |
 | `MAX_ACU_PER_SESSION`  | `5`                     | Positive integer                                         |
 | `MAX_FIX_RETRIES`      | `1`                     | Non-negative integer                                     |

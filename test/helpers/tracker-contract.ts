@@ -18,6 +18,12 @@ export interface TrackerSimulator {
   blockMerge(prNumber: number, reason: string | null): void;
   addReview(prNumber: number, review: { reviewer: string; state: ReviewState; commitId?: string; body?: string }): { id: string };
   addCheckRun(sha: string, run: { name: string; status: string; conclusion: string | null; app?: string }): { id: string };
+  addReviewThread(
+    prNumber: number,
+    thread: { author: string; body: string; path?: string; line?: number; commitSha?: string; outdated?: boolean },
+  ): { id: string };
+  resolveReviewThread(prNumber: number, threadId: string): void;
+  setBranch(name: string, branch: { sha: string; protected?: boolean; requiredChecks?: string[] | null; default?: boolean }): void;
 }
 
 export interface TrackerHarness {
@@ -335,6 +341,39 @@ export function trackerContract(name: string, setup: () => Promise<TrackerHarnes
       await h.tracker.createCommitStatus(HEAD_1, { context: 'other', state: 'failure' });
       assert.equal((await h.tracker.getCombinedStatus(HEAD_1)).state, 'failure');
       await rejectsWith(h.tracker.createCommitStatus('main', { context: 'x', state: 'success' }), 'validation');
+    });
+
+    it('lists review threads with their first comment, commit and resolution', async () => {
+      const pr = h.sim.seedPullRequest({ title: 'Fix', headSha: HEAD_1 });
+      const first = h.sim.addReviewThread(pr.number, { author: 'devin-ai-integration[bot]', body: 'Off by one', path: 'src/a.ts', line: 3 });
+      const second = h.sim.addReviewThread(pr.number, { author: 'maintainer', body: 'Nit', commitSha: HEAD_2, outdated: true });
+      h.sim.resolveReviewThread(pr.number, second.id);
+      const threads = await h.tracker.listReviewThreads(pr.number);
+      assert.deepEqual(
+        threads.map((thread) => [thread.id, thread.isResolved, thread.isOutdated, thread.path, thread.line, thread.commitSha, thread.comments[0]?.authorLogin, thread.comments[0]?.body]),
+        [
+          [first.id, false, false, 'src/a.ts', 3, HEAD_1, 'devin-ai-integration[bot]', 'Off by one'],
+          [second.id, true, true, null, null, HEAD_2, 'maintainer', 'Nit'],
+        ],
+      );
+      assert.ok(threads[0]?.comments[0]?.url.startsWith('https://'));
+      await rejectsWith(h.tracker.listReviewThreads(9999), 'not-found');
+    });
+
+    it('reports branch protection required checks, and unreadable requirements as unknown', async () => {
+      assert.deepEqual(await h.tracker.getDefaultBranch(), { name: 'main', sha: (await h.tracker.getDefaultBranch()).sha, protected: false, requiredChecks: [] });
+      h.sim.setBranch('main', { sha: HEAD_1, requiredChecks: ['bug-smasher/verification', 'ci'], default: true });
+      assert.deepEqual(await h.tracker.getBranch('main'), {
+        name: 'main',
+        sha: HEAD_1,
+        protected: true,
+        requiredChecks: ['bug-smasher/verification', 'ci'],
+      });
+      h.sim.setBranch('release', { sha: HEAD_2, requiredChecks: null });
+      assert.deepEqual(await h.tracker.getBranch('release'), { name: 'release', sha: HEAD_2, protected: true, requiredChecks: null });
+      h.sim.setBranch('dev', { sha: HEAD_2, default: true });
+      assert.equal((await h.tracker.getDefaultBranch()).name, 'dev');
+      await rejectsWith(h.tracker.getBranch('missing'), 'not-found');
     });
 
     it('reports rate limits and server errors as retryable with a wait hint', async () => {

@@ -13,13 +13,17 @@ tooling.
 Fixes are verified independently in Docker against exact base and head commits; see
 [`docs/VERIFICATION.md`](docs/VERIFICATION.md). Without `VERIFY_IMAGE`, nothing is reported as verified.
 
+## Decision and merge policies
+
+`DECISION` and `MERGE` choose who decides: `person` (the default: nothing happens automatically), `rule`
+(narrow, evidence-backed conditions such as `DECISION_RULE_CLASSES` and `MERGE_MAX_LINES`) or `auto`.
+Every automatic decision records its checks and evidence, merges only the exact verified head, and never
+closes an issue. See [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md#decision-and-merge-policies).
+
 ## Not yet implemented
 
 None of the following exists yet:
 
-- **Decision and merge policies** – automatic repair decisions and merging. The workflow orchestrator
-  (see [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md)) consumes an injected decision-policy contract, but
-  none is implemented yet, so a person decides.
 - **Dashboard** – the frontend is a placeholder page only.
 - **Docker packaging** – there is no Dockerfile or container image.
 

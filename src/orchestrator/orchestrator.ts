@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { GitHubRepo, Settings } from '../config/settings.ts';
 import type { DevinClient } from '../devin/client.ts';
 import { DevinError } from '../devin/errors.ts';
+import { correctionMessage, DEVIN_REVIEW_BOT_LOGIN, reviewFindings, type ReviewState } from '../devin/review.ts';
 import {
   bugTag,
   fixSubmittedEvent,
@@ -28,6 +29,10 @@ import {
 import type {
   ActionName,
   BugRecord,
+  FindingResolution,
+  PolicyEvaluation,
+  ReviewRecord,
+  ReviewRound,
   Stage,
   VerificationAttempt,
   VerificationPhase,
@@ -41,6 +46,7 @@ import {
   TrackerError,
   type Actor,
   type IssueEvent,
+  type ReviewThread,
   type Tracker,
   type TrackerComment,
   type TrackerIssue,
@@ -49,7 +55,12 @@ import {
 import {
   existingPullRequestComment,
   policyDecisionComment,
+  policyMergeComment,
+  policyWaitComment,
   questionComment,
+  reviewBlockerComment,
+  sessionStartedComment,
+  thankYouComment,
   triageComment,
   triagePullRequestNotice,
   verificationFlagsComment,
@@ -58,18 +69,33 @@ import {
   githubActor,
   INTERFACE_ACTOR,
   policyActor,
-  UNAVAILABLE_POLICY,
   UNAVAILABLE_VERIFIER,
   verificationStatus,
   type DecisionPolicy,
+  type Reproducer,
   type Verifier,
 } from './contracts.ts';
+import {
+  decisionPolicy,
+  evaluateCi,
+  evaluateMerge,
+  requiredStatus,
+  sameEvaluation,
+  type ReviewGate,
+} from './policies.ts';
 import type { HumanComment, IssueContext, Prompts } from './prompts.ts';
 
 /** The Devin operations the orchestrator uses. `DevinClient` satisfies it; so does `DevinClient` over `OfflineDevin`. */
 export type OrchestratorDevin = Pick<
   DevinClient,
-  'createSession' | 'getSession' | 'findSessions' | 'sendMessage' | 'listMessages' | 'terminateSession'
+  | 'createSession'
+  | 'getSession'
+  | 'findSessions'
+  | 'sendMessage'
+  | 'listMessages'
+  | 'terminateSession'
+  | 'requestReview'
+  | 'getReview'
 >;
 
 export type TraceType =
@@ -101,6 +127,11 @@ export type TraceType =
   | 'question-posted'
   | 'verifier-unavailable'
   | 'policy-unavailable'
+  | 'policy-waiting'
+  | 'review-requested'
+  | 'review-unavailable'
+  | 'merge-waiting'
+  | 'merge-already-requested'
   | 'error';
 
 export interface TraceEvent {
@@ -118,7 +149,12 @@ export interface OrchestratorOptions {
   settings: Settings;
   prompts: Prompts;
   verifier?: Verifier;
+  /** Overrides the policy built from `DECISION`; Person never decides. */
   policy?: DecisionPolicy;
+  /** Runs Rule decision's proposed test on current code (the independent verifier); none leaves it unknown. */
+  reproducer?: Reproducer;
+  /** Same-session Devin Review repair rounds per PR before a person is asked (default 2). */
+  maxReviewRepairs?: number;
   /** When true, results from dependencies that are not live (stubs, fixtures) are refused as unavailable. */
   requireLiveResults?: boolean;
   /** Logins whose comments and label changes are the service's own, besides bots and marked comments. */
@@ -141,6 +177,7 @@ const WORKING_STAGES: readonly Stage[] = ['triaging', 'fixing', 'verifying'];
 const RELAY_STAGES: readonly Stage[] = ['triaging', 'needs-input', 'fixing'];
 const HANDOFF_STAGES: readonly Stage[] = ['queued', 'triaging', 'needs-input', 'triaged', 'fixing'];
 const OUTPUT_TAIL_CHARS = 4000;
+const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
 
 export function emptyWorkflow(): WorkflowState {
@@ -165,6 +202,10 @@ export function consumesCapacity(record: BugRecord): boolean {
 
 function commentKey(raw: string): string {
   return raw.replace(/[^A-Za-z0-9._:/-]/g, '-').slice(0, 100);
+}
+
+function policyReasons(evaluation: PolicyEvaluation): string[] {
+  return evaluation.checks.map((check) => `${check.ok ? 'Met' : check.blocking ? 'Not met' : 'Note'}: ${check.detail}`);
 }
 
 function hash(text: string): string {
@@ -201,6 +242,7 @@ export class Orchestrator {
   readonly #verifier: Verifier;
   readonly #policy: DecisionPolicy;
   readonly #requireLive: boolean;
+  readonly #maxReviewRepairs: number;
   readonly #serviceLogins: ReadonlySet<string>;
   readonly #playbookId: string | null;
   readonly #reconcileAttempts: number;
@@ -221,12 +263,21 @@ export class Orchestrator {
     this.#settings = options.settings;
     this.#prompts = options.prompts;
     this.#verifier = options.verifier ?? UNAVAILABLE_VERIFIER;
-    this.#policy = options.policy ?? UNAVAILABLE_POLICY;
+    this.#now = options.now ?? (() => new Date());
+    this.#policy =
+      options.policy ??
+      decisionPolicy(options.settings.decision, {
+        labels: options.settings.labels,
+        ruleClasses: options.settings.decisionRuleClasses,
+        reproducer: options.reproducer ?? null,
+        defaultBranch: () => options.tracker.getDefaultBranch(),
+        now: this.#now,
+      });
     this.#requireLive = options.requireLiveResults ?? false;
+    this.#maxReviewRepairs = options.maxReviewRepairs ?? DEFAULT_MAX_REVIEW_REPAIRS;
     this.#serviceLogins = new Set((options.serviceLogins ?? []).map((login) => login.toLowerCase()));
     this.#playbookId = options.playbookId ?? null;
     this.#reconcileAttempts = options.reconcileAttempts ?? 3;
-    this.#now = options.now ?? (() => new Date());
     this.#trace = options.trace ?? (() => {});
     this.#model = {
       labels: options.settings.labels,
@@ -393,6 +444,10 @@ export class Orchestrator {
     if (await this.#relayReply(issue, record)) return;
     if (record.stage === 'verifying') {
       await this.#verify(issue, record);
+      return;
+    }
+    if (record.stage === 'ready-to-merge') {
+      await this.#readyToMerge(issue, record);
       return;
     }
     if (record.stage === 'triaged' && this.#settings.decision !== 'person') {
@@ -726,7 +781,13 @@ export class Orchestrator {
     const pr = await this.#tracker.getPullRequest(fix.prNumber);
     let event: ModelEvent | null = null;
     if (pr.state === 'merged' && pr.mergeCommitSha !== null) {
-      event = { type: 'pr-merged', prNumber: pr.number, mergeCommitSha: pr.mergeCommitSha };
+      event = {
+        type: 'pr-merged',
+        prNumber: pr.number,
+        mergeCommitSha: pr.mergeCommitSha,
+        mergedBy: pr.mergedBy === null ? null : githubActor(pr.mergedBy.login),
+        mergedAt: pr.mergedAt,
+      };
     } else if (pr.state === 'closed') {
       event = { type: 'pr-closed', prNumber: pr.number };
     } else if (pr.state === 'open' && pr.headSha !== fix.headSha) {
@@ -745,8 +806,27 @@ export class Orchestrator {
         message: this.#prompts.postMergeAck({ issueRef: `#${issue.number}`, prUrl: fix.prUrl, mergeCommitSha: event.mergeCommitSha, marker }),
       });
     }
+    const after: WorkflowOperation[] = [];
+    if (event.type === 'pr-merged') {
+      const policyMerge = (record.evaluations ?? []).findLast(
+        (evaluation) => evaluation.kind === 'merge' && evaluation.outcome === 'merge' && evaluation.subject === pr.headSha,
+      );
+      if (policyMerge !== undefined) {
+        after.push({
+          type: 'post-comment',
+          key: commentKey(`merge-decision:${record.key}:${pr.headSha}`),
+          body: policyMergeComment(policyMerge.rule, fix.prUrl, pr.headSha, policyReasons(policyMerge)),
+        });
+      }
+      after.push({
+        type: 'post-comment',
+        key: commentKey(`thanks:${record.key}:${event.mergeCommitSha}`),
+        body: thankYouComment(issue.author?.login ?? null, fix.prUrl, event.mergeCommitSha),
+      });
+    }
     const quiet = record.stage === 'closed' || record.stage === 'with-engineer';
-    return (await this.#commit(issue, record, this.#event(record, event), event.type, { first: ops, quiet })) === 'applied';
+    const result = this.#event(record, event);
+    return (await this.#commit(issue, record, result, event.type, { first: ops, ops: after, quiet })) === 'applied';
   }
 
   async #existingPullRequest(issue: TrackerIssue): Promise<TrackerPullRequest | null> {
@@ -907,8 +987,18 @@ export class Orchestrator {
       return;
     }
     const delivered = record.workflow?.dispatch?.commentIds ?? [];
+    const comments = await this.#tracker.listComments(issue.number);
+    const greeting: WorkflowOperation[] = comments.some((comment) => comment.body.includes(session.url))
+      ? []
+      : [
+          {
+            type: 'post-comment',
+            key: commentKey(`session-started:${session.id}`),
+            body: sessionStartedComment(issue.author?.login ?? null, session.url),
+          },
+        ];
     await this.#commit(issue, record, result, what, {
-      ops: extraOps,
+      ops: [...greeting, ...extraOps],
       mutate: (state) => {
         state.dispatch = null;
         state.relayedCommentIds.push(...delivered);
@@ -1226,9 +1316,34 @@ export class Orchestrator {
       this.#emit(record.key, 'policy-unavailable', { reason: outcome.reason });
       return;
     }
-    if (outcome.status === 'wait') return;
+    if (outcome.status === 'wait') {
+      this.#emit(record.key, 'policy-waiting', { rule: outcome.rule, reason: outcome.reason });
+      const evaluation = outcome.evaluation;
+      if (evaluation === null || this.#seen(record, evaluation)) return;
+      const rule = outcome.rule ?? evaluation.rule;
+      const reasons = policyReasons(evaluation);
+      await this.#commit(issue, record, this.#event(record, { type: 'policy-evaluated', evaluation }), 'policy-wait', {
+        ops: [
+          {
+            type: 'post-comment',
+            key: commentKey(`decision-wait:${record.key}:${hash(`${evaluation.subject}\n${reasons.join('\n')}`)}`),
+            body: policyWaitComment(rule, reasons, this.#settings.labels),
+          },
+        ],
+      });
+      return;
+    }
+    let base = record;
+    if (outcome.evaluation !== null) {
+      const recorded = this.#event(record, { type: 'policy-evaluated', evaluation: outcome.evaluation });
+      if (!recorded.ok) {
+        this.#emit(record.key, 'refused', { what: 'policy-evaluated', code: recorded.error.code, message: recorded.error.message });
+        return;
+      }
+      base = recorded.record;
+    }
     const result = applyAction(
-      record,
+      base,
       toGitHubFacts(this.#repo, issue, null),
       { name: outcome.action, actor: policyActor(outcome.rule), context: outcome.reasons.join('; ') },
       this.#model,
@@ -1243,6 +1358,209 @@ export class Orchestrator {
         },
       ],
     });
+  }
+
+  /** An evaluation equal to the latest one for the same kind and subject is not recorded again. */
+  #seen(record: BugRecord, evaluation: PolicyEvaluation): boolean {
+    const latest = (record.evaluations ?? []).findLast(
+      (candidate) => candidate.kind === evaluation.kind && candidate.subject === evaluation.subject,
+    );
+    return sameEvaluation(latest, evaluation);
+  }
+
+  // Review and merge ---------------------------------------------------------------------------------------------
+
+  async #readyToMerge(issue: TrackerIssue, record: BugRecord): Promise<void> {
+    if (this.#settings.devin.review && (await this.#reviewStep(issue, record))) return;
+    if (this.#settings.merge === 'person') return;
+    await this.#mergeStep(issue, this.#store.get(record.key) as BugRecord);
+  }
+
+  /**
+   * One Devin Review step for the current head: request it once, then poll until it finishes, then collect
+   * its unresolved threads and send them to the same session (or record a blocker when repairs ran out or the
+   * session ended). Returns true when it recorded something, so the merge waits for the next cycle.
+   */
+  async #reviewStep(issue: TrackerIssue, record: BugRecord): Promise<boolean> {
+    const fix = record.fix;
+    if (fix === null) return false;
+    const review: ReviewRecord = structuredClone(record.review ?? { rounds: [], resolutions: [] });
+    const index = review.rounds.findIndex((round) => round.prNumber === fix.prNumber && round.headSha === fix.headSha);
+    const ops: WorkflowOperation[] = [];
+    if (index === -1) {
+      const state = await this.#reviewCall(record, () => this.#devin.requestReview(fix.prUrl, fix.headSha));
+      if (state === null) return false;
+      this.#emit(record.key, 'review-requested', { prNumber: fix.prNumber, headSha: fix.headSha, status: state.status });
+      const round: ReviewRound = {
+        prNumber: fix.prNumber,
+        headSha: fix.headSha,
+        status: 'pending',
+        requestedAt: this.#nowIso(),
+        completedAt: null,
+        detail: null,
+        findings: [],
+        correctionSentAt: null,
+        blocker: null,
+      };
+      // A review of an earlier head is returned until the provider picks up the new one; keep polling.
+      if (!(state.status === 'unavailable' && state.reason === 'different-commit')) {
+        await this.#settleRound(record.key, fix.prNumber, round, state, review);
+      }
+      review.rounds.push(round);
+    } else {
+      const round = review.rounds[index] as ReviewRound;
+      if (round.status === 'pending') {
+        const state = await this.#reviewCall(record, () => this.#devin.getReview(fix.prUrl, fix.headSha));
+        if (state === null || state.status === 'pending') return false;
+        await this.#settleRound(record.key, fix.prNumber, round, state, review);
+      } else if (round.status === 'completed' && round.findings.length > 0 && round.correctionSentAt === null && round.blocker === null) {
+        const repairs = review.rounds.filter((other) => other.prNumber === fix.prNumber && other.correctionSentAt !== null).length;
+        const session = record.session;
+        if (repairs >= this.#maxReviewRepairs) {
+          round.blocker = `The limit of ${this.#maxReviewRepairs} Devin Review repair round(s) was reached; a person decides what to do with the remaining findings.`;
+        } else if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) {
+          round.blocker = 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
+        } else {
+          const marker = `bug-smasher:review:${fix.headSha}`;
+          const message = [
+            correctionMessage(round.findings),
+            '',
+            'Resolve each review thread once it is addressed.',
+            '',
+            `<!-- ${marker} -->`,
+          ].join('\n');
+          ops.push({ type: 'send-message', sessionId: session.id, marker, message });
+          round.correctionSentAt = this.#nowIso();
+        }
+        if (round.blocker !== null) {
+          ops.push({
+            type: 'post-comment',
+            key: commentKey(`review-blocker:${record.key}:${fix.headSha}`),
+            body: reviewBlockerComment(fix.prUrl, fix.headSha, round.blocker, round.findings.map((finding) => finding.url)),
+          });
+        }
+      } else {
+        return false;
+      }
+    }
+    const result = this.#event(record, { type: 'review-recorded', review });
+    return (await this.#commit(issue, record, result, 'review-recorded', { ops })) === 'applied';
+  }
+
+  async #reviewCall(record: BugRecord, call: () => Promise<ReviewState>): Promise<ReviewState | null> {
+    try {
+      return await call();
+    } catch (error) {
+      this.#emit(record.key, 'review-unavailable', { message: describe(error) });
+      return null;
+    }
+  }
+
+  /** Records a finished Review (or why it is unavailable) and, when completed, its unresolved findings. */
+  async #settleRound(key: string, prNumber: number, round: ReviewRound, state: ReviewState, review: ReviewRecord): Promise<void> {
+    if (state.status === 'pending') return;
+    if (state.status === 'completed') {
+      const threads = await this.#tracker.listReviewThreads(prNumber);
+      const findings = reviewFindings(state, threads);
+      if (findings.status === 'known') {
+        round.status = 'completed';
+        round.completedAt = this.#nowIso();
+        round.findings = findings.unresolved;
+        this.#recordResolutions(review, threads, round.headSha);
+        return;
+      }
+      round.status = 'unavailable';
+      round.detail = findings.detail;
+      return;
+    }
+    round.status = 'unavailable';
+    round.completedAt = this.#nowIso();
+    round.detail = state.status === 'error' ? 'Devin Review errored' : `${state.reason}: ${state.detail}`;
+    this.#emit(key, 'review-unavailable', { prNumber, headSha: round.headSha, detail: round.detail });
+  }
+
+  /** Adds a resolution for each earlier finding whose thread is now resolved or gone. */
+  #recordResolutions(review: ReviewRecord, threads: readonly ReviewThread[], currentHead: string): boolean {
+    const open = new Set(threads.filter((thread) => !thread.isResolved).map((thread) => thread.id));
+    const known = new Set(review.resolutions.map((resolution) => resolution.threadId));
+    const added: FindingResolution[] = [];
+    for (const round of review.rounds) {
+      for (const finding of round.findings) {
+        if (open.has(finding.threadId) || known.has(finding.threadId)) continue;
+        known.add(finding.threadId);
+        added.push({
+          threadId: finding.threadId,
+          url: finding.url,
+          foundOnHead: round.headSha,
+          resolvedOnHead: currentHead,
+          via: round.correctionSentAt !== null && currentHead !== round.headSha ? 'same-session' : 'github',
+          at: this.#nowIso(),
+        });
+      }
+    }
+    review.resolutions.push(...added);
+    return added.length > 0;
+  }
+
+  /**
+   * Rule or Automatic merge: rereads the PR, CI, Review threads and branch protection, records the evaluation
+   * when it changed and, when every condition holds, merges with GitHub's expected-head condition. A head that
+   * already had a merge requested is not requested again.
+   */
+  async #mergeStep(issue: TrackerIssue, record: BugRecord): Promise<void> {
+    const fix = record.fix;
+    const policy = this.#settings.merge;
+    if (fix === null || record.stage !== 'ready-to-merge' || policy === 'person') return;
+    const pr = await this.#tracker.getPullRequest(fix.prNumber);
+    if (pr.state !== 'open' || pr.headSha !== fix.headSha) return;
+    if ((record.evaluations ?? []).some((evaluation) => evaluation.kind === 'merge' && evaluation.outcome === 'merge' && evaluation.subject === pr.headSha)) {
+      this.#emit(record.key, 'merge-already-requested', { prNumber: pr.number, headSha: pr.headSha });
+      return;
+    }
+    const [runs, combined] = await Promise.all([this.#tracker.listCheckRuns(pr.headSha), this.#tracker.getCombinedStatus(pr.headSha)]);
+    const branch = await this.#tracker.getBranch(pr.baseRef).catch(() => null);
+    const review: ReviewRecord = structuredClone(record.review ?? { rounds: [], resolutions: [] });
+    const gate: ReviewGate = {
+      enabled: this.#settings.devin.review,
+      round: review.rounds.find((round) => round.prNumber === pr.number && round.headSha === pr.headSha) ?? null,
+      unresolved: null,
+    };
+    let resolved = false;
+    if (policy === 'rule' && gate.enabled && gate.round?.status === 'completed') {
+      const threads = await this.#tracker.listReviewThreads(pr.number).catch(() => null);
+      if (threads !== null) {
+        gate.unresolved = threads.filter(
+          (thread) => !thread.isResolved && thread.comments[0]?.authorLogin === DEVIN_REVIEW_BOT_LOGIN,
+        ).length;
+        resolved = this.#recordResolutions(review, threads, pr.headSha);
+      }
+    }
+    const evaluation = evaluateMerge(
+      policy,
+      { record, pr, ci: evaluateCi(runs, combined), review: gate, protection: requiredStatus(branch), maxLines: this.#settings.mergeMaxLines },
+      this.#now(),
+    );
+    let result: ModelResult = resolved ? this.#event(record, { type: 'review-recorded', review }) : { ok: true, changed: false, record, effects: [] };
+    if (!result.ok) return;
+    const seen = this.#seen(record, evaluation);
+    if (!seen) {
+      const next = this.#event(result.record, { type: 'policy-evaluated', evaluation });
+      if (!next.ok) return;
+      result = next;
+    }
+    if (evaluation.outcome === 'wait') {
+      if (!seen) this.#emit(record.key, 'merge-waiting', { rule: evaluation.rule, headSha: pr.headSha });
+      if (result.changed) await this.#commit(issue, record, result, 'merge-wait');
+      return;
+    }
+    const merge = applyAction(
+      result.record,
+      toGitHubFacts(this.#repo, issue, pr),
+      { name: 'merge', actor: policyActor(evaluation.rule), context: policyReasons(evaluation).join('; ') },
+      this.#model,
+      this.#nowIso(),
+    );
+    await this.#commit(issue, record, merge, `policy-merge`);
   }
 
   // Interface actions --------------------------------------------------------------------------------------------

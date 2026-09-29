@@ -27,6 +27,7 @@ export const STRUCTURED_OUTPUT_SCHEMA = {
         description: { type: 'string' },
         test_file: { type: 'string' },
         command: { type: 'string' },
+        test_code: { type: 'string', description: 'Full contents of test_file when it is a new file' },
       },
     },
     bucket: { type: 'string', enum: ['devin_fix', 'needs_engineer', 'close'] },
@@ -58,7 +59,7 @@ export interface StructuredOutput {
   affected_files?: string[];
   reproduced?: boolean;
   reproduction_notes?: string;
-  proposed_check?: { description?: string; test_file?: string; command?: string };
+  proposed_check?: { description?: string; test_file?: string; command?: string; test_code?: string };
   bucket?: (typeof RECOMMENDATIONS)[number];
   bucket_reason?: string;
   confidence?: (typeof CONFIDENCES)[number];
@@ -143,6 +144,9 @@ function checkTypes(raw: Record<string, unknown>): string[] {
           problems.push(`proposed_check.${field} must be a string`);
         }
       }
+      if (check.test_code !== undefined && typeof check.test_code !== 'string') {
+        problems.push('proposed_check.test_code must be a string');
+      }
     }
   }
   if (raw.status === 'triage_complete' && raw.phase === 'fix') problems.push('triage_complete requires phase triage');
@@ -204,6 +208,7 @@ function triageFindings(output: StructuredOutput, missing: string[]): TriageFind
       description: check?.description ?? '',
       file: check?.test_file ?? '',
       command: check?.command ?? '',
+      ...(check?.test_code === undefined ? {} : { code: check.test_code }),
     },
     recommendation: output.bucket ?? 'needs_engineer',
     reason: output.bucket_reason ?? '',
