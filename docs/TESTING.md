@@ -26,6 +26,8 @@ suite finishes.
 | `test/presentation.test.ts` | The documented state/action table in `docs/MODEL.md`: status, group and permitted actions per row, and that `applyAction` accepts exactly those actions | No |
 | `test/bug-store.test.ts` | JSON store: missing file, restart read-back in a separate process, overlapping updates, corrupt/invalid data refused, failed write preserves prior file and state | No |
 | `test/settings.test.ts` | Defaults, `PORT=0`, invalid inputs rejected, distinct labels, live-mode credentials and `CHECK_COMMAND`, secret redaction, unknown costs stay `null` | No |
+| `test/tracker-github.test.ts` | `GitHubTracker` against an offline fake GitHub REST server: the shared tracker contract, headers, Link pagination, page-limit and foreign-link refusal, drift deduplication, timeline filtering, merge `sha` precondition, label ordering, rate-limit/auth/validation/server/network/timeout/malformed-response errors, token redaction | No |
+| `test/tracker-memory.test.ts` | `InMemoryTracker` against the same shared tracker contract, plus copy isolation | No |
 
 Run a selected file:
 
