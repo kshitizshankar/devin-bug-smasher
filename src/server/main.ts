@@ -1,7 +1,9 @@
 import type { AddressInfo } from 'node:net';
 import { liveSettingsProblems, loadSettings, SettingsError, type Settings } from '../config/settings.ts';
 import { DevinClient } from '../devin/client.ts';
+import { DevinSetupClient } from '../devin/setup.ts';
 import { Orchestrator } from '../orchestrator/orchestrator.ts';
+import { PLAYBOOK_ROUTES, syncedPlaybookIds, type PlaybookIds } from '../orchestrator/playbooks.ts';
 import { Prompts } from '../orchestrator/prompts.ts';
 import { BugStore } from '../store/bug-store.ts';
 import { GitHubTracker } from '../tracker/github.ts';
@@ -48,12 +50,15 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
   const store = await BugStore.open();
   const tracker = new GitHubTracker({ repo, token: settings.github.token as string });
   const devin = DevinClient.fromSettings(settings);
+  const prompts = await Prompts.load();
+  const playbookIds = await routePlaybookIds(settings, `${repo.owner}/${repo.name}`, prompts);
   const orchestrator: Orchestrator = new Orchestrator({
     store,
     tracker,
     devin,
     settings,
-    prompts: await Prompts.load(),
+    prompts,
+    playbookIds,
     ...(verifier === null ? {} : { verifier, reproducer: verifier }),
     requireLiveResults: true,
     trace: (event) => {
@@ -67,6 +72,20 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
   orchestrator.start();
   console.log(`Workflow polling ${repo.owner}/${repo.name} every ${settings.pollSeconds} s`);
   return orchestrator;
+}
+
+/** Synced route Playbooks to attach by id; on a lookup failure every route falls back to its inlined text. */
+async function routePlaybookIds(settings: Settings, target: string, prompts: Prompts): Promise<PlaybookIds> {
+  let ids: PlaybookIds = {};
+  try {
+    const setup = new DevinSetupClient({ apiKey: settings.devin.apiKey as string, orgId: settings.devin.orgId as string });
+    ids = syncedPlaybookIds(await setup.listPlaybooks(), target, prompts);
+  } catch (error) {
+    console.error(`Devin Playbooks could not be listed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  const inlined = PLAYBOOK_ROUTES.filter((route) => ids[route] === undefined);
+  if (inlined.length > 0) console.log(`Playbooks not synced (run npm run setup); inlining the procedure for: ${inlined.join(', ')}`);
+  return ids;
 }
 
 const orchestrator = startOrchestrator(settings).catch((error: unknown) => {

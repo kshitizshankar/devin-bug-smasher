@@ -10,6 +10,8 @@ import { failedSteps, parseBuildLog } from '../src/operator/build-log.ts';
 import { calculateMetrics } from '../src/metrics/calculate.ts';
 import type { Figure } from '../src/metrics/types.ts';
 import { runCommand } from '../src/operator/cli.ts';
+import { syncedPlaybookIds } from '../src/orchestrator/playbooks.ts';
+import { Prompts } from '../src/orchestrator/prompts.ts';
 import { FIGURE_HEADER, renderResults } from '../src/operator/report.ts';
 import { BugStore } from '../src/store/bug-store.ts';
 import { GitHubTracker } from '../src/tracker/github.ts';
@@ -97,7 +99,21 @@ describe('operator setup', () => {
         ['bug-smasher', 'devin-builds-feature', 'needs-engineer', 'needs-triage'],
       );
       assert.match(h.github.file(ISSUE_FORM_PATH) ?? '', /^name: Bug report/);
-      assert.deepEqual(h.devin.playbooks.map((playbook) => playbook.title), [playbookTitle(TARGET)]);
+      assert.deepEqual(
+        h.devin.playbooks.map((playbook) => [playbook.title, playbook.body.split('\n')[0]]),
+        [
+          [playbookTitle(TARGET, 'triage'), '# Bug Smasher: triage a bug'],
+          [playbookTitle(TARGET, 'repair'), '# Bug Smasher: repair a bug'],
+          [playbookTitle(TARGET, 'feature'), '# Bug Smasher: build a feature'],
+        ],
+      );
+      assert.equal(new Set(h.devin.playbooks.map((playbook) => playbook.playbook_id)).size, 3, 'three distinct Playbook ids');
+      const synced = syncedPlaybookIds(h.devin.playbooks, TARGET, await Prompts.load());
+      assert.deepEqual(
+        [synced.triage, synced.repair, synced.feature],
+        h.devin.playbooks.map((playbook) => playbook.playbook_id),
+        'the service attaches exactly the Playbooks setup synced',
+      );
       assert.deepEqual(
         h.devin.notes.map((note) => [note.name, note.pinned_repo]),
         [
@@ -245,7 +261,9 @@ describe('operator setup', () => {
         'would create GitHub label "needs-engineer"',
         'would create GitHub label "devin-builds-feature"',
         `would create GitHub issue form ${ISSUE_FORM_PATH}`,
-        `would create Devin Playbook "${playbookTitle(TARGET)}"`,
+        `would create Devin Playbook "${playbookTitle(TARGET, 'triage')}"`,
+        `would create Devin Playbook "${playbookTitle(TARGET, 'repair')}"`,
+        `would create Devin Playbook "${playbookTitle(TARGET, 'feature')}"`,
         'would create Devin Knowledge note "Bug Smasher: fast tests"',
         'would create Devin Knowledge note "Bug Smasher: verification image"',
         'would create Devin Knowledge note "Bug Smasher: observed pitfalls"',
@@ -255,7 +273,7 @@ describe('operator setup', () => {
       ]) {
         assert.ok(result.out.includes(change), `missing "${change}" in:\n${result.out}`);
       }
-      assert.match(result.out, /Would make 12 changes/);
+      assert.match(result.out, /Would make 14 changes/);
     });
   });
 

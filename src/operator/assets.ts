@@ -2,8 +2,8 @@ import type { LabelSettings, Settings } from '../config/settings.ts';
 import type { RepositoryLabel } from '../tracker/types.ts';
 
 /**
- * Desired target-repository state written by `setup`: workflow labels, the bug issue form, the triage
- * Playbook and the repository-pinned Knowledge notes. Everything here derives from settings and repository
+ * Desired target-repository state written by `setup`: workflow labels, the bug issue form, the route
+ * Playbooks and the repository-pinned Knowledge notes. Everything here derives from settings and repository
  * files; nothing describes the target beyond what the operator configured or recorded.
  */
 
@@ -65,9 +65,7 @@ export function issueForm(labels: LabelSettings): string {
   ].join('\n');
 }
 
-export function playbookTitle(target: string): string {
-  return `Bug Smasher triage: ${target}`;
-}
+export { playbookTitle } from '../orchestrator/playbooks.ts';
 
 export interface DesiredNote {
   name: string;

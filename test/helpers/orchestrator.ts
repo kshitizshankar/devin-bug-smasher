@@ -8,6 +8,7 @@ import type { WireSession } from '../../src/devin/wire.ts';
 import type { BugRecord } from '../../src/model/types.ts';
 import type { DecisionPolicy, Reproducer, Verifier } from '../../src/orchestrator/contracts.ts';
 import { Orchestrator, type TraceEvent } from '../../src/orchestrator/orchestrator.ts';
+import type { PlaybookIds } from '../../src/orchestrator/playbooks.ts';
 import { Prompts } from '../../src/orchestrator/prompts.ts';
 import { BugStore } from '../../src/store/bug-store.ts';
 import { InMemoryTracker } from '../../src/tracker/memory.ts';
@@ -22,6 +23,7 @@ export interface HarnessOptions {
   reproducer?: Reproducer;
   maxReviewRepairs?: number;
   requireLiveResults?: boolean;
+  playbookIds?: PlaybookIds;
 }
 
 /**
@@ -90,6 +92,7 @@ export class Harness {
       reproducer: this.#options.reproducer,
       maxReviewRepairs: this.#options.maxReviewRepairs,
       requireLiveResults: this.#options.requireLiveResults,
+      playbookIds: this.#options.playbookIds,
       now: this.clock,
       trace: (event) => this.trace.push(event),
     });

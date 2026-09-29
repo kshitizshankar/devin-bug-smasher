@@ -22,7 +22,7 @@ closes an issue. See [`docs/ORCHESTRATION.md`](docs/ORCHESTRATION.md#decision-an
 
 ## Operator commands
 
-`npm run setup` configures the target repository's labels and bug issue form on GitHub and its Playbook,
+`npm run setup` configures the target repository's labels and bug issue form on GitHub and its route Playbooks,
 Knowledge notes, indexing, blueprint and build on Devin, changing only what differs; `env-status`, `mirror`
 and `report` inspect builds, copy issues in and write `RESULTS.md`. Every command that writes to GitHub or
 Devin supports `--dry-run`; `report` is the exception, as it only writes a local `RESULTS.md`. See
@@ -130,7 +130,7 @@ src/devin/       Devin API v3 adapter and offline stand-in (see docs/DEVIN.md)
 src/tracker/     GitHub tracker interface, REST adapter and in-memory stand-in
 src/orchestrator/ Polling workflow: dispatch, questions, repair, prompts (see docs/ORCHESTRATION.md)
 src/operator/    Operator commands: run, setup, env-status, mirror, report (see docs/OPERATOR.md)
-prompts/         Repository-owned Devin prompt templates
+prompts/         Repository-owned Devin prompt templates and route Playbooks (see docs/DEVIN-PROMPTS.md)
 web/             React + Vite frontend source
 test/            Smoke and behaviour tests (node:test)
 dist/web/        Generated frontend build output (git-ignored)

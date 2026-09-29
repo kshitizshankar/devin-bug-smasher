@@ -67,6 +67,7 @@ The operator commands that use this client are described in [`docs/OPERATOR.md`]
 ```ts
 const devin = DevinClient.fromSettings(settings);
 const result = await devin.createSession({ bugKey: 'acme/widgets#42', route: 'triage', prompt, repos: ['acme/widgets'], playbookId });
+// playbookId: the route's synced Playbook, or null when its text is inlined in the prompt (docs/DEVIN-PROMPTS.md)
 // result.outcome === 'created'   -> result.session (DevinSession), result.tags
 // result.outcome === 'ambiguous' -> persist result.tags, then later:
 const reconciled = await devin.reconcileCreate(result);

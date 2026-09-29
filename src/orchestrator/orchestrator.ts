@@ -83,7 +83,8 @@ import {
   sameEvaluation,
   type ReviewGate,
 } from './policies.ts';
-import type { HumanComment, IssueContext, Prompts } from './prompts.ts';
+import type { PlaybookIds, PlaybookRoute } from './playbooks.ts';
+import type { HumanComment, IssueContext, OpenBug, Prompts } from './prompts.ts';
 
 /** The Devin operations the orchestrator uses. `DevinClient` satisfies it; so does `DevinClient` over `OfflineDevin`. */
 export type OrchestratorDevin = Pick<
@@ -160,7 +161,8 @@ export interface OrchestratorOptions {
   requireLiveResults?: boolean;
   /** Logins whose comments and label changes are the service's own, besides bots and marked comments. */
   serviceLogins?: readonly string[];
-  playbookId?: string | null;
+  /** Synced Devin Playbook ids by route; a route without one gets its Playbook text inlined in the prompt. */
+  playbookIds?: PlaybookIds;
   /** Reconciliation lookups without a match before an unconfirmed create is abandoned (default 3). */
   reconcileAttempts?: number;
   now?: () => Date;
@@ -247,13 +249,14 @@ export class Orchestrator {
   readonly #requireLive: boolean;
   readonly #maxReviewRepairs: number;
   readonly #serviceLogins: ReadonlySet<string>;
-  readonly #playbookId: string | null;
+  readonly #playbookIds: PlaybookIds;
   readonly #reconcileAttempts: number;
   readonly #now: () => Date;
   readonly #trace: (event: TraceEvent) => void;
   readonly #model: ModelOptions;
   readonly #repo: GitHubRepo;
   #cycle = 0;
+  #openIssues: readonly TrackerIssue[] = [];
   #lastCycleAt: string | null = null;
   #inFlight: Promise<void> | null = null;
   #lock: Promise<unknown> = Promise.resolve();
@@ -280,7 +283,7 @@ export class Orchestrator {
     this.#requireLive = options.requireLiveResults ?? false;
     this.#maxReviewRepairs = options.maxReviewRepairs ?? DEFAULT_MAX_REVIEW_REPAIRS;
     this.#serviceLogins = new Set((options.serviceLogins ?? []).map((login) => login.toLowerCase()));
-    this.#playbookId = options.playbookId ?? null;
+    this.#playbookIds = options.playbookIds ?? {};
     this.#reconcileAttempts = options.reconcileAttempts ?? 3;
     this.#trace = options.trace ?? (() => {});
     this.#model = {
@@ -372,6 +375,7 @@ export class Orchestrator {
       this.#finishCycle();
       return;
     }
+    this.#openIssues = open;
     const issues = new Map(open.map((issue) => [issue.number, issue]));
     for (const record of this.#store.list()) {
       const parts = parseBugKey(record.key);
@@ -892,12 +896,15 @@ export class Orchestrator {
     const comments = await this.#freshHumanComments(issue, workflow);
     const context = this.#issueContext(issue);
     const decision = this.#decisionContext(record);
+    const playbookRoute: PlaybookRoute = route === 'triage' ? 'triage' : record.kind === 'feature' ? 'feature' : 'repair';
+    const playbookId = this.#playbookIds[playbookRoute] ?? null;
+    const playbook = playbookId === null ? 'inline' : 'attached';
     const prompt =
-      route === 'triage'
-        ? this.#prompts.investigation(context, comments.included, decision)
-        : record.kind === 'feature'
-          ? this.#prompts.feature(context, comments.included, decision)
-          : this.#prompts.repairNew(context, record.triage, comments.included, decision);
+      playbookRoute === 'triage'
+        ? this.#prompts.investigation(context, comments.included, decision, { playbook, otherBugs: this.#otherOpenBugs(issue) })
+        : playbookRoute === 'feature'
+          ? this.#prompts.feature(context, comments.included, decision, { playbook })
+          : this.#prompts.repairNew(context, record.triage, comments.included, decision, { playbook });
 
     await this.#persistWorkflow(record, (state) => {
       state.dispatch = { route, requestedAt: this.#nowIso(), attemptTag: null, checks: 0, commentIds: comments.all };
@@ -913,7 +920,7 @@ export class Orchestrator {
         prompt,
         title: `${route === 'triage' ? 'Investigate' : record.kind === 'feature' ? 'Build' : 'Fix'} ${record.key}: ${issue.title}`,
         repos: [`${this.#repo.owner}/${this.#repo.name}`],
-        playbookId: this.#playbookId,
+        playbookId,
       });
     } catch (error) {
       if (error instanceof DevinError && !error.ambiguous) {
@@ -935,6 +942,15 @@ export class Orchestrator {
     }
     this.#emit(record.key, 'session-created', { sessionId: result.session.id, route });
     await this.#sessionStarted(issue, pending, result.session, [], 'session-started');
+  }
+
+  /** Open bugs (not feature requests) from this cycle's listing, other than `issue`, for the duplicate check. */
+  #otherOpenBugs(issue: TrackerIssue): OpenBug[] {
+    const feature = this.#settings.labels.feature.toLowerCase();
+    return this.#openIssues
+      .filter((other) => other.number !== issue.number && other.state === 'open')
+      .filter((other) => !other.labels.some((label) => label.toLowerCase() === feature))
+      .map((other) => ({ number: other.number, title: other.title, createdAt: other.createdAt }));
   }
 
   /** Resolves a persisted create intent by its attempt tag (or bug and route tags) instead of creating again. */
