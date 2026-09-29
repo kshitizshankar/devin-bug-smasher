@@ -28,10 +28,10 @@ const LIVE_REFERENCE = new RegExp(
     String.raw`<(?<autolink>${ISSUE_URL})>`,
     String.raw`(?<url>${ISSUE_URL})`,
     String.raw`(?<![\w\/.@-])(?<qualified>[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9._-]+#\d+)\b`,
-    String.raw`(?<![\w\/\x60@-])(?<mention>@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\/[A-Za-z0-9][A-Za-z0-9_-]*)?)(?![\w-])`,
-    String.raw`(?<![\w&\/#\x60-])(?<issueRef>#\d+|GH-\d+)\b`,
+    String.raw`(?<![\w\/@-])(?<mention>@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\/[A-Za-z0-9][A-Za-z0-9_-]*)?)(?![\w-])`,
+    String.raw`(?<![\w&\/#-])(?<issueRef>#\d+|GH-\d+)\b`,
   ].join('|'),
-  'g',
+  'gi',
 );
 const TRAILING_PUNCTUATION = /[.,;:!?'"]+$/;
 
@@ -65,7 +65,7 @@ function neutraliseText(text: string): string {
 function neutraliseProse(text: string): string {
   const out: string[] = [];
   let last = 0;
-  for (const span of text.matchAll(/(?<!\x60)(\x60+)(?!\x60)[\s\S]*?(?<!\x60)\1(?!\x60)/g)) {
+  for (const span of text.matchAll(/(?<!\x60)(?<!(?:^|[^\\])(?:\\\\)*\\)(\x60+)(?!\x60)[\s\S]*?(?<!\x60)\1(?!\x60)/g)) {
     out.push(neutraliseText(text.slice(last, span.index)), span[0]);
     last = span.index + span[0].length;
   }

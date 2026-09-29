@@ -472,6 +472,7 @@ describe('operator mirror', () => {
         body: [
           'Reported with @someone, see https://github.com/upstream/lib/issues/7 and #123.',
           'Related: [the fix](https://github.com/upstream/lib/pull/9), upstream/other#4 and a@example.com.',
+          'Also \\`@alice\\` and HTTPS://GitHub.com/Upstream/Lib/Issues/8.',
           '```',
           'log: @kept #1',
           '```',
@@ -485,6 +486,7 @@ describe('operator mirror', () => {
         /Reported with `@someone`, see `https:\/\/github\.com\/upstream\/lib\/issues\/7` and `#123`\./,
       );
       assert.match(issue.body, /Related: the fix \(`https:\/\/github\.com\/upstream\/lib\/pull\/9`\), `upstream\/other#4` and a@example\.com\./);
+      assert.ok(issue.body.includes('Also \\``@alice`\\` and `HTTPS://GitHub.com/Upstream/Lib/Issues/8`.'));
       assert.match(issue.body, /```\nlog: @kept #1\n```/);
       assert.match(issue.body, /^> Mirrored from `upstream\/lib#12` \(opened on \d{4}-\d{2}-\d{2}\)\. /);
       assert.ok(!/\]\(https?:/.test(issue.body), 'no Markdown links remain');
