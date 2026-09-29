@@ -659,12 +659,23 @@ describe('operator report', () => {
 });
 
 describe('operator run', () => {
-  it('starts the service with no credentials', async () => {
+  it('starts the service in offline replay mode with no credentials', async () => {
     const service = await startService({ GITHUB_TOKEN: '', DEVIN_API_KEY: '', GITHUB_REPO: '', DEVIN_ORG_ID: '' }, ['src/operator/main.ts', 'run']);
     try {
       const response = await fetch(new URL('/api/health', service.baseUrl));
       assert.equal(response.status, 200);
+      assert.match(service.output(), /Replay mode/);
+    } finally {
+      await service.stop();
+    }
+  });
+
+  it('keeps live mode, with polling off, when live settings are incomplete', async () => {
+    const service = await startService({ GITHUB_TOKEN: 'ghp_SECRETtoken1234567890', DEVIN_API_KEY: '', GITHUB_REPO: '', DEVIN_ORG_ID: '' }, ['src/operator/main.ts', 'run']);
+    try {
+      assert.equal((await fetch(new URL('/api/health', service.baseUrl))).status, 200);
       assert.match(service.output(), /Workflow polling is off until live settings are complete/);
+      assert.doesNotMatch(service.output(), /Replay mode|ghp_SECRET/);
     } finally {
       await service.stop();
     }

@@ -15,8 +15,11 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 
 ## Service wiring
 
-`npm start` (the `run` operator command, [`docs/OPERATOR.md`](OPERATOR.md)) starts polling only when `liveSettingsProblems(settings)` is empty; otherwise it logs why and
-serves the scaffold as before. Live wiring: `BugStore.open()` (`data/bugs.json`), `GitHubTracker`,
+`npm start` (the `run` operator command, [`docs/OPERATOR.md`](OPERATOR.md)) serves the offline replay when
+neither `GITHUB_TOKEN` nor `DEVIN_API_KEY` is set: the same `Orchestrator` with `InMemoryTracker`,
+`OfflineDevin` behind `DevinClient`, `RecordedVerifier`, a separate replay store and simulated time
+([`docs/REPLAY.md`](REPLAY.md)). Otherwise it starts polling only when `liveSettingsProblems(settings)` is
+empty; if not, it logs why and serves the scaffold as before. Live wiring: `BugStore.open()` (`data/bugs.json`), `GitHubTracker`,
 `DevinClient.fromSettings`, `Prompts.load()`, `requireLiveResults: true` (stub verifiers/policies are
 refused), `verifierFromSettings` when `verifierSettingsProblems` is empty (otherwise the unavailable
 verifier, with the reason logged), and the unavailable policy until M1.6 provides one.

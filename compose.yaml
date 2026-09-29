@@ -1,0 +1,39 @@
+# One service. Without GITHUB_TOKEN and DEVIN_API_KEY it serves the credential-free replay; with the live
+# settings from .env it polls the target repository. See docs/DOCKER.md.
+name: bug-smasher
+
+services:
+  bug-smasher:
+    build: .
+    image: bug-smasher:local
+    init: true
+    restart: unless-stopped
+    # Published on the host's loopback interface only; nothing else can reach the service.
+    ports:
+      - "127.0.0.1:${BUG_SMASHER_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Inside the container the service listens on every container interface so the loopback-only
+      # published port can reach it; BUG_SMASHER_CONTAINER allows that one non-loopback HOST.
+      BUG_SMASHER_CONTAINER: "true"
+      HOST: 0.0.0.0
+      PORT: "8080"
+      STATIC_DIR: /app/dist/web
+      VERIFY_WORK_DIR: ${VERIFY_WORK_DIR:-/tmp/bug-smasher-verify}
+    volumes:
+      # Bug store, replay store and git mirrors survive container restarts and rebuilds.
+      - bug-smasher-data:/app/data
+      # The host Docker daemon starts verification containers as siblings of this one.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Verification workspaces: the same absolute path here and on the host, because the daemon resolves
+      # the bind mounts of sibling containers against the host filesystem.
+      - type: bind
+        source: ${VERIFY_WORK_DIR:-/tmp/bug-smasher-verify}
+        target: ${VERIFY_WORK_DIR:-/tmp/bug-smasher-verify}
+        bind:
+          create_host_path: true
+
+volumes:
+  bug-smasher-data:

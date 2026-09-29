@@ -1,0 +1,1026 @@
+{
+  "schemaVersion": 1,
+  "id": "bug-smasher-replay-v1",
+  "title": "Bug Smasher offline replay: eight workflow scenarios",
+  "repository": "bug-smasher-replay/widgets",
+  "startAt": "2026-03-02T09:00:00.000Z",
+  "settings": {
+    "DECISION": "person",
+    "MERGE": "person",
+    "MAX_FIX_RETRIES": "1",
+    "DEVIN_REVIEW": "true",
+    "MAX_ACTIVE_SESSIONS": "8",
+    "MAX_ACU_PER_SESSION": "5",
+    "CHECK_COMMAND": "node --test {files}"
+  },
+  "scenarios": [
+    {
+      "id": "clarification",
+      "title": "Devin asks the reporter a question; the reply is relayed and a person closes the issue",
+      "issue": "export-safari",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "closed",
+        "status": "closed",
+        "description": "Question asked on GitHub, reply relayed to the same session, triage finished with a close recommendation, and the maintainer closed the issue."
+      }
+    },
+    {
+      "id": "decision",
+      "title": "Triage recommends a fix and the issue waits for a person to decide",
+      "issue": "totals-rounding",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "triaged",
+        "status": "needs-decision",
+        "description": "Triage finished with a devin_fix recommendation; nothing continues until a person changes a label on GitHub."
+      }
+    },
+    {
+      "id": "repair",
+      "title": "A person approves repair after triage; the same session opens a verified PR",
+      "issue": "csv-header",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "ready-to-merge",
+        "status": "ready-to-merge",
+        "description": "The maintainer added bug-smasher after triage, the triage session continued into repair, opened a PR and its regression proof passed."
+      }
+    },
+    {
+      "id": "failed-verification",
+      "title": "Verification fails, the fix goes back to the same session, and the retry passes",
+      "issue": "date-filter",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "ready-to-merge",
+        "status": "ready-to-merge",
+        "description": "The first proof failed (visible as fixing with a failed verification), the same session pushed a new head to the same PR, and the second proof passed."
+      }
+    },
+    {
+      "id": "verification-error",
+      "title": "Verification errors on infrastructure, then the retry passes",
+      "issue": "pdf-margin",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "ready-to-merge",
+        "status": "ready-to-merge",
+        "description": "The first run was an infrastructure error (visible as verifying with an error), which spends no fix retry; the next run passed."
+      }
+    },
+    {
+      "id": "handoff",
+      "title": "The repair session ends without a pull request and the issue is handed to an engineer",
+      "issue": "sso-timeout",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "with-engineer",
+        "status": "needs-engineer",
+        "description": "The Devin session ended without opening a PR; the service handed the issue off with needs-engineer and one comment."
+      }
+    },
+    {
+      "id": "pr-checks-passed",
+      "title": "A pull request passes verification, CI and Devin Review and waits for a person to merge",
+      "issue": "search-case",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "ready-to-merge",
+        "status": "ready-to-merge",
+        "description": "Verification passed on the head, the CI check succeeded and Devin Review completed with no findings; with MERGE=person it waits for the maintainer."
+      }
+    },
+    {
+      "id": "merged-with-proof",
+      "title": "A person merges the fix on GitHub and post-merge verification proves the merge commit",
+      "issue": "tz-offset",
+      "source": {
+        "kind": "synthetic",
+        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+      },
+      "outcome": {
+        "stage": "merged",
+        "status": "merged",
+        "description": "The maintainer merged on GitHub; the service recorded the merge commit and the post-merge proof passed on it."
+      }
+    }
+  ],
+  "steps": [
+    {
+      "title": "A reporter opens an issue labelled needs-triage",
+      "scenario": "clarification",
+      "minutes": 0,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "export-safari",
+          "title": "Export button does nothing",
+          "body": "Clicking Export on the reports page does nothing.",
+          "labels": [
+            "needs-triage"
+          ],
+          "author": "reporter"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "export-safari",
+          "stage": "triaging",
+          "status": "investigating"
+        }
+      ]
+    },
+    {
+      "title": "Devin asks which browser the reporter uses",
+      "scenario": "clarification",
+      "minutes": 20,
+      "events": [
+        {
+          "type": "devin-asks",
+          "issue": "export-safari",
+          "phase": "triage",
+          "question": "Which browser and version show the problem?"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "export-safari",
+          "stage": "needs-input",
+          "status": "waiting-for-reply"
+        }
+      ]
+    },
+    {
+      "title": "The reporter replies on GitHub",
+      "scenario": "clarification",
+      "minutes": 45,
+      "events": [
+        {
+          "type": "comment",
+          "issue": "export-safari",
+          "author": "reporter",
+          "body": "Safari 16.3 on macOS. It works in Firefox."
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "export-safari",
+          "stage": "triaging",
+          "status": "investigating"
+        }
+      ]
+    },
+    {
+      "title": "Devin finishes triage: already fixed in the supported Safari",
+      "scenario": "clarification",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "devin-triage",
+          "issue": "export-safari",
+          "output": {
+            "phase": "triage",
+            "status": "triage_complete",
+            "title": "Export does nothing in Safari 16.3",
+            "summary": "Safari 16.3 blocks the download attribute; Safari 16.4+ works.",
+            "steps_to_reproduce": [
+              "Open the app",
+              "Follow the report"
+            ],
+            "expected": "The documented behaviour",
+            "actual": "Safari 16.3 blocks the download attribute; Safari 16.4+ works.",
+            "suspected_cause": "Unsupported browser version; supported versions work",
+            "affected_files": [
+              "src/export.mjs"
+            ],
+            "reproduced": false,
+            "reproduction_notes": "Not reproduced",
+            "proposed_check": {
+              "description": "Regression test for the report",
+              "test_file": "test/export.test.mjs",
+              "command": "node --test test/export.test.mjs"
+            },
+            "bucket": "close",
+            "bucket_reason": "Unsupported browser version; supported versions work",
+            "confidence": "high"
+          }
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "export-safari",
+          "stage": "triaged",
+          "status": "needs-decision"
+        }
+      ]
+    },
+    {
+      "title": "The maintainer closes the issue on GitHub",
+      "scenario": "clarification",
+      "minutes": 60,
+      "events": [
+        {
+          "type": "issue-closed",
+          "issue": "export-safari",
+          "actor": "maintainer"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "export-safari",
+          "stage": "closed",
+          "status": "closed"
+        }
+      ]
+    },
+    {
+      "title": "A reporter opens an issue labelled needs-triage",
+      "scenario": "decision",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "totals-rounding",
+          "title": "Invoice totals are off by one cent",
+          "body": "Totals of 3 x 0.10 show 0.31.",
+          "labels": [
+            "needs-triage"
+          ],
+          "author": "reporter"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "totals-rounding",
+          "stage": "triaging",
+          "status": "investigating"
+        }
+      ]
+    },
+    {
+      "title": "Devin finishes triage and recommends a Devin fix",
+      "scenario": "decision",
+      "minutes": 40,
+      "events": [
+        {
+          "type": "devin-triage",
+          "issue": "totals-rounding",
+          "output": {
+            "phase": "triage",
+            "status": "triage_complete",
+            "title": "Invoice totals round each line",
+            "summary": "Each line is rounded before summing.",
+            "steps_to_reproduce": [
+              "Open the app",
+              "Follow the report"
+            ],
+            "expected": "The documented behaviour",
+            "actual": "Each line is rounded before summing.",
+            "suspected_cause": "Small, well-understood rounding bug",
+            "affected_files": [
+              "src/totals.mjs"
+            ],
+            "reproduced": true,
+            "reproduction_notes": "Reproduced with the regression test below",
+            "proposed_check": {
+              "description": "Regression test for the report",
+              "test_file": "test/totals.test.mjs",
+              "command": "node --test test/totals.test.mjs"
+            },
+            "bucket": "devin_fix",
+            "bucket_reason": "Small, well-understood rounding bug",
+            "confidence": "high"
+          }
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "totals-rounding",
+          "stage": "triaged",
+          "status": "needs-decision"
+        }
+      ]
+    },
+    {
+      "title": "A reporter opens an issue labelled needs-triage",
+      "scenario": "repair",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "csv-header",
+          "title": "CSV export repeats the header row",
+          "body": "Every page of a CSV export starts with the header again.",
+          "labels": [
+            "needs-triage"
+          ],
+          "author": "reporter"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "csv-header",
+          "stage": "triaging",
+          "status": "investigating"
+        }
+      ]
+    },
+    {
+      "title": "Devin finishes triage and recommends a Devin fix",
+      "scenario": "repair",
+      "minutes": 35,
+      "events": [
+        {
+          "type": "devin-triage",
+          "issue": "csv-header",
+          "output": {
+            "phase": "triage",
+            "status": "triage_complete",
+            "title": "CSV pages repeat the header",
+            "summary": "The header is written per page.",
+            "steps_to_reproduce": [
+              "Open the app",
+              "Follow the report"
+            ],
+            "expected": "The documented behaviour",
+            "actual": "The header is written per page.",
+            "suspected_cause": "Header written inside the page loop",
+            "affected_files": [
+              "src/csv.mjs"
+            ],
+            "reproduced": true,
+            "reproduction_notes": "Reproduced with the regression test below",
+            "proposed_check": {
+              "description": "Regression test for the report",
+              "test_file": "test/csv.test.mjs",
+              "command": "node --test test/csv.test.mjs"
+            },
+            "bucket": "devin_fix",
+            "bucket_reason": "Header written inside the page loop",
+            "confidence": "high"
+          }
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "csv-header",
+          "stage": "triaged",
+          "status": "needs-decision"
+        }
+      ]
+    },
+    {
+      "title": "The maintainer approves repair by adding bug-smasher on GitHub",
+      "scenario": "repair",
+      "minutes": 25,
+      "events": [
+        {
+          "type": "label",
+          "issue": "csv-header",
+          "label": "bug-smasher",
+          "action": "add",
+          "actor": "maintainer"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "csv-header",
+          "stage": "fixing",
+          "status": "fixing"
+        }
+      ]
+    },
+    {
+      "title": "Devin opens a pull request with a regression test",
+      "scenario": "repair",
+      "minutes": 50,
+      "events": [
+        {
+          "type": "pull-request-opened",
+          "pr": "csv-header-pr",
+          "issue": "csv-header",
+          "title": "Write the CSV header once",
+          "headSha": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+          "additions": 6,
+          "deletions": 2,
+          "file": "src/csv.mjs"
+        },
+        {
+          "type": "devin-pr",
+          "issue": "csv-header",
+          "pr": "csv-header-pr",
+          "testFiles": [
+            "test/csv.test.mjs"
+          ],
+          "summary": "Move the header out of the page loop"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "csv-header",
+          "stage": "verifying"
+        }
+      ]
+    },
+    {
+      "title": "Independent verification passes on the PR head",
+      "scenario": "repair",
+      "minutes": 10,
+      "events": [
+        {
+          "type": "verifier-result",
+          "issue": "csv-header",
+          "result": "pass",
+          "reason": "The selected tests fail on base and pass on head",
+          "output": "head: 1 passed, 0 failed\nbase: 0 passed, 1 failed (the regression test fails on base, as required)"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "csv-header",
+          "stage": "ready-to-merge",
+          "verification": "pass"
+        }
+      ]
+    },
+    {
+      "title": "A maintainer labels an issue bug-smasher for direct repair",
+      "scenario": "failed-verification",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "date-filter",
+          "title": "Date filter drops the last day",
+          "body": "Filtering 1-31 March omits 31 March.",
+          "labels": [
+            "bug-smasher"
+          ],
+          "author": "maintainer"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "date-filter",
+          "stage": "fixing",
+          "status": "fixing"
+        }
+      ]
+    },
+    {
+      "title": "Devin opens a pull request",
+      "scenario": "failed-verification",
+      "minutes": 60,
+      "events": [
+        {
+          "type": "pull-request-opened",
+          "pr": "date-filter-pr",
+          "issue": "date-filter",
+          "title": "Include the end date in the filter",
+          "headSha": "b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1",
+          "additions": 6,
+          "deletions": 2,
+          "file": "src/filter.mjs"
+        },
+        {
+          "type": "devin-pr",
+          "issue": "date-filter",
+          "pr": "date-filter-pr",
+          "testFiles": [
+            "test/filter.test.mjs"
+          ],
+          "summary": "Use an inclusive end bound"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "date-filter",
+          "stage": "verifying"
+        }
+      ]
+    },
+    {
+      "title": "Independent verification fails: the regression test still fails on head",
+      "scenario": "failed-verification",
+      "minutes": 10,
+      "events": [
+        {
+          "type": "verifier-result",
+          "issue": "date-filter",
+          "result": "fail",
+          "reason": "The regression test fails on head",
+          "output": "head: 0 passed, 1 failed\nAssertionError: expected 31 rows, got 30"
+        }
+      ],
+      "maxCycles": 2,
+      "expect": [
+        {
+          "issue": "date-filter",
+          "stage": "fixing",
+          "status": "fixing",
+          "verification": "fail",
+          "verifications": 1
+        }
+      ]
+    },
+    {
+      "title": "Devin pushes a corrected head to the same pull request",
+      "scenario": "failed-verification",
+      "minutes": 40,
+      "events": [
+        {
+          "type": "head-pushed",
+          "pr": "date-filter-pr",
+          "headSha": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+        },
+        {
+          "type": "devin-pr",
+          "issue": "date-filter",
+          "pr": "date-filter-pr",
+          "testFiles": [
+            "test/filter.test.mjs"
+          ],
+          "summary": "Compare dates at end of day"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "date-filter",
+          "stage": "verifying"
+        }
+      ]
+    },
+    {
+      "title": "The retried verification passes on the new head",
+      "scenario": "failed-verification",
+      "minutes": 10,
+      "events": [
+        {
+          "type": "verifier-result",
+          "issue": "date-filter",
+          "result": "pass",
+          "reason": "The selected tests fail on base and pass on head",
+          "output": "head: 1 passed, 0 failed\nbase: 0 passed, 1 failed (the regression test fails on base, as required)"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "date-filter",
+          "stage": "ready-to-merge",
+          "verification": "pass",
+          "verifications": 2
+        }
+      ]
+    },
+    {
+      "title": "A maintainer labels an issue bug-smasher for direct repair",
+      "scenario": "verification-error",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "pdf-margin",
+          "title": "PDF export clips the right margin",
+          "body": "The last column is cut off in PDF exports.",
+          "labels": [
+            "bug-smasher"
+          ],
+          "author": "maintainer"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "pdf-margin",
+          "stage": "fixing",
+          "status": "fixing"
+        }
+      ]
+    },
+    {
+      "title": "Devin opens a pull request",
+      "scenario": "verification-error",
+      "minutes": 55,
+      "events": [
+        {
+          "type": "pull-request-opened",
+          "pr": "pdf-margin-pr",
+          "issue": "pdf-margin",
+          "title": "Account for the page margin in PDF layout",
+          "headSha": "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+          "additions": 6,
+          "deletions": 2,
+          "file": "src/pdf.mjs"
+        },
+        {
+          "type": "devin-pr",
+          "issue": "pdf-margin",
+          "pr": "pdf-margin-pr",
+          "testFiles": [
+            "test/pdf.test.mjs"
+          ],
+          "summary": "Subtract the margin from the usable width"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "pdf-margin",
+          "stage": "verifying"
+        }
+      ]
+    },
+    {
+      "title": "The verification run errors: the test image could not be started",
+      "scenario": "verification-error",
+      "minutes": 10,
+      "events": [
+        {
+          "type": "verifier-result",
+          "issue": "pdf-margin",
+          "result": "error",
+          "reason": "Setup failed: the test container could not be started",
+          "output": "docker: Error response from daemon: no space left on device"
+        }
+      ],
+      "maxCycles": 2,
+      "expect": [
+        {
+          "issue": "pdf-margin",
+          "stage": "verifying",
+          "status": "verifying",
+          "verification": "error",
+          "verifications": 1
+        }
+      ]
+    },
+    {
+      "title": "Verification is retried and passes",
+      "scenario": "verification-error",
+      "minutes": 15,
+      "events": [
+        {
+          "type": "verifier-result",
+          "issue": "pdf-margin",
+          "result": "pass",
+          "reason": "The selected tests fail on base and pass on head",
+          "output": "head: 1 passed, 0 failed\nbase: 0 passed, 1 failed (the regression test fails on base, as required)"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "pdf-margin",
+          "stage": "ready-to-merge",
+          "verification": "pass",
+          "verifications": 2
+        }
+      ]
+    },
+    {
+      "title": "A maintainer labels an issue bug-smasher for direct repair",
+      "scenario": "handoff",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "sso-timeout",
+          "title": "SSO login times out behind the proxy",
+          "body": "Login through the corporate proxy times out after 30 s.",
+          "labels": [
+            "bug-smasher"
+          ],
+          "author": "maintainer"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "sso-timeout",
+          "stage": "fixing",
+          "status": "fixing"
+        }
+      ]
+    },
+    {
+      "title": "Devin is working in its session",
+      "scenario": "handoff",
+      "minutes": 20,
+      "events": [
+        {
+          "type": "devin-working",
+          "issue": "sso-timeout"
+        }
+      ],
+      "maxCycles": 1,
+      "expect": [
+        {
+          "issue": "sso-timeout",
+          "stage": "fixing",
+          "status": "fixing"
+        }
+      ]
+    },
+    {
+      "title": "The session ends without a pull request",
+      "scenario": "handoff",
+      "minutes": 90,
+      "events": [
+        {
+          "type": "devin-ends",
+          "issue": "sso-timeout"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "sso-timeout",
+          "stage": "with-engineer",
+          "status": "needs-engineer"
+        }
+      ]
+    },
+    {
+      "title": "A maintainer labels an issue bug-smasher for direct repair",
+      "scenario": "pr-checks-passed",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "search-case",
+          "title": "Search is case-sensitive",
+          "body": "Searching 'invoice' does not find 'Invoice'.",
+          "labels": [
+            "bug-smasher"
+          ],
+          "author": "maintainer"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "search-case",
+          "stage": "fixing",
+          "status": "fixing"
+        }
+      ]
+    },
+    {
+      "title": "Devin opens a pull request",
+      "scenario": "pr-checks-passed",
+      "minutes": 45,
+      "events": [
+        {
+          "type": "pull-request-opened",
+          "pr": "search-case-pr",
+          "issue": "search-case",
+          "title": "Compare search terms case-insensitively",
+          "headSha": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+          "additions": 6,
+          "deletions": 2,
+          "file": "src/search.mjs"
+        },
+        {
+          "type": "devin-pr",
+          "issue": "search-case",
+          "pr": "search-case-pr",
+          "testFiles": [
+            "test/search.test.mjs"
+          ],
+          "summary": "Lower-case both sides before comparing"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "search-case",
+          "stage": "verifying"
+        }
+      ]
+    },
+    {
+      "title": "Verification passes and the CI check succeeds on the head",
+      "scenario": "pr-checks-passed",
+      "minutes": 10,
+      "events": [
+        {
+          "type": "verifier-result",
+          "issue": "search-case",
+          "result": "pass",
+          "reason": "The selected tests fail on base and pass on head",
+          "output": "head: 1 passed, 0 failed\nbase: 0 passed, 1 failed (the regression test fails on base, as required)"
+        },
+        {
+          "type": "check-run",
+          "pr": "search-case-pr",
+          "name": "test",
+          "conclusion": "success"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "search-case",
+          "stage": "ready-to-merge",
+          "verification": "pass",
+          "review": "pending"
+        }
+      ]
+    },
+    {
+      "title": "Devin Review completes with no findings",
+      "scenario": "pr-checks-passed",
+      "minutes": 20,
+      "events": [
+        {
+          "type": "review-completed",
+          "pr": "search-case-pr"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "search-case",
+          "stage": "ready-to-merge",
+          "status": "ready-to-merge",
+          "review": "completed"
+        }
+      ]
+    },
+    {
+      "title": "A maintainer labels an issue bug-smasher for direct repair",
+      "scenario": "merged-with-proof",
+      "minutes": 30,
+      "events": [
+        {
+          "type": "issue-opened",
+          "issue": "tz-offset",
+          "title": "Timestamps shift by an hour after DST",
+          "body": "Events after 30 March show one hour late.",
+          "labels": [
+            "bug-smasher"
+          ],
+          "author": "maintainer"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "tz-offset",
+          "stage": "fixing",
+          "status": "fixing"
+        }
+      ]
+    },
+    {
+      "title": "Devin opens a pull request",
+      "scenario": "merged-with-proof",
+      "minutes": 50,
+      "events": [
+        {
+          "type": "pull-request-opened",
+          "pr": "tz-offset-pr",
+          "issue": "tz-offset",
+          "title": "Use the zone offset of the event date",
+          "headSha": "e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1",
+          "additions": 6,
+          "deletions": 2,
+          "file": "src/time.mjs"
+        },
+        {
+          "type": "devin-pr",
+          "issue": "tz-offset",
+          "pr": "tz-offset-pr",
+          "testFiles": [
+            "test/time.test.mjs"
+          ],
+          "summary": "Resolve the offset per event instead of once"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "tz-offset",
+          "stage": "verifying"
+        }
+      ]
+    },
+    {
+      "title": "Verification passes and the CI check succeeds on the head",
+      "scenario": "merged-with-proof",
+      "minutes": 10,
+      "events": [
+        {
+          "type": "verifier-result",
+          "issue": "tz-offset",
+          "result": "pass",
+          "reason": "The selected tests fail on base and pass on head",
+          "output": "head: 1 passed, 0 failed\nbase: 0 passed, 1 failed (the regression test fails on base, as required)"
+        },
+        {
+          "type": "check-run",
+          "pr": "tz-offset-pr",
+          "name": "test",
+          "conclusion": "success"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "tz-offset",
+          "stage": "ready-to-merge",
+          "verification": "pass",
+          "review": "pending"
+        }
+      ]
+    },
+    {
+      "title": "Devin Review completes with no findings",
+      "scenario": "merged-with-proof",
+      "minutes": 20,
+      "events": [
+        {
+          "type": "review-completed",
+          "pr": "tz-offset-pr"
+        }
+      ],
+      "maxCycles": 4,
+      "expect": [
+        {
+          "issue": "tz-offset",
+          "stage": "ready-to-merge",
+          "status": "ready-to-merge",
+          "review": "completed"
+        }
+      ]
+    },
+    {
+      "title": "The maintainer merges the pull request on GitHub",
+      "scenario": "merged-with-proof",
+      "minutes": 120,
+      "events": [
+        {
+          "type": "merged",
+          "pr": "tz-offset-pr",
+          "actor": "maintainer",
+          "mergeCommitSha": "e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9"
+        },
+        {
+          "type": "verifier-result",
+          "issue": "tz-offset",
+          "result": "pass",
+          "reason": "The selected tests fail on the merge commit's first parent and pass on the merge commit",
+          "output": "head: 1 passed, 0 failed\nbase: 0 passed, 1 failed (the regression test fails on base, as required)"
+        }
+      ],
+      "maxCycles": 6,
+      "expect": [
+        {
+          "issue": "tz-offset",
+          "stage": "merged",
+          "status": "merged",
+          "verification": "pass",
+          "verifications": 2
+        }
+      ]
+    }
+  ]
+}
