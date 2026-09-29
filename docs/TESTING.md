@@ -26,6 +26,10 @@ suite finishes.
 | `test/presentation.test.ts` | The documented state/action table in `docs/MODEL.md`: status, group and permitted actions per row, and that `applyAction` accepts exactly those actions | No |
 | `test/bug-store.test.ts` | JSON store: missing file, restart read-back in a separate process, overlapping updates, corrupt/invalid data refused, failed write preserves prior file and state | No |
 | `test/settings.test.ts` | Defaults, `PORT=0`, invalid inputs rejected, distinct labels, live-mode credentials and `CHECK_COMMAND`, secret redaction, unknown costs stay `null` | No |
+| `test/devin-client.test.ts` | Devin adapter against `OfflineDevin`: create request (cap, tags, schema, no secrets), working/waiting/idle/suspended/ended/unknown states, messages, terminate/archive, ambiguous create and tag reconciliation, auth/permission/rate-limit/provider errors, key redaction, zero/unavailable ACUs, metrics | No |
+| `test/devin-structured-output.test.ts` | Absent, malformed, partial and complete structured output; only complete output yields model events, which the shared model accepts | No |
+| `test/devin-review-insights.test.ts` | Devin Review pending/completed/error/unavailable, unresolved findings, corrective messages, Auto-Fix not assumed; Insights unavailable/pending/failed/available and model projection | No |
+| `test/devin-setup.test.ts` | Setup client paths for Playbooks, Knowledge notes, repository indexing, blueprints and builds; redacted errors | No |
 | `test/tracker-github.test.ts` | `GitHubTracker` against an offline fake GitHub REST server: the shared tracker contract, headers, Link pagination, page-limit and foreign-link refusal, drift deduplication, timeline filtering, merge `sha` precondition, label ordering, rate-limit/auth/validation/server/network/timeout/malformed-response errors, token redaction | No |
 | `test/tracker-memory.test.ts` | `InMemoryTracker` against the same shared tracker contract, plus copy isolation | No |
 
