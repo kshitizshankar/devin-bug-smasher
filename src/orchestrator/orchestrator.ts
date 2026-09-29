@@ -82,6 +82,7 @@ export type TraceType =
   | 'waiting-for-capacity'
   | 'waiting-for-session-end'
   | 'label-conflict'
+  | 'decision-label-ignored'
   | 'structured-output-ignored'
   | 'unexpected-triage-pr'
   | 'reply-relayed'
@@ -128,7 +129,6 @@ type CommitStatus = 'applied' | 'unchanged' | 'refused' | 'deferred';
 const WORKING_STAGES: readonly Stage[] = ['triaging', 'fixing', 'verifying'];
 const RELAY_STAGES: readonly Stage[] = ['triaging', 'needs-input', 'fixing'];
 const HANDOFF_STAGES: readonly Stage[] = ['queued', 'triaging', 'needs-input', 'triaged', 'fixing'];
-const MAX_CONTEXT_COMMENTS = 10;
 const OUTPUT_TAIL_CHARS = 4000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
 
@@ -149,7 +149,7 @@ export function consumesCapacity(record: BugRecord): boolean {
   const session = record.session;
   if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) return false;
   if (!WORKING_STAGES.includes(record.stage)) return false;
-  return !record.workflow?.workQuestion;
+  return record.workflow?.workQuestion?.sessionId !== session.id;
 }
 
 function commentKey(raw: string): string {
@@ -340,7 +340,11 @@ export class Orchestrator {
     }
 
     if (issue.state === 'closed') {
-      if ((await this.#commit(issue, record, this.#event(record, { type: 'issue-closed' }), 'issue-closed')) === 'applied') {
+      const closed = this.#event(record, { type: 'issue-closed' });
+      const clearQuestion = (state: WorkflowState): void => {
+        state.workQuestion = null;
+      };
+      if ((await this.#commit(issue, record, closed, 'issue-closed', { mutate: clearQuestion })) === 'applied') {
         return;
       }
     } else if (record.stage === 'closed') {
@@ -355,13 +359,13 @@ export class Orchestrator {
     if (await this.#personLabelDecision(issue, record)) return;
     record = this.#store.get(key) as BugRecord;
 
-    const labels = await this.#commit(
-      issue,
-      record,
-      this.#event(record, { type: 'labels-changed', labels: issue.labels }),
-      'labels-changed',
-    );
-    if (labels === 'applied' || labels === 'deferred') return;
+    const snapshot = this.#event(record, { type: 'labels-changed', labels: issue.labels });
+    if (record.stage === 'triaged' && snapshot.ok && snapshot.changed && snapshot.record.stage !== 'with-engineer') {
+      this.#emit(key, 'decision-label-ignored', { reason: 'repair label was not added by a person' });
+    } else {
+      const labels = await this.#commit(issue, record, snapshot, 'labels-changed');
+      if (labels === 'applied' || labels === 'deferred') return;
+    }
 
     if (record.workflow?.dispatch) {
       await this.#reconcileDispatch(issue, record);
@@ -628,7 +632,7 @@ export class Orchestrator {
     };
   }
 
-  /** Human comments not yet delivered to Devin; the latest few are included in full, all are marked delivered. */
+  /** Human comments not yet delivered to Devin, all included in full. */
   async #freshHumanComments(
     issue: TrackerIssue,
     workflow: WorkflowState,
@@ -638,7 +642,7 @@ export class Orchestrator {
       (comment) => this.#isHumanComment(comment) && !workflow.relayedCommentIds.includes(comment.id),
     );
     return {
-      included: fresh.slice(-MAX_CONTEXT_COMMENTS).map((comment) => this.#toHumanComment(comment)),
+      included: fresh.map((comment) => this.#toHumanComment(comment)),
       all: fresh.map((comment) => comment.id),
     };
   }
@@ -1041,6 +1045,14 @@ export class Orchestrator {
       this.#emit(record.key, 'structured-output-ignored', { sessionId: session.id, reason: `PR #${ref.number} is ${pr.state}` });
       return false;
     }
+    const linked = await this.#tracker.findLinkedPullRequests(issue.number);
+    if (!linked.some((link) => link.relation === 'closing' && link.pullRequest.number === ref.number)) {
+      this.#emit(record.key, 'structured-output-ignored', {
+        sessionId: session.id,
+        reason: `PR #${ref.number} does not close #${issue.number}`,
+      });
+      return false;
+    }
     const event = fixSubmittedEvent(session, pr.headSha);
     if (event === null) return false;
     return (await this.#commit(issue, record, this.#event(record, event), 'fix-submitted')) === 'applied';
@@ -1062,7 +1074,7 @@ export class Orchestrator {
     );
     if (comment === undefined) return false;
     const question = outstandingQuestion(record);
-    const waking = question !== null || workflow.workQuestion !== null;
+    const waking = question !== null || workflow.workQuestion?.sessionId === session.id;
     if (waking && this.#activeElsewhere(record.key) >= this.#maxActive()) {
       this.#emit(record.key, 'waiting-for-capacity', { what: 'reply', commentId: comment.id });
       return true;

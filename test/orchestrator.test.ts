@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, type TestContext } from 'node:test';
 import type { VerificationOutcome, Verifier } from '../src/orchestrator/contracts.ts';
+import { consumesCapacity } from '../src/orchestrator/orchestrator.ts';
 import { Harness, report } from './helpers/orchestrator.ts';
 
 const HEAD_1 = '1'.repeat(40);
@@ -312,6 +313,57 @@ describe('orchestrator: existing pull requests', () => {
     assert.equal(h.record(issue.key).stage, 'with-engineer');
     assert.equal(h.record(issue.key).handoff?.reason, 'existing-pr');
     assert.ok(!h.messages(issue.id).some((message) => /approved for repair/.test(message)));
+  });
+});
+
+describe('orchestrator: review hardening', () => {
+  it('does not start repair when a bot adds the repair label to a triaged issue', async (t) => {
+    const h = await setup(t);
+    const issue = await triaged(h);
+    h.tracker.externalLabel(issue.number, 'bug-smasher', 'add', 'automation[bot]');
+    await h.cycle(2);
+    assert.equal(h.record(issue.key).stage, 'triaged');
+    assert.ok(h.types(issue.key).includes('decision-label-ignored'));
+    assert.equal(h.messages(issue.id).length, 0);
+    assert.equal(h.createRequests().length, 1);
+  });
+
+  it('includes every undelivered human comment when dispatching', async (t) => {
+    const h = await setup(t);
+    const issue = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    for (let i = 1; i <= 12; i += 1) h.tracker.externalComment(issue.number, 'reporter', `detail number ${i}.`);
+    await h.cycle(2);
+    const prompt = h.createRequests()[0]?.prompt ?? '';
+    for (let i = 1; i <= 12; i += 1) assert.match(prompt, new RegExp(`detail number ${i}\\.`));
+  });
+
+  it('does not carry a repair question into the work started after close and reopen', async (t) => {
+    const h = await setup(t);
+    const issue = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    h.asks(h.sessionId(issue.key), 'Which locale?', 'fix');
+    await h.cycle();
+    assert.ok(h.record(issue.key).workflow?.workQuestion);
+    h.tracker.externalCloseIssue(issue.number, 'maintainer');
+    await h.cycle(2);
+    h.tracker.externalReopenIssue(issue.number, 'maintainer');
+    await h.cycle(3);
+    const record = h.record(issue.key);
+    assert.equal(record.stage, 'fixing');
+    assert.equal(record.workflow?.workQuestion, null);
+    assert.ok(consumesCapacity(record));
+  });
+
+  it('refuses a reported PR that does not close the issue', async (t) => {
+    const h = await setup(t);
+    const issue = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const pr = h.tracker.seedPullRequest({ title: 'Unrelated', headSha: HEAD_1 });
+    h.opensPr(h.sessionId(issue.key), pr.url);
+    await h.cycle();
+    assert.equal(h.record(issue.key).stage, 'fixing');
+    assert.equal(h.record(issue.key).fix, null);
+    assert.ok(h.lines(['structured-output-ignored']).some((line) => line.includes('does not close')));
   });
 });
 

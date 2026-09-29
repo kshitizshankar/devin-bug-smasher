@@ -40,7 +40,8 @@ refused), and the unavailable verifier and policy until M1.5/M1.6 provide real o
    While closed, only the stopped session's live state is followed.
 5. A workflow label added **by a person** since the last step → that person's action (`github:<login>`,
    the label event time). Service and bot label changes are not decisions.
-6. Label snapshot → `labels-changed`.
+6. Label snapshot → `labels-changed`, except that a snapshot never moves a `triaged` record into repair
+   (`decision-label-ignored`): only a person's label event or a policy decides.
 7. Pending dispatch → reconcile (below).
 8. Live session → read it: valid structured output → model event; otherwise only its live state.
 9. Relay one genuine human comment to the live session.
@@ -90,7 +91,7 @@ operation that was in flight, and each is idempotent:
 ## Sessions, questions and replies
 
 - Only valid structured output advances a record (`structuredOutputEvents`, `fixSubmittedEvent` with the
-  tracker's current head). Absent, incomplete or invalid output changes nothing (`structured-output-ignored`);
+  tracker's current head). A reported fix PR must be open, in this repository and a closing PR for the issue. Absent, incomplete or invalid output changes nothing (`structured-output-ignored`);
   chat text is never parsed.
 - A triage session that opens a PR is refused (`unexpected-triage-pr`): no fix is recorded and one notice
   is posted.
@@ -138,7 +139,7 @@ are attributed to `policy:<rule>` and explained in one comment.
 `not-enrolled`, `transition` (`what`, `from`, `to`, queued `operations`), `refused`, `effect-applied`,
 `effect-failed`, `effect-dropped`, `message-already-delivered`, `dispatch-intent`, `session-created`,
 `create-ambiguous`, `create-failed`, `reconcile-not-found`, `create-abandoned`, `waiting-for-capacity`,
-`waiting-for-session-end`, `label-conflict`, `structured-output-ignored`, `unexpected-triage-pr`,
+`waiting-for-session-end`, `label-conflict`, `decision-label-ignored`, `structured-output-ignored`, `unexpected-triage-pr`,
 `reply-relayed`, `question-posted`, `verifier-unavailable`, `policy-unavailable`, `cycle-*`, `error`.
 Run the traces with `ORCHESTRATOR_TRACE=1 node --test test/orchestrator.test.ts`; each test prints its
 trace as diagnostics.
@@ -172,5 +173,6 @@ Tests are in `test/orchestrator.test.ts` unless noted.
 | Unavailable dependencies never imply success | `verification contract` (all three tests), `direct repair` |
 | Merge commit recorded; post-merge acknowledgement once | `merge` |
 | Interface actor | `interface actions` |
+| Bot labels never approve repair; all undelivered comments reach Devin; stale repair questions do not free capacity; fix PRs must close the issue | `review hardening` |
 | Existing-PR handoff event, workflow validation | `test/transitions.test.ts` › existing pull request handoff |
 | Prompt assets and strict one-pass rendering | `test/orchestrator-prompts.test.ts` |
