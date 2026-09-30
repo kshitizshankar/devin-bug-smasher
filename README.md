@@ -29,6 +29,11 @@ a fix for 4 and an engineer for 1. All 4 fixes were proven by Bug Smasher's chec
 of Devin usage across 11 sessions. The [Superset dashboard](https://kshitizshankar.github.io/devin-bug-smasher/results/superset-run.html) has every bug, and
 [results/README.md](results/README.md) says how each number is measured.
 
+<a href="https://kshitizshankar.github.io/devin-bug-smasher/results/superset-run.html"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/superset-dashboard-dark.png">
+  <img alt="The Superset dashboard: four metric cards, and where every bug is in the workflow" src="docs/images/superset-dashboard-light.png">
+</picture></a>
+
 On a live repository, `GET /api/metrics` gives four headline figures ([definitions](docs/METRICS.md)): fixes merged
 and proven each week, hours from issue to proven merge, how often a fix passes the check the first time, and how
 many merged fixes later failed. A figure with no data says so; it is never shown as zero.
@@ -37,8 +42,14 @@ many merged fixes later failed. A figure with no data says so; it is never shown
 
 Devin wrote Bug Smasher from GitHub issues, and a person reviewed and merged every pull request. Once the workflow
 ran, new pull requests went through it: 9 of the 25 merged pull requests were started by a label on this
-repository. Docs, the dashboard pages and a few small fixes were committed directly. Three examples, each with its
-full trail on GitHub:
+repository. Docs, the dashboard pages and a few small fixes were committed directly.
+
+<a href="https://kshitizshankar.github.io/devin-bug-smasher/results/building-bug-smasher.html"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/build-dashboard-dark.png">
+  <img alt="The build dashboard: what Devin built, how fast, how it was checked and what it cost, and the workflow" src="docs/images/build-dashboard-light.png">
+</picture></a>
+
+Three examples, each with its full trail on GitHub:
 
 - **Fix.** [#97](https://github.com/kshitizshankar/devin-bug-smasher/issues/97): a helper file listed as a test crashed verification. A person added the fix
   label. Five minutes later Devin opened [#98](https://github.com/kshitizshankar/devin-bug-smasher/pull/98) with a summary for the reviewer. Bug Smasher ran
