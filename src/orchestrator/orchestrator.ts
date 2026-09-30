@@ -1552,16 +1552,21 @@ export class Orchestrator {
         } else if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) {
           round.blocker = 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
         } else {
-          const marker = `bug-smasher:review:${fix.headSha}`;
-          const message = [
-            correctionMessage(round.findings),
-            '',
-            'Resolve each review thread once it is addressed.',
-            '',
-            `<!-- ${marker} -->`,
-          ].join('\n');
-          ops.push({ type: 'send-message', sessionId: session.id, marker, message });
-          round.correctionSentAt = this.#nowIso();
+          const unreachable = await this.#sessionUnreachable(session.id);
+          if (unreachable === null) {
+            const marker = `bug-smasher:review:${fix.headSha}`;
+            const message = [
+              correctionMessage(round.findings),
+              '',
+              'Resolve each review thread once it is addressed.',
+              '',
+              `<!-- ${marker} -->`,
+            ].join('\n');
+            ops.push({ type: 'send-message', sessionId: session.id, marker, message });
+            round.correctionSentAt = this.#nowIso();
+          } else {
+            round.blocker = unreachable;
+          }
         }
         if (round.blocker !== null) {
           ops.push({
@@ -1576,6 +1581,29 @@ export class Orchestrator {
     }
     const result = this.#event(record, { type: 'review-recorded', review });
     return (await this.#commit(issue, record, result, 'review-recorded', { ops })) === 'applied';
+  }
+
+  /**
+   * Why findings cannot be sent back to a session the record believes is live: it is gone or suspended in a
+   * way a message cannot resume. A resumable suspension wakes on the message, so it is not a blocker.
+   */
+  async #sessionUnreachable(sessionId: string): Promise<string | null> {
+    let session: DevinSession | null;
+    try {
+      session = await this.#devin.getSession(sessionId);
+    } catch (error) {
+      if (error instanceof DevinError && error.kind === 'not-found') {
+        return 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
+      }
+      throw error;
+    }
+    if (session === null || session.activity.kind === 'ended') {
+      return 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
+    }
+    if (session.activity.kind === 'suspended' && session.activity.resumable === false) {
+      return 'The Devin session that opened the pull request is suspended and cannot resume, so the findings could not be sent back to it.';
+    }
+    return null;
   }
 
   async #reviewCall(record: BugRecord, call: () => Promise<ReviewState>): Promise<ReviewState | null> {
