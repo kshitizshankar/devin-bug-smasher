@@ -169,6 +169,68 @@ describe('prompt assets: every route', () => {
   });
 });
 
+describe('prompt assets: Ready for review comment', () => {
+  const fixture = {
+    repo: 'acme/widgets',
+    issueNumber: 12,
+    issueUrl: 'https://github.com/acme/widgets/issues/12',
+    title: 'Legend overlaps axis',
+    body: 'The legend covers the x axis at 400px',
+  };
+  const SHAPE = [
+    '**Ready for review** · head `<short SHA>`',
+    '**What this does:** one or two lines.',
+    '**Things to note:** behavior changes, risks, or findings deferred to issues (#N). Write "nothing" if there is nothing.',
+    '**Checked:** the tests added, CI, and the Review result.',
+  ].join('\n');
+
+  async function pullRequestRoutes(): Promise<Record<string, string>> {
+    const prompts = await Prompts.load();
+    return {
+      'repair/new': prompts.repairNew(fixture, findings(), [], null),
+      'repair/continue': prompts.repairContinue(fixture, findings(), [], null, 'bug-smasher:continue:s:1'),
+      'repair/playbook': prompts.render('playbook-repair', {}),
+      'feature/new': prompts.feature(fixture, [], null),
+      'feature/playbook': prompts.render('playbook-feature', {}),
+    };
+  }
+
+  it('ask a finished repair or feature PR for exactly one comment for its head, with all three parts filled in', async () => {
+    for (const [route, prompt] of Object.entries(await pullRequestRoutes())) {
+      const shapes = prompt.split('\n').map((line) => line.trim()).join('\n').split(SHAPE).length - 1;
+      assert.equal(shapes, 1, `${route}: the comment shape appears exactly once`);
+      assert.match(prompt, /exactly one Ready for review comment for its head commit/, `${route}: one comment per head`);
+      assert.match(prompt, /with all three parts filled in/, `${route}: all three parts`);
+      assert.match(prompt, /first line is always `\*\*Ready for review\*\*` followed by the short SHA of the head commit/, `${route}: head SHA`);
+      assert.match(prompt, /written in your\s+own words/, `${route}: Devin's own voice`);
+      assert.match(prompt, /a reader should get the\s+change without reading the diff/, `${route}: short`);
+    }
+  });
+
+  it('ask for a new comment for the new head after a further push, without editing the old one', async () => {
+    for (const [route, prompt] of Object.entries(await pullRequestRoutes())) {
+      assert.match(prompt, /If you push another commit afterwards, do not edit the old comment; once\s+you are finished again, post a new one for the new head/, route);
+    }
+  });
+
+  it('hold the comment until CI is green, verification passed, Devin Review is answered and nothing is left to push', async () => {
+    for (const [route, prompt] of Object.entries(await pullRequestRoutes())) {
+      assert.match(prompt, /Stay in this session after reporting/, `${route}: the session outlives the report`);
+      assert.match(prompt, /When the pull request is finished, post one Ready for review\s+comment/, `${route}: posted when finished`);
+      assert.match(prompt, /CI has completed and is green on the head commit/, `${route}: CI`);
+      assert.match(prompt, /`bug-smasher\/verification` status on that head has passed/, `${route}: independent verification`);
+      assert.match(prompt, /every Devin Review finding has been\s+answered/, `${route}: Review`);
+      assert.match(prompt, /you have nothing left to push/, `${route}: nothing left to push`);
+      assert.match(prompt, /Do not post it while\s+CI or verification is still running or while you are still addressing a Review round/, `${route}: not early`);
+    }
+  });
+
+  it('leave the triage route, which opens no pull request, without the comment', async () => {
+    const prompts = await Prompts.load();
+    assert.doesNotMatch(prompts.investigation(fixture, [], null), /Ready for review/);
+  });
+});
+
 describe('triage comment', () => {
   const labels = loadSettings({ GITHUB_REPO: 'acme/widgets' }).labels;
 
