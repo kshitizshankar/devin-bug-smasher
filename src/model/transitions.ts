@@ -100,7 +100,7 @@ export type ModelEvent =
   /** Appends a Rule or Automatic policy evaluation; acting on it is a separate action. */
   | { type: 'policy-evaluated'; evaluation: PolicyEvaluation }
   /** The orchestrator found a reason work must not start or continue automatically, e.g. an existing PR. */
-  | { type: 'handoff-requested'; reason: 'existing-pr' | 'session-suspended'; detail: string };
+  | { type: 'handoff-requested'; reason: 'existing-pr' | 'session-suspended' | 'verification-error'; detail: string };
 
 export interface ActionRequest {
   name: ActionName;
@@ -581,7 +581,7 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
     }
 
     case 'handoff-requested': {
-      if (!['queued', 'triaging', 'needs-input', 'triaged', 'fixing'].includes(record.stage)) {
+      if (!['queued', 'triaging', 'needs-input', 'triaged', 'fixing', 'verifying'].includes(record.stage)) {
         return fail('invalid-stage', `Automatic handoff does not apply in stage ${record.stage}`);
       }
       return done(record, now, handOff(record, event.reason, event.detail, options, now));

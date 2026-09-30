@@ -182,7 +182,7 @@ type CommitStatus = 'applied' | 'unchanged' | 'refused' | 'deferred';
 
 const WORKING_STAGES: readonly Stage[] = ['triaging', 'fixing', 'verifying'];
 const RELAY_STAGES: readonly Stage[] = ['triaging', 'needs-input', 'fixing'];
-const HANDOFF_STAGES: readonly Stage[] = ['queued', 'triaging', 'needs-input', 'triaged', 'fixing'];
+const HANDOFF_STAGES: readonly Stage[] = ['queued', 'triaging', 'needs-input', 'triaged', 'fixing', 'verifying'];
 const OUTPUT_TAIL_CHARS = 4000;
 const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 /** How long a requested Review may be reported missing (or on another commit) before it counts as unavailable. */
@@ -190,7 +190,7 @@ const REVIEW_MISSING_GRACE_MS = 30 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
 
 export function emptyWorkflow(): WorkflowState {
-  return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [] };
+  return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [], verifierUnavailable: null };
 }
 
 function workflowOf(record: BugRecord): WorkflowState {
@@ -1344,8 +1344,13 @@ export class Orchestrator {
   async #verify(issue: TrackerIssue, record: BugRecord): Promise<void> {
     const fix = record.fix;
     if (fix === null) return;
-    const attempt = await this.#runVerifier(record, 'pre-merge', fix.headSha);
-    if (attempt === null) return;
+    const run = await this.#runVerifier(record, 'pre-merge', fix.headSha);
+    if (run === null) return;
+    if (run.kind === 'unavailable') {
+      await this.#verificationStalled(issue, record, fix.headSha, run.reason);
+      return;
+    }
+    const attempt = run.attempt;
     const result = this.#event(record, { type: 'verification-recorded', attempt });
     const ops: WorkflowOperation[] = [];
     if (result.ok && result.record.stage === 'fixing' && attempt.result === 'fail') {
@@ -1374,7 +1379,39 @@ export class Orchestrator {
         body: verificationFlagsComment(fix.prUrl, fix.headSha, flags),
       });
     }
-    await this.#commit(issue, record, result, `verification-${attempt.result}`, { first: [verificationStatus(attempt)], ops });
+    await this.#commit(issue, record, result, `verification-${attempt.result}`, {
+      first: [verificationStatus(attempt)],
+      ops,
+      mutate: (state) => {
+        state.verifierUnavailable = null;
+      },
+    });
+  }
+
+  /**
+   * A verifier run that produced nothing usable (`verifier-unavailable`) leaves no attempt, so the error
+   * budget never applies and `verifying` would hold a session slot forever. Consecutive unavailabilities
+   * for one head count toward the same budget; at the cap the record hands off as `verification-error`.
+   */
+  async #verificationStalled(issue: TrackerIssue, record: BugRecord, headSha: string, reason: string): Promise<void> {
+    const workflow = workflowOf(record);
+    const count = (workflow.verifierUnavailable?.headSha === headSha ? workflow.verifierUnavailable.count : 0) + 1;
+    if (count < this.#model.maxVerificationErrors || !HANDOFF_STAGES.includes(record.stage)) {
+      await this.#persistWorkflow(
+        record,
+        (state) => {
+          state.verifierUnavailable = { headSha, count };
+        },
+        [],
+      );
+      return;
+    }
+    const result = this.#event(record, {
+      type: 'handoff-requested',
+      reason: 'verification-error',
+      detail: `The verifier could not produce a result for ${headSha} in ${count} cycles: ${reason}`,
+    });
+    await this.#commit(issue, record, result, 'verification-error');
   }
 
   /** Post-merge verification is due until the merge commit has a pass or a failure, or errors ran out. */
@@ -1388,23 +1425,24 @@ export class Orchestrator {
   async #verifyMerge(issue: TrackerIssue, record: BugRecord): Promise<void> {
     const mergeCommitSha = record.fix?.mergeCommitSha ?? null;
     if (mergeCommitSha === null) return;
-    const attempt = await this.#runVerifier(record, 'post-merge', mergeCommitSha);
-    if (attempt === null) return;
+    const run = await this.#runVerifier(record, 'post-merge', mergeCommitSha);
+    if (run === null || run.kind === 'unavailable') return;
+    const attempt = run.attempt;
     const result = this.#event(record, { type: 'verification-recorded', attempt });
     await this.#commit(issue, record, result, `post-merge-verification-${attempt.result}`, { first: [verificationStatus(attempt)] });
   }
 
-  /** Runs the injected verifier for `sha`; `null` when nothing usable was verified (never a pass). */
+  /** Runs the injected verifier for `sha`; `null` when the record has no fix, `unavailable` when it produced no usable result (never a pass). */
   async #runVerifier(
     record: BugRecord,
     phase: VerificationPhase,
     sha: string,
-  ): Promise<Omit<VerificationAttempt, 'sessionId'> | null> {
+  ): Promise<{ kind: 'attempt'; attempt: Omit<VerificationAttempt, 'sessionId'> } | { kind: 'unavailable'; reason: string } | null> {
     const fix = record.fix;
     if (fix === null) return null;
     if (this.#requireLive && !this.#verifier.live) {
       this.#emit(record.key, 'verifier-unavailable', { reason: 'The configured verifier is not live' });
-      return null;
+      return { kind: 'unavailable', reason: 'The configured verifier is not live' };
     }
     const pr = await this.#tracker.getPullRequest(fix.prNumber);
     const outcome = await this.#verifier.verify({
@@ -1418,14 +1456,14 @@ export class Orchestrator {
     });
     if (outcome.status === 'unavailable') {
       this.#emit(record.key, 'verifier-unavailable', { reason: outcome.reason });
-      return null;
+      return { kind: 'unavailable', reason: outcome.reason };
     }
     const attempt = outcome.attempt;
     if (attempt.phase !== phase || attempt.headSha !== sha) {
       this.#emit(record.key, 'refused', { what: 'verification-recorded', code: 'stale-verification', message: `Result for ${attempt.phase} ${attempt.headSha} does not match ${phase} ${sha}` });
-      return null;
+      return { kind: 'unavailable', reason: 'The verifier reported a result that did not match the requested run' };
     }
-    return attempt;
+    return { kind: 'attempt', attempt };
   }
 
   async #decide(issue: TrackerIssue, record: BugRecord): Promise<void> {

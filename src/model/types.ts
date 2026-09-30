@@ -407,6 +407,8 @@ export interface WorkflowState {
   workQuestion: WorkQuestion | null;
   /** One-time notices already queued, e.g. `triage-pr:<sessionId>`. */
   notices: string[];
+  /** Consecutive verifier runs that produced no result for the current head; cleared by a real attempt. */
+  verifierUnavailable?: { headSha: string; count: number } | null;
 }
 
 /** Latest GitHub snapshot used as input to derivation. */
