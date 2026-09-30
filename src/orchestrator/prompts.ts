@@ -22,6 +22,7 @@ export const PROMPT_NAMES = [
   'verification-flags',
   'review-blocker',
   'merge-refused',
+  'session-waiting',
   'reply-relay',
   'post-merge-ack',
   'feature',
@@ -306,5 +307,9 @@ export class Prompts {
 
   mergeRefused(input: { prUrl: string; headSha: string; reason: string; marker: string }): string {
     return this.render('merge-refused', { ...input });
+  }
+
+  sessionWaiting(input: { issueUrl: string; marker: string }): string {
+    return this.render('session-waiting', { ...input });
   }
 }

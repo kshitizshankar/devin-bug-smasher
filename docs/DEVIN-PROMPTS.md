@@ -23,8 +23,10 @@ and its repository rules from `AGENTS.md`. Each kind of guidance has one home:
 | Verification flags | `verification-flags.md` | The findings the verifier flagged on a passing head |
 | Review blocker | `review-blocker.md` | Why remaining Devin Review findings could not go back as work |
 | Merge refused | `merge-refused.md` | Why GitHub refused a merge the policy decided |
+| Session waiting | `session-waiting.md` | Tells a session stopped without a question to ask on the issue itself |
 
-The last three are messages to the bug's session, which acts on them and says so on the pull request.
+The last four are messages to the bug's session: it acts on them and says so on the pull request, or asks
+on the issue what it is waiting for.
 Devin writes every comment itself: each route prompt tells it to post its picking-up comment (once per
 session), its findings and questions on the issue and the Ready for review comment on its pull request,
 from its own GitHub account. The service posts no comments anywhere.

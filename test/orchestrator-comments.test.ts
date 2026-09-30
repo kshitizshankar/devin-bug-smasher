@@ -171,6 +171,13 @@ describe('orchestrator: Devin speaks for the work', () => {
     await h.cycle(3);
     assert.equal(h.messages(id).length, 0, 'bot comments are never relayed');
     assert.equal(h.record(issue.key).stage, 'needs-input', 'a Devin comment does not answer the question');
+
+    // A comment an earlier release posted with the operator's token is marked as the service's; it is
+    // not a person's reply either.
+    await h.tracker.postComment(issue.number, 'Earlier service notice', { key: 'session-started:old' });
+    await h.cycle(2);
+    assert.equal(h.messages(id).length, 0, 'a comment written by the service is never relayed');
+    assert.equal(h.record(issue.key).stage, 'needs-input');
   });
 
   it('sends verification flags and a review blocker to the session as messages, posting no comment', async (t) => {

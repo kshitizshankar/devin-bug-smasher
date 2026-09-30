@@ -182,6 +182,11 @@ const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 const REVIEW_MISSING_GRACE_MS = 30 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
 const WAITING_QUESTION_PREFIX = 'w-';
+/**
+ * Margin applied when matching a recorded own label change to its issue event: GitHub may stamp the
+ * echo slightly earlier than the moment before the request was sent (clock skew, second precision).
+ */
+const OWN_LABEL_SKEW_MS = 5_000;
 /** How new the fix head's commit may be before Devin counts as still working on it. */
 const READY_COMMIT_AGE_MS = 90 * 1000;
 /** Marker on Devin Review's auto-fix status review on the pull request. */
@@ -203,7 +208,9 @@ export function emptyWorkflow(): WorkflowState {
 }
 
 function workflowOf(record: BugRecord): WorkflowState {
-  return structuredClone(record.workflow ?? emptyWorkflow());
+  const workflow = structuredClone(record.workflow ?? emptyWorkflow());
+  workflow.ownLabelChanges ??= [];
+  return workflow;
 }
 
 /**
@@ -659,7 +666,9 @@ export class Orchestrator {
         current.workflow.outbox.shift();
         if (dropped === null && (op.type === 'add-label' || op.type === 'remove-label')) {
           // The issue event this produces is the service's own change, not a person's decision. `appliedAt`
-          // was taken before the change, so the event cannot predate it.
+          // was taken before the change, so the event should not predate it; a small skew margin covers a
+          // GitHub clock that stamps the echo slightly earlier than the request started.
+          current.workflow.ownLabelChanges ??= [];
           current.workflow.ownLabelChanges.push({
             type: op.type === 'add-label' ? 'labeled' : 'unlabeled',
             label: op.label,
@@ -810,8 +819,13 @@ export class Orchestrator {
     return actor !== null && actor.type === 'user';
   }
 
+  /**
+   * A comment a person wrote. The `fromService` marker keeps service comments written by an earlier
+   * release (with a person's token) from being relayed as replies; the service posts no comments now, so
+   * the marker answers nothing else.
+   */
   #isHumanComment(comment: TrackerComment): boolean {
-    return this.#isPerson(comment.author) && comment.body.trim() !== '';
+    return !comment.fromService && this.#isPerson(comment.author) && comment.body.trim() !== '';
   }
 
   #workflowLabelEvent(event: IssueEvent): boolean {
@@ -883,7 +897,10 @@ export class Orchestrator {
     if (event === undefined) return false;
     const label = event.label as string;
     const own = workflow.ownLabelChanges.findIndex(
-      (change) => change.type === 'labeled' && change.label.toLowerCase() === label.toLowerCase() && change.at <= event.at,
+      (change) =>
+        change.type === 'labeled' &&
+        change.label.toLowerCase() === label.toLowerCase() &&
+        Date.parse(change.at) - OWN_LABEL_SKEW_MS <= Date.parse(event.at),
     );
     const markHandled = (state: WorkflowState): void => {
       state.handledEventIds.push(event.id);
@@ -1271,7 +1288,10 @@ export class Orchestrator {
           const result = this.#event(record, { type: 'question-asked', question });
           if (result.ok && result.changed) {
             this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: question.id, phase: 'triage' });
-            return (await this.#commit(issue, record, result, 'session-waiting')) === 'applied';
+            return (
+              (await this.#commit(issue, record, result, 'session-waiting', { ops: [this.#sessionWaitingOp(issue, session, question.id)] })) ===
+              'applied'
+            );
           }
         }
       }
@@ -1319,6 +1339,7 @@ export class Orchestrator {
               state.notices.push(notice);
               state.workQuestion = { id, sessionId: session.id, summary: sessionWaitingSummary(session.url), askedAt: this.#nowIso() };
             },
+            [this.#sessionWaitingOp(issue, session, id)],
           );
           this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: id, phase: 'fix' });
           return true;
@@ -1326,6 +1347,20 @@ export class Orchestrator {
       }
     }
     return this.#settleSession(issue, record, session);
+  }
+
+  /**
+   * A session that stopped without asking a structured question is nudged to put what it needs on the
+   * issue itself, so a person reading only GitHub sees the ask. One message per stop (`notices` dedups).
+   */
+  #sessionWaitingOp(issue: TrackerIssue, session: DevinSession, questionId: string): WorkflowOperation {
+    const marker = `bug-smasher:session-waiting:${questionId}`;
+    return {
+      type: 'send-message',
+      sessionId: session.id,
+      marker,
+      message: this.#prompts.sessionWaiting({ issueUrl: issue.url, marker }),
+    };
   }
 
   /**

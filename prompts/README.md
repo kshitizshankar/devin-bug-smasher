@@ -22,6 +22,7 @@ attached, is described in [`docs/DEVIN-PROMPTS.md`](../docs/DEVIN-PROMPTS.md).
 | `verification-flags.md` | Verification passed but flagged things to look at; sent to the same session, which answers on the pull request. |
 | `review-blocker.md` | Devin Review findings could not be sent back for repair while the session is live; sent to that session, which says so on the pull request. |
 | `merge-refused.md` | GitHub refused the merge while the session is live; sent to that session, which answers on the pull request. |
+| `session-waiting.md` | A session stopped without asking anything on the issue; sent to it so it asks there itself. |
 | `reply-relay.md` | A person comments on the issue while a session is live; the comment is relayed unchanged. |
 | `post-merge-ack.md` | The fix PR was merged while the session is live; sent before the session is stopped. |
 | `feature.md` | A `devin-builds-feature` issue is implemented from its acceptance criteria. |

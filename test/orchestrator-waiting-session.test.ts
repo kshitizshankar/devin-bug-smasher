@@ -40,6 +40,9 @@ describe('orchestrator: a session waiting without a structured question', () => 
     assert.equal(record.questions.length, 1, 'one question recorded for the stop');
     assert.ok(record.questions[0]?.summary.includes(url), 'the recorded question links the session');
     assert.deepEqual(await h.tracker.listComments(a.number), [], 'the service posts no comment');
+    assert.equal(h.messages(id).length, 1, 'the session is told to ask on the issue');
+    assert.match(h.messages(id)[0] ?? '', /bug-smasher:session-waiting:/);
+    assert.match(h.messages(id)[0] ?? '', /on the issue/);
     assert.equal(record.stage, 'needs-input');
     assert.ok(!consumesCapacity(record));
     const note = attention(presentBug(record, facts(['needs-triage']), h.settings.labels));
@@ -48,20 +51,21 @@ describe('orchestrator: a session waiting without a structured question', () => 
 
     await h.cycle(3);
     assert.equal(h.record(a.key).questions.length, 1, 'later cycles record nothing more for the same stop');
+    assert.equal(h.messages(id).length, 1, 'one nudge per stop');
     assert.deepEqual(await h.tracker.listComments(a.number), []);
     assert.equal(h.record(b.key).stage, 'triaging', 'the freed slot lets new work start');
 
     h.tracker.externalComment(a.number, 'ci-helper[bot]', 'Automated: build passed');
     await h.cycle(2);
-    assert.equal(h.messages(id).length, 0, 'a bot comment does not resume the session');
+    assert.equal(h.messages(id).length, 1, 'a bot comment does not resume the session');
     assert.equal(h.record(a.key).stage, 'needs-input');
 
     h.completesTriage(h.sessionId(b.key));
     await h.cycle(2);
     h.tracker.externalComment(a.number, 'reporter', 'Use Firefox 128');
     await h.cycle(2);
-    assert.equal(h.messages(id).length, 1);
-    assert.match(h.messages(id)[0] ?? '', /Use Firefox 128/);
+    assert.equal(h.messages(id).length, 2);
+    assert.match(h.messages(id).at(-1) ?? '', /Use Firefox 128/);
     assert.equal(h.record(a.key).stage, 'triaging');
     assert.ok(consumesCapacity(h.record(a.key)));
 
@@ -73,6 +77,7 @@ describe('orchestrator: a session waiting without a structured question', () => 
     waitsSilently(h, id);
     await h.cycle(3);
     assert.equal(h.record(a.key).questions.length, 2, 'a new stop records its own question');
+    assert.equal(h.messages(id).length, 3, 'a new stop gets its own nudge');
   });
 
   it('during repair: records one question, frees capacity and resumes on a person reply', async (t) => {
@@ -91,6 +96,8 @@ describe('orchestrator: a session waiting without a structured question', () => 
     assert.ok(question, 'one question recorded for the stop');
     assert.ok(question.summary.includes(url), 'the recorded question links the session');
     assert.deepEqual(await h.tracker.listComments(a.number), [], 'the service posts no comment');
+    assert.equal(h.messages(id).length, 1, 'the session is told to ask on the issue');
+    assert.match(h.messages(id)[0] ?? '', /bug-smasher:session-waiting:/);
     assert.equal(record.stage, 'fixing');
     assert.ok(!consumesCapacity(record));
     const note = attention(presentBug(record, facts(['bug-smasher']), h.settings.labels));
@@ -103,13 +110,13 @@ describe('orchestrator: a session waiting without a structured question', () => 
 
     h.tracker.externalComment(a.number, 'ci-helper[bot]', 'Automated: build passed');
     await h.cycle(2);
-    assert.equal(h.messages(id).length, 0, 'a bot comment does not resume the session');
+    assert.equal(h.messages(id).length, 1, 'a bot comment does not resume the session');
 
     h.ends(h.sessionId(b.key));
     await h.cycle(2);
     h.tracker.externalComment(a.number, 'maintainer', 'Keep the old API');
     await h.cycle(2);
-    assert.equal(h.messages(id).length, 1);
+    assert.equal(h.messages(id).length, 2);
     assert.equal(h.record(a.key).stage, 'fixing');
     assert.ok(consumesCapacity(h.record(a.key)));
     await h.cycle(2);
@@ -135,7 +142,7 @@ describe('orchestrator: a session waiting without a structured question', () => 
     assert.ok(consumesCapacity(h.record(a.key)));
     assert.equal(h.record(b.key).stage, 'fixing');
     assert.ok(consumesCapacity(h.record(b.key)));
-    assert.equal(h.messages(idA).length + h.messages(idB).length, 0);
+    assert.equal(h.messages(idA).length + h.messages(idB).length, 2, 'one nudge each; resumed without a reply');
 
     h.completesTriage(idA);
     await h.cycle(2);

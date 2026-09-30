@@ -771,4 +771,19 @@ describe('existing pull request handoff', () => {
     };
     assert.ok(validateBugRecord(record).length >= 2);
   });
+
+  it('accepts workflow bookkeeping written before ownLabelChanges existed', () => {
+    const record = enroll([LABEL.fix]);
+    record.workflow = {
+      dispatch: null,
+      outbox: [],
+      relayedCommentIds: [],
+      handledEventIds: [],
+      ownLabelChanges: [],
+      workQuestion: null,
+      notices: [],
+    };
+    delete (record.workflow as unknown as Record<string, unknown>)['ownLabelChanges'];
+    assert.deepEqual(validateBugRecord(record), []);
+  });
 });
