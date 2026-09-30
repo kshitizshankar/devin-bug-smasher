@@ -18,6 +18,7 @@ import { currentMergeVerifications, outstandingQuestion } from '../model/present
 import {
   applyAction,
   applyEvent,
+  countSessionAttempts,
   DEFAULT_MAX_VERIFICATION_ERRORS,
   enrollBug,
   type ActionRequest,
@@ -1379,28 +1380,24 @@ export class Orchestrator {
         body: verificationFlagsComment(fix.prUrl, fix.headSha, flags),
       });
     }
-    await this.#commit(issue, record, result, `verification-${attempt.result}`, {
-      first: [verificationStatus(attempt)],
-      ops,
-      mutate: (state) => {
-        state.verifierUnavailable = null;
-      },
-    });
+    await this.#commit(issue, record, result, `verification-${attempt.result}`, { first: [verificationStatus(attempt)], ops });
   }
 
   /**
    * A verifier run that produced nothing usable (`verifier-unavailable`) leaves no attempt, so the error
-   * budget never applies and `verifying` would hold a session slot forever. Consecutive unavailabilities
-   * for one head count toward the same budget; at the cap the record hands off as `verification-error`.
+   * budget never applies and `verifying` would hold a session slot forever. Unavailabilities for one head
+   * and recorded `error` attempts share the same budget — both are infrastructure failing to produce a
+   * result — and at the cap the record hands off as `verification-error`.
    */
   async #verificationStalled(issue: TrackerIssue, record: BugRecord, headSha: string, reason: string): Promise<void> {
     const workflow = workflowOf(record);
-    const count = (workflow.verifierUnavailable?.headSha === headSha ? workflow.verifierUnavailable.count : 0) + 1;
-    if (count < this.#model.maxVerificationErrors || !HANDOFF_STAGES.includes(record.stage)) {
+    const unavailable = (workflow.verifierUnavailable?.headSha === headSha ? workflow.verifierUnavailable.count : 0) + 1;
+    const total = unavailable + countSessionAttempts(record, 'error');
+    if (total < this.#model.maxVerificationErrors || !HANDOFF_STAGES.includes(record.stage)) {
       await this.#persistWorkflow(
         record,
         (state) => {
-          state.verifierUnavailable = { headSha, count };
+          state.verifierUnavailable = { headSha, count: unavailable };
         },
         [],
       );
@@ -1409,7 +1406,7 @@ export class Orchestrator {
     const result = this.#event(record, {
       type: 'handoff-requested',
       reason: 'verification-error',
-      detail: `The verifier could not produce a result for ${headSha} in ${count} cycles: ${reason}`,
+      detail: `The verifier could not produce a result for ${headSha} after ${total} infrastructure failures: ${reason}`,
     });
     await this.#commit(issue, record, result, 'verification-error');
   }

@@ -292,7 +292,7 @@ export function enrollBug(facts: GitHubFacts, options: ModelOptions, now: Timest
   return { ok: true, record, changed: true, effects: [] };
 }
 
-function countSessionAttempts(record: BugRecord, result: VerificationAttempt['result']): number {
+export function countSessionAttempts(record: BugRecord, result: VerificationAttempt['result']): number {
   const sessionId = record.session?.id ?? null;
   return record.verifications.filter(
     (attempt) => attempt.phase === 'pre-merge' && attempt.sessionId === sessionId && attempt.result === result,

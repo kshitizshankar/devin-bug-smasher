@@ -774,6 +774,23 @@ describe('orchestrator: verification contract', () => {
     assert.equal(stalled.handoff?.reason, 'verification-error');
   });
 
+  it('shares one infrastructure budget between verifier errors and unavailable runs', async (t) => {
+    const verifier = new ScriptedVerifier(['error']); // then unavailable forever
+    const h = await setup(t, { verifier });
+    const issue = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const id = h.sessionId(issue.key);
+    const pr = h.tracker.seedPullRequest({ title: 'Fix', body: `Fixes #${issue.number}`, headSha: HEAD_1, references: [issue.number] });
+    h.opensPr(id, pr.url);
+    await h.cycle();
+    assert.equal(h.record(issue.key).stage, 'verifying');
+    await h.cycle(4);
+    const record = h.record(issue.key);
+    assert.deepEqual(record.verifications.map((v) => v.result), ['error']);
+    assert.equal(record.stage, 'with-engineer', 'two unavailabilities on top of the recorded error reach the cap');
+    assert.equal(record.handoff?.reason, 'verification-error');
+  });
+
   it('refuses results from a non-live verifier when live results are required', async (t) => {
     const verifier: Verifier = { live: false, verify: async () => assert.fail('must not be called') };
     const h = await setup(t, { verifier, requireLiveResults: true });
