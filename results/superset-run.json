@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-09-30T05:44:54.528Z",
+  "frozenAt": "2026-09-30T06:26:10.242Z",
   "figures": {
     "name": "Superset",
     "repo": "kshitizshankar/superset",
@@ -307,7 +307,7 @@
       },
       {
         "title": "Devin speaks for the work; the service only moves labels and statuses.",
-        "body": "Every comment on these bugs comes from Devin's own GitHub account. The service needs nothing but the operator's token."
+        "body": "Every comment on these bugs comes from Devin's own GitHub account."
       },
       {
         "title": "Polling every bug each minute is expensive.",

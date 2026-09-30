@@ -93,7 +93,7 @@ test files it has validated, in a fresh container of the project's test image, w
 tests run. A fix counts as proven only when the same test fails before it and passes after it.
 
 **People work in GitHub.** Labels, comments and merges are the whole interface. Devin writes every comment, from
-its own account. Bug Smasher only sets labels and commit statuses. One personal GitHub token is enough.
+its own account. Bug Smasher only sets labels and commit statuses.
 
 **Simple to run.** Bug Smasher is one process that checks GitHub every minute and keeps its data in a JSON file.
 It needs no public address, and a restart loses nothing. The trade-off is GitHub API usage (see Known
