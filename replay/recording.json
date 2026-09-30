@@ -20,7 +20,7 @@
       "issue": "export-safari",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "closed",
@@ -34,7 +34,7 @@
       "issue": "totals-rounding",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "triaged",
@@ -48,7 +48,7 @@
       "issue": "csv-header",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "ready-to-merge",
@@ -62,7 +62,7 @@
       "issue": "date-filter",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "ready-to-merge",
@@ -76,7 +76,7 @@
       "issue": "pdf-margin",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "ready-to-merge",
@@ -90,7 +90,7 @@
       "issue": "sso-timeout",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "with-engineer",
@@ -104,7 +104,7 @@
       "issue": "search-case",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "ready-to-merge",
@@ -118,7 +118,7 @@
       "issue": "tz-offset",
       "source": {
         "kind": "synthetic",
-        "reason": "No sanitized recording of a live run exists yet; the live demonstration is issue #15. Events were written by hand to exercise this path."
+        "reason": "Events were written by hand to exercise this path. The live run is on the Superset fork, kshitizshankar/superset."
       },
       "outcome": {
         "stage": "merged",
