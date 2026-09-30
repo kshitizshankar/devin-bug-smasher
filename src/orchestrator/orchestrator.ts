@@ -1381,6 +1381,18 @@ export class Orchestrator {
       });
     }
     await this.#commit(issue, record, result, `verification-${attempt.result}`, { first: [verificationStatus(attempt)], ops });
+    if (result.ok && attempt.result === 'error' && HANDOFF_STAGES.includes(result.record.stage)) {
+      const stalled = workflowOf(result.record).verifierUnavailable;
+      const unavailable = stalled?.headSha === fix.headSha ? stalled.count : 0;
+      if (unavailable + countSessionAttempts(result.record, 'error') >= this.#model.maxVerificationErrors) {
+        const handoff = this.#event(result.record, {
+          type: 'handoff-requested',
+          reason: 'verification-error',
+          detail: `The verifier could not produce a result for ${fix.headSha} after ${unavailable + countSessionAttempts(result.record, 'error')} infrastructure failures: ${attempt.reason}`,
+        });
+        await this.#commit(issue, result.record, handoff, 'verification-error');
+      }
+    }
   }
 
   /**
