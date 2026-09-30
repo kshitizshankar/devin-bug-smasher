@@ -137,7 +137,8 @@ Requires Node 22. CI runs the typecheck and a build-and-smoke test on every pull
 
 ## Known limitations
 
-- The web dashboard is a placeholder. The API and the results pages show the figures.
+- There is no live dashboard yet. Opening Bug Smasher in a browser shows a placeholder page. To see how a run is
+  going, render its results page with `npm run results`, or read `GET /api/overview`.
 - Issues found in review and not yet fixed are open and labelled
   [`deferred`](https://github.com/kshitizshankar/devin-bug-smasher/issues?q=is%3Aissue+is%3Aopen+label%3Adeferred).
   The ones that matter most in a live run:
