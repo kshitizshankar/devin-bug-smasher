@@ -111,7 +111,10 @@ export function renderRun(dataFile) {
   const word = (group, key) => P.words?.[group]?.[key] ?? key ?? '—';
 
   const sec = k => P.sections?.[k] ? `<div class="sechead"><h3>${md(P.sections[k].title)}</h3>${P.sections[k].caption ? `<div class="cap">${md(P.sections[k].caption)}</div>` : ''}</div>` : '';
-  const tiles = P.tiles.map((t, i) => `<div class="card tile${t.hero ? ' hero' : ''}"><div class="label">${md(t.label)}</div><div class="value">${esc(fill(t.value))}${t.small ? `<small> ${esc(fill(t.small))}</small>` : ''}</div>${t.note ? `<div class="note">${md(t.note)}</div>` : ''}${t.subs ? `<dl class="subs">${t.subs.map(x => `<div><dt>${md(x.label)}</dt><dd>${esc(fill(x.value))}</dd></div>`).join('')}</dl>` : ''}</div>`).join('');
+  const tile = t => `<div class="card tile${t.hero ? ' hero' : ''}"><div class="label">${md(t.label)}</div><div class="value">${esc(fill(t.value))}${t.small ? `<small> ${esc(fill(t.small))}</small>` : ''}</div>${t.note ? `<div class="note">${md(t.note)}</div>` : ''}${t.subs ? `<dl class="subs">${t.subs.map(x => `<div><dt>${md(x.label)}</dt><dd>${esc(fill(x.value))}</dd></div>`).join('')}</dl>` : ''}</div>`;
+  const tiles = P.tiles.map(tile).join('');
+  // Funnel: how many items reached each stage, drawn as the same cards as the metrics. A page without it has none.
+  const funnel = P.funnel?.length ? `<section class="tiles" style="grid-template-columns:repeat(${P.funnel.length},1fr)">${P.funnel.map(tile).join('')}</section>` : '';
   const C = P.columns;
   // A column whose heading is null in the run file is left out.
   const COLS = [
@@ -136,27 +139,6 @@ export function renderRun(dataFile) {
   const costChart = costed.length ? bars(costed.map(r => ({ label: `${r.label} ${r.title}`, v: r.cost, tip: [usd(r.cost)] })), { fmt: v => usd(v), refLine: cMed, refLabel: `${medianWord} ${usd(cMed)}` }) : '';
   const notes = (P.notes || []).map(n => `<div class="learn"><b>${md(n.title)}</b><p>${md(n.body)}</p></div>`).join('');
 
-  // Pipeline: a funnel of how many items reached each stage, optionally a "now" line and a board of where each
-  // item is. Everything it says comes from P.pipeline; a page without that block has no pipeline.
-  const pipe = P.pipeline;
-  const pw = (key, vars = {}) => fill((pipe.board?.words?.[key] ?? '').replace(/\{(\w+)\}/g, (m, k) => vars[k] ?? m));
-  const bcard = r => `<a class="bcard" href="${esc(r.url)}"><div><b>${esc(r.label)}</b> ${esc(clip(r.title, 64))}</div><div class="bchips">`
-    + (r.second ? `<span class="chip">${esc(pw('recommended', { x: word('second', r.second) }))}</span>` : '')
-    + (r.prNumber ? `<span class="chip">${esc(pw('pr', { n: r.prNumber }))}</span>` : '')
-    + (r.proofFailed != null ? `<span class="chip ok">${esc(pw('proof', { f: r.proofFailed, t: r.proofTotal }))}</span>` : '')
-    + `</div>${r.since ? `<div class="bsince">${esc(pw('since', { t: hm(r.since) }))}</div>` : ''}</a>`;
-  // Empty columns stay visible (the stages are the point) but narrower, so cards get the width.
-  const colWidths = (pipe?.board?.columns || []).map(c => (rows.some(r => r.column === c.key) ? 'minmax(0,1.5fr)' : 'minmax(0,.8fr)')).join(' ');
-  const board = !pipe?.board ? '' : `<div class="bcap">${md(pipe.board.title)}</div><div class="board" style="grid-template-columns:${colWidths}">`
-    + pipe.board.columns.map(c => { const rs = rows.filter(r => r.column === c.key); return `<div class="bcol${c.active ? ' active' : ''}"><div class="bhead"><span>${md(c.label)}</span><b>${rs.length}</b></div>${c.waits ? `<div class="bwait">${md(c.waits)}</div>` : ''}${rs.length ? rs.map(bcard).join('') : `<div class="bempty">${md(pipe.board.empty ?? '')}</div>`}</div>`; }).join('')
-    + '</div>';
-  const steps = (pipe?.funnel || []).map(s => ({ ...s, n: Number(fill(s.value)) || 0 }));
-  const topStep = Math.max(1, ...steps.map(s => s.n));
-  const pipelineHtml = !pipe ? '' : `<section class="card pipe"><h2>${md(pipe.title)}</h2><div class="cap">${md(pipe.caption)}</div>`
-    + (pipe.now ? `<div class="fnow">${pipe.now.map(x => `<span><b>${esc(fill(x.value))}</b>${md(x.label)}</span>`).join('')}</div>` : '')
-    + `<div class="funnel">${steps.map(s => `<div class="fstep"><div class="flabel">${md(s.label)}</div><div class="fval">${s.n}</div><div class="fbar"><i style="width:${(100 * s.n / topStep).toFixed(1)}%"></i></div>${s.note ? `<div class="fnote">${md(s.note)}</div>` : ''}</div>`).join('<div class="farrow">→</div>')}</div>`
-    + (pipe.exits?.length ? `<div class="fexits">${pipe.exits.map(x => `<div class="fexit"><b>${esc(fill(x.value))}</b>${md(x.label)}</div>`).join('')}</div>` : '')
-    + board + '</section>';
 
   const html = `<!doctype html><html lang="en" data-theme="light"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(fill(P.title))}</title>
 <style>${STYLE}
@@ -166,26 +148,12 @@ export function renderRun(dataFile) {
 .rrow{display:grid;grid-template-columns:${COLS.map(([, w]) => w).join(' ')};gap:12px;align-items:center;padding:9px 2px;border-top:1px solid var(--line);font-size:13px}.rrow a{color:var(--ink);text-decoration:none}.rrow a:hover{text-decoration:underline}.rrow.rhead{border-top:0;color:var(--muted);font-size:11.5px;padding-top:2px}
 .learn{padding:9px 0;border-top:1px solid var(--line)}.learn:first-child{border-top:0}.learn b{font-weight:600;font-size:13.5px}.learn p{margin:3px 0 0;color:var(--ink2);font-size:13px}.learn a{color:var(--s1)}
 code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink2)}
-.pipe{margin-bottom:14px}.fnow{display:flex;gap:26px;flex-wrap:wrap;font-size:13px;color:var(--ink2);margin:4px 0 14px}.fnow b{font-size:22px;font-weight:300;color:var(--ink);margin-right:6px;font-variant-numeric:tabular-nums}
-.funnel{display:flex;align-items:stretch;gap:6px}.fstep{flex:1;min-width:0;background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
-.flabel{font-size:12px;color:var(--ink2)}.fval{font-size:30px;font-weight:300;letter-spacing:-1px;font-variant-numeric:tabular-nums;margin:2px 0 8px}
-.fbar{height:6px;background:var(--track);border-radius:3px;overflow:hidden}.fbar i{display:block;height:100%;background:var(--s1)}.fnote{font-size:11.5px;color:var(--muted);margin-top:6px}
-.farrow{align-self:center;color:var(--muted);font-size:15px}
-.fexits{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}.fexit{font-size:12.5px;color:var(--ink2);border:1px dashed var(--line);border-radius:6px;padding:6px 10px}.fexit b{color:var(--s2);font-weight:600;margin-right:6px}
-.bcap{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:22px 0 8px}
-.board{display:grid;gap:8px}.bcol{background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:8px;min-height:110px}
-.bhead{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:12.5px;font-weight:600}.bhead b{font-size:11px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--ink2);font-weight:600}
-.bwait{font-size:11px;color:var(--muted);margin:2px 0 8px}
-.bcard{display:block;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px 9px;margin-bottom:6px;color:var(--ink);text-decoration:none;font-size:12px;line-height:1.35}.bcard:hover{border-color:var(--s1)}.bcard b{color:var(--s1);font-weight:600}
-.bcol.active .bcard{border-left:3px solid var(--s1)}
-.bchips{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}.bchips .chip{font-size:10.5px;padding:1px 6px}.bsince{font-size:10.5px;color:var(--muted);margin-top:5px}.bempty{font-size:11.5px;color:var(--muted);padding:4px 2px}
-@media(max-width:1000px){.funnel{flex-direction:column}.farrow{display:none}.board{grid-template-columns:1fr!important}}
 </style>
 <div class="wrap">
 <header><div><div class="eyebrow">${md(P.eyebrow)}</div><h1>${md(P.title)}</h1><div class="sub">${md(P.subtitle)}</div></div>
 <div class="right"><div id="theme-switch" role="group" aria-label="Theme"></div><div class="pill">${esc(P.words?.recorded ?? 'Recorded')} <b>${dmhm(frozenAt)}</b></div></div></header>
 ${sec('metrics')}<section class="tiles">${tiles}</section>
-${sec('results')}${pipelineHtml}<section class="card"><h2>${md(P.table.title)}</h2><div class="cap">${md(P.table.caption)}</div>${head}${rowsHtml}</section>
+${sec('results')}${funnel}<section class="card"><h2>${md(P.table.title)}</h2><div class="cap">${md(P.table.caption)}</div>${head}${rowsHtml}</section>
 <div class="grid2">
 <section class="card"><h2>${md(P.charts.time.title)}</h2><div class="cap">${md(P.charts.time.caption)}</div>${timeChart}</section>
 <section class="card"><h2>${md(P.charts.cost.title)}</h2><div class="cap">${md(P.charts.cost.caption)}</div>${costChart}</section>

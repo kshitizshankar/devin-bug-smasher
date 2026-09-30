@@ -675,6 +675,30 @@
         ]
       }
     ],
+    "funnel": [
+      {
+        "label": "Issues filed",
+        "value": "{issuesFiled}",
+        "small": "issues",
+        "note": "{deferred} of them deferred findings"
+      },
+      {
+        "label": "Given to Devin",
+        "value": "{prs}",
+        "small": "of {issuesFiled}"
+      },
+      {
+        "label": "Passed CI",
+        "value": "{ciPassed}",
+        "small": "of {prs}"
+      },
+      {
+        "label": "Merged",
+        "value": "{prs}",
+        "small": "of {prs}",
+        "note": "{reviewed} passed Devin Review"
+      }
+    ],
     "table": {
       "title": "Every merged pull request",
       "caption": "In merge order. Links open the pull request on GitHub."
@@ -734,38 +758,8 @@
       },
       "results": {
         "title": "Results",
-        "caption": "Every merged pull request, how long it took and what it cost."
+        "caption": "How the build's issues moved from filed to merged, then every merged pull request, how long it took and what it cost."
       }
-    },
-    "pipeline": {
-      "title": "Pipeline",
-      "caption": "How the build's issues moved: filed on GitHub, given to Devin, checked and merged.",
-      "funnel": [
-        {
-          "label": "Issues filed",
-          "value": "{issuesFiled}",
-          "note": "{deferred} of them deferred findings"
-        },
-        {
-          "label": "Given to Devin",
-          "value": "{prs}"
-        },
-        {
-          "label": "Passed CI",
-          "value": "{ciPassed}"
-        },
-        {
-          "label": "Merged",
-          "value": "{prs}",
-          "note": "{reviewed} passed Devin Review"
-        }
-      ],
-      "exits": [
-        {
-          "label": "findings deferred as known limitations",
-          "value": "{deferred}"
-        }
-      ]
     }
   }
 }

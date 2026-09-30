@@ -109,6 +109,38 @@
         ]
       }
     ],
+    "funnel": [
+      {
+        "label": "Labelled",
+        "value": "{bugs}",
+        "small": "bugs",
+        "note": "A person adds the label"
+      },
+      {
+        "label": "Investigated",
+        "value": "{triaged}",
+        "small": "of {bugs}",
+        "note": "{handedOff} handed to an engineer"
+      },
+      {
+        "label": "Sent to fix",
+        "value": "{fixStarted}",
+        "small": "of {bugs}",
+        "note": "A person decides"
+      },
+      {
+        "label": "Proven",
+        "value": "{proven}",
+        "small": "of {fixStarted}",
+        "note": "Test fails before, passes after"
+      },
+      {
+        "label": "Merged",
+        "value": "{merged}",
+        "small": "of {proven}",
+        "note": "A person merges"
+      }
+    ],
     "table": {
       "title": "Every bug",
       "caption": "One row per bug. Links open the issue and the pull request on GitHub."
@@ -178,110 +210,7 @@
       },
       "results": {
         "title": "Results",
-        "caption": "The evidence behind the numbers: every bug, its pull request and its proof."
-      }
-    },
-    "pipeline": {
-      "title": "Pipeline",
-      "caption": "How far each bug got, and where every bug is now. A person moves a bug on at two points: the decision after the investigation, and the merge.",
-      "now": [
-        {
-          "label": "with Devin now",
-          "value": "{withDevin}"
-        },
-        {
-          "label": "waiting on a person",
-          "value": "{waitingOnPerson}"
-        },
-        {
-          "label": "with an engineer",
-          "value": "{handedOff}"
-        }
-      ],
-      "funnel": [
-        {
-          "label": "Labelled",
-          "value": "{bugs}"
-        },
-        {
-          "label": "Investigated",
-          "value": "{triaged}"
-        },
-        {
-          "label": "Sent to fix",
-          "value": "{fixStarted}",
-          "note": "A person decides"
-        },
-        {
-          "label": "Pull request",
-          "value": "{sentToFix}"
-        },
-        {
-          "label": "Proven",
-          "value": "{proven}",
-          "note": "Test fails before, passes after"
-        },
-        {
-          "label": "Merged",
-          "value": "{merged}",
-          "note": "A person merges"
-        }
-      ],
-      "exits": [
-        {
-          "label": "handed to an engineer after the investigation",
-          "value": "{handedOff}"
-        }
-      ],
-      "board": {
-        "title": "Where every bug is now",
-        "empty": "None",
-        "columns": [
-          {
-            "key": "investigating",
-            "label": "Investigating",
-            "waits": "Waiting on Devin",
-            "active": true
-          },
-          {
-            "key": "decision",
-            "label": "Needs a decision",
-            "waits": "Waiting on a person"
-          },
-          {
-            "key": "fixing",
-            "label": "Fixing",
-            "waits": "Waiting on Devin",
-            "active": true
-          },
-          {
-            "key": "proving",
-            "label": "Proving the fix",
-            "waits": "Verifier and Devin Review",
-            "active": true
-          },
-          {
-            "key": "ready",
-            "label": "Ready to merge",
-            "waits": "Waiting on a person"
-          },
-          {
-            "key": "merged",
-            "label": "Merged",
-            "waits": "Done"
-          },
-          {
-            "key": "engineer",
-            "label": "With an engineer",
-            "waits": "Handed off"
-          }
-        ],
-        "words": {
-          "recommended": "Devin: {x}",
-          "pr": "PR #{n}",
-          "proof": "{f} of {t} fail → pass",
-          "since": "Since {t}"
-        }
+        "caption": "How far every bug got, then the evidence behind the numbers: every bug, its pull request and its proof."
       }
     }
   }
