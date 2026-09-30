@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-09-30T05:49:10.542Z",
+  "frozenAt": "2026-09-30T13:22:21.959416Z",
   "figures": {
     "repo": "kshitizshankar/devin-bug-smasher",
     "repoUrl": "https://github.com/kshitizshankar/devin-bug-smasher",
@@ -21,8 +21,9 @@
     "totalCost": "$137.12",
     "costedPrs": 24,
     "costPerPr": "$5.71",
-    "deferred": 29,
-    "spendReadAt": "30 Sep 2026"
+    "deferred": 35,
+    "spendReadAt": "30 Sep 2026",
+    "issuesFiled": 80
   },
   "rows": [
     {
@@ -735,6 +736,36 @@
         "title": "Results",
         "caption": "Every merged pull request, how long it took and what it cost."
       }
+    },
+    "pipeline": {
+      "title": "Pipeline",
+      "caption": "How the build's issues moved: filed on GitHub, given to Devin, checked and merged.",
+      "funnel": [
+        {
+          "label": "Issues filed",
+          "value": "{issuesFiled}",
+          "note": "{deferred} of them deferred findings"
+        },
+        {
+          "label": "Given to Devin",
+          "value": "{prs}"
+        },
+        {
+          "label": "Passed CI",
+          "value": "{ciPassed}"
+        },
+        {
+          "label": "Merged",
+          "value": "{prs}",
+          "note": "{reviewed} passed Devin Review"
+        }
+      ],
+      "exits": [
+        {
+          "label": "findings deferred as known limitations",
+          "value": "{deferred}"
+        }
+      ]
     }
   }
 }

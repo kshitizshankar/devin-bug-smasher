@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-09-30T06:26:10.242Z",
+  "frozenAt": "2026-09-30T13:22:29.141Z",
   "figures": {
     "name": "Superset",
     "repo": "kshitizshankar/superset",
@@ -10,21 +10,24 @@
     "bugs": 5,
     "triaged": 5,
     "triageMedian": "7 min",
+    "recFix": 4,
+    "recEngineer": 1,
     "sentToFix": 4,
+    "prsOpened": 5,
     "proven": 4,
     "firstTry": 3,
     "handedOff": 1,
     "merged": 4,
+    "fixStarted": 4,
+    "withDevin": 0,
+    "waitingOnPerson": 0,
     "fixReadyMedian": "18 min",
     "fixReadyFastest": "13 min",
     "fixReadySlowest": "63 min",
     "prOpenMedian": "15 min",
-    "prsOpened": 5,
-    "recFix": 4,
-    "recEngineer": 1,
-    "perSession": "$1.63",
     "totalSpend": "$17.89",
     "sessions": 11,
+    "perSession": "$1.63",
     "costPerFix": "$4.47",
     "earlierAttemptCost": "$4.25",
     "firstLabelHours": "70 h",
@@ -54,7 +57,10 @@
       "prCount": 1,
       "firstPass": true,
       "earlierCost": 0.62,
-      "at": "2026-09-30T03:40:14.291Z"
+      "at": "2026-09-30T03:40:14.291Z",
+      "column": "merged",
+      "since": "2026-09-30T04:33:32.058Z",
+      "fixStarted": true
     },
     {
       "label": "#2",
@@ -79,7 +85,10 @@
       "prCount": 1,
       "firstPass": true,
       "earlierCost": 0.86,
-      "at": "2026-09-30T03:40:14.612Z"
+      "at": "2026-09-30T03:40:14.612Z",
+      "column": "merged",
+      "since": "2026-09-30T05:26:42.578Z",
+      "fixStarted": true
     },
     {
       "label": "#3",
@@ -104,7 +113,10 @@
       "prCount": 1,
       "firstPass": true,
       "earlierCost": 0.66,
-      "at": "2026-09-30T03:40:14.982Z"
+      "at": "2026-09-30T03:40:14.982Z",
+      "column": "merged",
+      "since": "2026-09-30T04:33:37.787Z",
+      "fixStarted": true
     },
     {
       "label": "#4",
@@ -129,7 +141,10 @@
       "prCount": 2,
       "firstPass": false,
       "earlierCost": 0.94,
-      "at": "2026-09-30T03:40:15.263Z"
+      "at": "2026-09-30T03:40:15.263Z",
+      "column": "merged",
+      "since": "2026-09-30T05:26:45.386Z",
+      "fixStarted": true
     },
     {
       "label": "#5",
@@ -152,7 +167,10 @@
       "prCount": 0,
       "firstPass": null,
       "earlierCost": 1.17,
-      "at": "2026-09-30T03:40:15.638Z"
+      "at": "2026-09-30T03:40:15.638Z",
+      "column": "engineer",
+      "since": "2026-09-30T03:48:54Z",
+      "fixStarted": false
     }
   ],
   "page": {
@@ -323,6 +341,109 @@
       "results": {
         "title": "Results",
         "caption": "The evidence behind the numbers: every bug, its pull request and its proof."
+      }
+    },
+    "pipeline": {
+      "title": "Pipeline",
+      "caption": "How far each bug got, and where every bug is now. A person moves a bug on at two points: the decision after the investigation, and the merge.",
+      "now": [
+        {
+          "label": "with Devin now",
+          "value": "{withDevin}"
+        },
+        {
+          "label": "waiting on a person",
+          "value": "{waitingOnPerson}"
+        },
+        {
+          "label": "with an engineer",
+          "value": "{handedOff}"
+        }
+      ],
+      "funnel": [
+        {
+          "label": "Labelled",
+          "value": "{bugs}"
+        },
+        {
+          "label": "Investigated",
+          "value": "{triaged}"
+        },
+        {
+          "label": "Sent to fix",
+          "value": "{fixStarted}",
+          "note": "A person decides"
+        },
+        {
+          "label": "Pull request",
+          "value": "{sentToFix}"
+        },
+        {
+          "label": "Proven",
+          "value": "{proven}",
+          "note": "Test fails before, passes after"
+        },
+        {
+          "label": "Merged",
+          "value": "{merged}",
+          "note": "A person merges"
+        }
+      ],
+      "exits": [
+        {
+          "label": "handed to an engineer after the investigation",
+          "value": "{handedOff}"
+        }
+      ],
+      "board": {
+        "title": "Where every bug is now",
+        "empty": "None",
+        "columns": [
+          {
+            "key": "investigating",
+            "label": "Investigating",
+            "waits": "Waiting on Devin",
+            "active": true
+          },
+          {
+            "key": "decision",
+            "label": "Needs a decision",
+            "waits": "Waiting on a person"
+          },
+          {
+            "key": "fixing",
+            "label": "Fixing",
+            "waits": "Waiting on Devin",
+            "active": true
+          },
+          {
+            "key": "proving",
+            "label": "Proving the fix",
+            "waits": "Verifier and Devin Review",
+            "active": true
+          },
+          {
+            "key": "ready",
+            "label": "Ready to merge",
+            "waits": "Waiting on a person"
+          },
+          {
+            "key": "merged",
+            "label": "Merged",
+            "waits": "Done"
+          },
+          {
+            "key": "engineer",
+            "label": "With an engineer",
+            "waits": "Handed off"
+          }
+        ],
+        "words": {
+          "recommended": "Devin: {x}",
+          "pr": "PR #{n}",
+          "proof": "{f} of {t} fail → pass",
+          "since": "Since {t}"
+        }
       }
     }
   }

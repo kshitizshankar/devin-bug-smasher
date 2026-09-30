@@ -5,8 +5,8 @@ embedded, so no server is needed. Both have a light and dark theme switch.
 
 | Page | What it shows | Data |
 | --- | --- | --- |
-| [`superset-run.html`](superset-run.html) | The live run on [kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of apache/superset: how fast bugs were investigated, whether the fixes are real, how fast a fix was ready, and what it cost; then every bug with its pull request and proof. | [`superset-run.json`](superset-run.json) |
-| [`building-bug-smasher.html`](building-bug-smasher.html) | How Bug Smasher itself was built by Devin: every merged pull request, how it was started, checked, how long it took and what it cost. | [`building-bug-smasher.json`](building-bug-smasher.json) |
+| [`superset-run.html`](superset-run.html) | The live run on [kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of apache/superset: how fast bugs were investigated, whether the fixes are real, how fast a fix was ready, and what it cost; then the pipeline (how far each bug got, and a board of where every bug is now); then every bug with its pull request and proof. | [`superset-run.json`](superset-run.json) |
+| [`building-bug-smasher.html`](building-bug-smasher.html) | How Bug Smasher itself was built by Devin: how the build's issues moved from filed to merged, then every merged pull request, how it was started, checked, how long it took and what it cost. | [`building-bug-smasher.json`](building-bug-smasher.json) |
 
 ## Where the numbers come from
 
