@@ -124,6 +124,46 @@ describe('orchestrator: a session waiting without a structured question', () => 
     assert.equal((await notices(h, a.number)).length, 1);
   });
 
+  it('returns to work without a reply when the waiting session is resumed in Devin', async (t) => {
+    const h = await setup(t, { env: { MAX_ACTIVE_SESSIONS: '2' } });
+    const a = h.tracker.seedIssue({ title: 'A', labels: ['needs-triage'] });
+    const b = h.tracker.seedIssue({ title: 'B', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const idA = h.sessionId(a.key);
+    const idB = h.sessionId(b.key);
+    for (const id of [idA, idB]) h.offline.updateSession(id, { status: 'running', status_detail: 'waiting_for_approval' });
+    await h.cycle();
+    assert.equal(h.record(a.key).stage, 'needs-input');
+    assert.ok(!consumesCapacity(h.record(b.key)));
+
+    h.working(idA);
+    h.working(idB);
+    await h.cycle(2);
+    assert.equal(h.record(a.key).stage, 'triaging');
+    assert.ok(consumesCapacity(h.record(a.key)));
+    assert.equal(h.record(b.key).stage, 'fixing');
+    assert.ok(consumesCapacity(h.record(b.key)));
+    assert.equal(h.messages(idA).length + h.messages(idB).length, 0);
+
+    h.completesTriage(idA);
+    await h.cycle(2);
+    assert.equal(h.record(a.key).stage, 'triaged');
+    assert.equal((await notices(h, a.number)).filter((c) => c.serviceKey?.startsWith('question:')).length, 1);
+  });
+
+  it('counts a wait that starts in the same second the stage was entered', async (t) => {
+    const h = await setup(t);
+    const issue = h.tracker.seedIssue({ title: 'A', labels: ['needs-triage'] });
+    await h.cycle(2);
+    const id = h.sessionId(issue.key);
+    const entered = Date.parse(h.record(issue.key).stageHistory.at(-1)?.at ?? '');
+    waitsSilently(h, id);
+    h.session(id).updated_at = Math.floor(entered / 1000);
+    await h.cycle();
+    assert.equal(h.record(issue.key).stage, 'needs-input');
+    assert.equal((await notices(h, issue.number)).length, 1);
+  });
+
   it('keeps the structured-question behaviour when a question is recorded', async (t) => {
     const h = await setup(t);
     const issue = h.tracker.seedIssue({ title: 'A', labels: ['needs-triage'] });

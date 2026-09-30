@@ -133,6 +133,7 @@ export type TraceType =
   | 'comment-ignored'
   | 'question-posted'
   | 'session-waiting'
+  | 'session-resumed'
   | 'verifier-unavailable'
   | 'policy-unavailable'
   | 'policy-waiting'
@@ -191,6 +192,7 @@ const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 /** How long a requested Review may be reported missing (or on another commit) before it counts as unavailable. */
 const REVIEW_MISSING_GRACE_MS = 30 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
+const WAITING_QUESTION_PREFIX = 'w-';
 
 export function emptyWorkflow(): WorkflowState {
   return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [] };
@@ -221,12 +223,17 @@ function waitingWithoutQuestion(record: BugRecord, session: DevinSession, signal
   if (session.activity.kind !== 'waiting') return false;
   if (signal?.type === 'needs-input' || signal?.type === 'blocked') return false;
   const entered = record.stageHistory.at(-1)?.at;
-  return entered === undefined || Date.parse(session.updatedAt) > Date.parse(entered);
+  return entered === undefined || Date.parse(session.updatedAt) >= Math.floor(Date.parse(entered) / 1000) * 1000;
 }
 
 /** Stable per stop: re-reading the same stopped session yields the same id; a later stop gets a new one. */
 function waitingQuestionId(session: DevinSession): string {
-  return `w-${hash(`${session.id}\n${session.updatedAt}`)}`;
+  return `${WAITING_QUESTION_PREFIX}${hash(`${session.id}\n${session.updatedAt}`)}`;
+}
+
+/** Whether a wait without a structured question ended in Devin itself (e.g. an approval), with no reply. */
+function resumedInDevin(questionId: string | undefined, session: DevinSession): boolean {
+  return questionId?.startsWith(WAITING_QUESTION_PREFIX) === true && ['working', 'idle'].includes(session.activity.kind);
 }
 
 function commentKey(raw: string): string {
@@ -1140,6 +1147,14 @@ export class Orchestrator {
     const output = session.structuredOutput;
     const signal: StructuredSignal | null = output.status === 'valid' ? output.signal : null;
 
+    if (record.stage === 'needs-input') {
+      const question = outstandingQuestion(record);
+      if (question !== null && resumedInDevin(question.id, session)) {
+        this.#emit(record.key, 'session-resumed', { sessionId: session.id, questionId: question.id });
+        const result = this.#event(record, { type: 'reply-received', questionId: question.id });
+        return (await this.#commit(issue, record, result, 'session-resumed')) === 'applied';
+      }
+    }
     if (record.stage === 'triaging' || record.stage === 'needs-input') {
       if (current.route === 'triage' && (session.pullRequests.length > 0 || signal?.type === 'pr-opened')) {
         const notice = `triage-pr:${session.id}`;
@@ -1192,6 +1207,14 @@ export class Orchestrator {
         }
       }
     } else if (record.stage === 'fixing') {
+      const question = workflow.workQuestion;
+      if (question?.sessionId === session.id && resumedInDevin(question.id, session)) {
+        this.#emit(record.key, 'session-resumed', { sessionId: session.id, questionId: question.id });
+        await this.#persistWorkflow(record, (state) => {
+          state.workQuestion = null;
+        });
+        return true;
+      }
       if (signal?.type === 'pr-opened') {
         if (await this.#submitFix(issue, record, session, signal)) return true;
       } else if ((signal?.type === 'needs-input' || signal?.type === 'blocked') && signal.phase === 'fix') {
