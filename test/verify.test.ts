@@ -105,6 +105,59 @@ describe('independent verification against fixture repositories', () => {
     assert.deepEqual(attempt.evidence?.runs.map((run) => run.role), ['head']);
   });
 
+  describe('fixtures and helpers listed as test files', () => {
+    const FIXTURE_PATH = 'test/fixtures/sums.json';
+    const HELPER_PATH = 'test/helpers/sums.mjs';
+    const SUPPORT = {
+      [FIXTURE_PATH]: '[{ "a": 1, "b": 2, "sum": 3 }]\n',
+      [HELPER_PATH]: [
+        "import { readFileSync } from 'node:fs';",
+        '',
+        "export const sums = JSON.parse(readFileSync(new URL('../fixtures/sums.json', import.meta.url), 'utf8'));",
+        '',
+      ].join('\n'),
+      [ADD_TEST_PATH]: [
+        "import test from 'node:test';",
+        "import assert from 'node:assert/strict';",
+        "import { add } from '../src/math.mjs';",
+        "import { sums } from './helpers/sums.mjs';",
+        '',
+        "test('adds the fixture sums', () => {",
+        '  for (const { a, b, sum } of sums) assert.equal(add(a, b), sum);',
+        '});',
+        '',
+      ].join('\n'),
+    };
+    const listed = [ADD_TEST_PATH, FIXTURE_PATH, HELPER_PATH];
+
+    it('runs only the real test and passes when it fails on base and passes on head', async () => {
+      const { attempt } = await verifyHead({ 'src/math.mjs': FIXED_MATH, ...SUPPORT }, listed);
+      assert.equal(attempt.result, 'pass', attempt.reason);
+      assert.match(attempt.reason, /fail on base .*1 of 1 test\(s\) failed.* and pass on head/);
+      const runs = attempt.evidence?.runs ?? [];
+      assert.deepEqual(runs.map((run) => [run.role, run.outcome]), [['head', 'passed'], ['base', 'failed']]);
+      for (const run of runs) {
+        assert.equal(run.command.at(-1), ADD_TEST_PATH);
+        assert.ok(!run.command.includes(FIXTURE_PATH) && !run.command.includes(HELPER_PATH), run.command.join(' '));
+      }
+    });
+
+    it('gives a normal failure when the real test fails on head', async () => {
+      const { attempt } = await verifyHead(SUPPORT, listed);
+      assert.equal(attempt.result, 'fail', attempt.reason);
+      assert.match(attempt.reason, /fail on head .*1 of 1 test\(s\) failed/);
+    });
+
+    it('rejects the list, running nothing, when no listed file is a runnable test', async () => {
+      const { attempt } = await verifyHead({ 'src/math.mjs': FIXED_MATH, ...SUPPORT }, [FIXTURE_PATH, HELPER_PATH]);
+      assert.equal(attempt.result, 'fail');
+      assert.match(attempt.reason, /^Rejected test path\(s\): /);
+      assert.match(attempt.reason, /"test\/fixtures\/sums\.json" is test support \(a fixture or helper\), not a runnable test file/);
+      assert.match(attempt.reason, /"test\/helpers\/sums\.mjs" is test support/);
+      assert.equal(world.runtime.starts.length, 0);
+    });
+  });
+
   describe('V4: each diff violation fails verification on its own, before anything runs', () => {
     const fix = { 'src/math.mjs': FIXED_MATH, [ADD_TEST_PATH]: ADD_TEST };
     const cases: [string, Record<string, string | null>, RegExp][] = [

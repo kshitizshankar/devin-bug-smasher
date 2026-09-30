@@ -21,7 +21,7 @@ import type {
 import { checkChanges, describeFinding, type FileChange } from './diff.ts';
 import { DockerRuntime, type Sandbox, type SandboxRuntime } from './docker.ts';
 import { GitRepository } from './git.ts';
-import { isTestPath, validateTestPaths } from './paths.ts';
+import { isRunnableTestPath, isTestPath, validateTestPaths } from './paths.ts';
 import { classifySetup, classifyTests, type Classification } from './results.ts';
 
 export const FILES_TOKEN = '{files}';
@@ -191,6 +191,11 @@ export class CheckedVerifier implements Verifier, Reproducer {
       return [];
     });
     if (unusable.length > 0) return finish('fail', `Rejected test path(s): ${unusable.join('; ')}; nothing was run`);
+    const runnable = files.filter(isRunnableTestPath);
+    if (runnable.length === 0) {
+      const support = files.map((file) => `${JSON.stringify(file)} is test support (a fixture or helper), not a runnable test file`);
+      return finish('fail', `Rejected test path(s): ${support.join('; ')}; nothing was run`);
+    }
 
     const report = checkChanges(changes);
     evidence.violations = report.violations;
@@ -205,7 +210,7 @@ export class CheckedVerifier implements Verifier, Reproducer {
       await mkdir(this.#options.workDir, { recursive: true });
       root = await mkdtemp(join(this.#options.workDir, 'run-'));
 
-      const head = await this.#runRole('head', headSha, root, files, async (workspace) => {
+      const head = await this.#runRole('head', headSha, root, runnable, async (workspace) => {
         await repo.exportTree(headSha, workspace);
       }, evidence.runs);
       if (head.classification.outcome === 'error') return finish('error', `Head ${short(headSha)}: ${head.classification.reason}`);
@@ -213,7 +218,7 @@ export class CheckedVerifier implements Verifier, Reproducer {
         return finish('fail', `The selected tests fail on head ${short(headSha)}: ${head.classification.reason}`);
       }
 
-      const base = await this.#runRole('base', baseSha, root, files, async (workspace) => {
+      const base = await this.#runRole('base', baseSha, root, runnable, async (workspace) => {
         await repo.exportTree(baseSha, workspace);
         for (const change of testChanges) {
           const mode = (await repo.executable(headSha, change.path)) ? 0o755 : 0o644;
@@ -254,6 +259,9 @@ export class CheckedVerifier implements Verifier, Reproducer {
     const rejected = validateTestPaths([file]);
     if (rejected.length > 0) return finish('unknown', `Rejected test path ${JSON.stringify(file)}: ${rejected[0]?.problem}; nothing was run`);
     if (!isTestPath(file)) return finish('unknown', `${JSON.stringify(file)} is not a test file; nothing was run`);
+    if (!isRunnableTestPath(file)) {
+      return finish('unknown', `${JSON.stringify(file)} is test support (a fixture or helper), not a runnable test file; nothing was run`);
+    }
 
     const repo = this.#options.repository;
     let committed: string | null;

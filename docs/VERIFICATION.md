@@ -42,7 +42,9 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
 1. **Validate the selected test paths** before anything is fetched or run. Refused: empty selection,
    absolute or `~` paths, `..`, `.git`, leading `-` (options), globs, `::` selectors, shell
    metacharacters or whitespace, any character outside `[A-Za-z0-9._+@=-/]`; and, once the diff is known,
-   files that are not tests or that the PR did not add or change. A refusal is a failed proof
+   files that are not tests or that the PR did not add or change. Test support files (fixtures and helpers
+   under a test directory whose name is not a test file name such as `*.test.*`) are accepted but never
+   passed to `CHECK_COMMAND`; a selection with no runnable test file is refused. A refusal is a failed proof
    (`Rejected test path(s): …; nothing was run`).
 2. **Resolve exact commits** in a local bare mirror (fetched only when a SHA is missing; the GitHub token is
    passed as an HTTP header through the environment, never stored or logged). Failure → `error`.

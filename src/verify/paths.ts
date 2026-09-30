@@ -68,6 +68,13 @@ export function isTestPath(path: string): boolean {
   return TEST_FILE.some((pattern) => pattern.test(name));
 }
 
+/** A test file the runner can run, by name; fixtures and helpers under a test directory are not. */
+export function isRunnableTestPath(path: string): boolean {
+  if (isConfigPath(path)) return false;
+  const name = segments(path).at(-1) ?? '';
+  return TEST_FILE.some((pattern) => pattern.test(name));
+}
+
 /** Why a selected test path is refused, or `null` when it is a plain relative file path inside the repository. */
 export function testPathProblem(path: string): string | null {
   if (typeof path !== 'string' || path === '') return 'is empty';
