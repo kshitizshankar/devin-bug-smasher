@@ -25,8 +25,10 @@ separate from live data. See [`docs/REPLAY.md`](docs/REPLAY.md) and [`docs/DOCKE
 
 - [`replay/RESULTS.md`](replay/RESULTS.md): results of the full offline replay. **Simulated**, from a
   synthetic recording; not live outcomes.
-- Live results: pending. The live demonstration against a real target repository is issue #15; no live
-  `RESULTS.md` exists yet and manual acceptance of a live run is still pending.
+- [`results/`](results/README.md): live results. [`superset-run.html`](results/superset-run.html) is the run on
+  [kshitizshankar/superset](https://github.com/kshitizshankar/superset) (five upstream bugs: four fixed and
+  proven, one handed to an engineer); [`building-bug-smasher.html`](results/building-bug-smasher.html) is how
+  Devin built Bug Smasher itself.
 
 ## Architecture
 
@@ -81,7 +83,46 @@ Devin supports `--dry-run`; `report` is the exception, as it only writes a local
 None of the following exists yet:
 
 - **Dashboard** – the frontend is a placeholder page only.
-- **Live results** – no live run has been recorded yet (issue #15).
+
+## Known limitations
+
+Findings from Devin Review, our own reviews and the live runs that were deferred rather than fixed before
+submission. Each is an open issue labelled `deferred`, with what happens and what is expected.
+
+<!-- known-limitations:start (regenerate: gh issue list --label deferred --state open --json number,title,url) -->
+- [#21](https://github.com/kshitizshankar/devin-bug-smasher/issues/21) Service comment marker can be forged to hide a commenter's own reply
+- [#22](https://github.com/kshitizshankar/devin-bug-smasher/issues/22) Repeated identical repair question is not re-posted after it was answered
+- [#25](https://github.com/kshitizshankar/devin-bug-smasher/issues/25) Post-merge verification rejects working rebase merges
+- [#26](https://github.com/kshitizshankar/devin-bug-smasher/issues/26) Verification does not prove the selected test files actually ran
+- [#27](https://github.com/kshitizshankar/devin-bug-smasher/issues/27) Test containers keep writable host mounts
+- [#28](https://github.com/kshitizshankar/devin-bug-smasher/issues/28) Decide whether fix PRs should close the issue on merge
+- [#30](https://github.com/kshitizshankar/devin-bug-smasher/issues/30) Decision-point comments end with an explicit Ask
+- [#49](https://github.com/kshitizshankar/devin-bug-smasher/issues/49) `report` has no dry-run or print-to-screen option
+- [#50](https://github.com/kshitizshankar/devin-bug-smasher/issues/50) A build and a blueprint update in the same second can leave the update unbuilt
+- [#52](https://github.com/kshitizshankar/devin-bug-smasher/issues/52) Spend and Knowledge figures show Unavailable once more than 2,000 sessions are tagged
+- [#53](https://github.com/kshitizshankar/devin-bug-smasher/issues/53) A merge by a person is credited to the policy if a policy merge was requested earlier
+- [#58](https://github.com/kshitizshankar/devin-bug-smasher/issues/58) A test that fails to load on the base commit is retried and handed to an engineer, not sent back to Devin
+- [#59](https://github.com/kshitizshankar/devin-bug-smasher/issues/59) The Rule decision cannot reproduce a test Devin adds to an existing test file
+- [#60](https://github.com/kshitizshankar/devin-bug-smasher/issues/60) A question Devin asks during a repair is not shown as waiting for a reply
+- [#61](https://github.com/kshitizshankar/devin-bug-smasher/issues/61) Person gates are shown for decisions and merges under automatic policies without policy context
+- [#62](https://github.com/kshitizshankar/devin-bug-smasher/issues/62) The API accepts a Host header from any loopback port
+- [#65](https://github.com/kshitizshankar/devin-bug-smasher/issues/65) mirror: raw HTML links, indented code blocks and titles are not neutralised
+- [#71](https://github.com/kshitizshankar/devin-bug-smasher/issues/71) The container's API is reachable from other containers on the Compose network
+- [#72](https://github.com/kshitizshankar/devin-bug-smasher/issues/72) The Docker socket is mounted by default, even for replay-only runs
+- [#73](https://github.com/kshitizshankar/devin-bug-smasher/issues/73) Concurrent replay commands in one process can lose their lock
+- [#74](https://github.com/kshitizshankar/devin-bug-smasher/issues/74) A finished replay fails on a read-only directory instead of reporting completion
+- [#76](https://github.com/kshitizshankar/devin-bug-smasher/issues/76) Fields the service posts on GitHub are not checked for secrets before posting
+- [#77](https://github.com/kshitizshankar/devin-bug-smasher/issues/77) The duplicate list pages through closed issues on every triage cycle
+- [#80](https://github.com/kshitizshankar/devin-bug-smasher/issues/80) A failing queued effect delays stopping a fix when its work labels are removed
+- [#81](https://github.com/kshitizshankar/devin-bug-smasher/issues/81) The archive-by-hand warning stays on a bug after the session has been archived
+- [#84](https://github.com/kshitizshankar/devin-bug-smasher/issues/84) A waiting investigation approved in Devin is recorded late when all session slots are taken
+- [#87](https://github.com/kshitizshankar/devin-bug-smasher/issues/87) Reading a merged PR's merge commit fails for PRs with more than 5,000 events
+- [#89](https://github.com/kshitizshankar/devin-bug-smasher/issues/89) Follow-ups to a suspended session can stall a bug, and verifier-budget handoff is inconsistent (left open on #83)
+- [#96](https://github.com/kshitizshankar/devin-bug-smasher/issues/96) No test covers the serviceLogins startup wiring in main.ts
+- [#102](https://github.com/kshitizshankar/devin-bug-smasher/issues/102) The verifier counts a renamed test as a removed test
+- [#103](https://github.com/kshitizshankar/devin-bug-smasher/issues/103) On a fork, Devin's comments link upstream issues, which adds 'mentioned this' entries upstream
+- [#104](https://github.com/kshitizshankar/devin-bug-smasher/issues/104) Polling re-reads every bug and pull request each minute and can use up the GitHub API limit
+<!-- known-limitations:end -->
 
 ## Prerequisites
 
