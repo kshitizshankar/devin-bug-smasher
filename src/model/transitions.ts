@@ -100,7 +100,7 @@ export type ModelEvent =
   /** Appends a Rule or Automatic policy evaluation; acting on it is a separate action. */
   | { type: 'policy-evaluated'; evaluation: PolicyEvaluation }
   /** The orchestrator found a reason work must not start or continue automatically, e.g. an existing PR. */
-  | { type: 'handoff-requested'; reason: 'existing-pr'; detail: string };
+  | { type: 'handoff-requested'; reason: 'existing-pr' | 'session-suspended'; detail: string };
 
 export interface ActionRequest {
   name: ActionName;

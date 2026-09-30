@@ -200,12 +200,15 @@ function workflowOf(record: BugRecord): WorkflowState {
 /**
  * Whether a record occupies one of `MAX_ACTIVE_SESSIONS`: a session being created, or a live session doing
  * work. Sessions waiting on a person (an open question, a triaged record awaiting a decision) do not count.
+ * `verifying` counts only while a verifier can actually run (`canVerify`): a fix whose verification can
+ * never happen would otherwise hold a session slot forever without any session doing work.
  */
-export function consumesCapacity(record: BugRecord): boolean {
+export function consumesCapacity(record: BugRecord, canVerify = true): boolean {
   if (record.workflow?.dispatch) return true;
   const session = record.session;
   if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) return false;
   if (!WORKING_STAGES.includes(record.stage)) return false;
+  if (record.stage === 'verifying' && !canVerify) return false;
   return record.workflow?.workQuestion?.sessionId !== session.id;
 }
 
@@ -539,7 +542,7 @@ export class Orchestrator {
     const workflow = workflowOf(next);
     extra.mutate?.(workflow);
     next.workflow = workflow;
-    if (!consumesCapacity(before) && consumesCapacity(next) && this.#activeElsewhere(before.key) >= this.#maxActive()) {
+    if (!consumesCapacity(before, this.#canVerify()) && consumesCapacity(next, this.#canVerify()) && this.#activeElsewhere(before.key) >= this.#maxActive()) {
       this.#emit(before.key, 'waiting-for-capacity', { what, active: this.#activeElsewhere(before.key) });
       return 'deferred';
     }
@@ -735,8 +738,17 @@ export class Orchestrator {
     return this.#settings.devin.maxActiveSessions;
   }
 
+  /**
+   * Whether a `verifying` record can still progress. Results refused outright (live results required but
+   * the verifier is a stand-in) can never arrive, so such a record must not occupy a session slot.
+   */
+  #canVerify(): boolean {
+    return !this.#requireLive || this.#verifier.live;
+  }
+
   #activeElsewhere(key: string): number {
-    return this.#store.list().filter((record) => record.key !== key && consumesCapacity(record)).length;
+    const canVerify = this.#canVerify();
+    return this.#store.list().filter((record) => record.key !== key && consumesCapacity(record, canVerify)).length;
   }
 
   // People and comments ----------------------------------------------------------------------------------------
@@ -1136,7 +1148,7 @@ export class Orchestrator {
           );
           return true;
         }
-        return this.#applyStatus(issue, record, session);
+        return this.#settleSession(issue, record, session);
       }
       if (record.stage === 'triaging') {
         for (const event of structuredOutputEvents(session)) {
@@ -1186,7 +1198,25 @@ export class Orchestrator {
         this.#noteIgnoredOutput(record, session);
       }
     }
-    return this.#applyStatus(issue, record, session);
+    return this.#settleSession(issue, record, session);
+  }
+
+  /**
+   * Records the session's live state, then — once the record already shows it — hands the record off when
+   * the session is suspended in a way a message cannot resume (provider limits, provider errors): it would
+   * otherwise occupy a session slot forever. Resumable suspensions (inactivity, user request) keep waiting.
+   */
+  async #settleSession(issue: TrackerIssue, record: BugRecord, session: DevinSession): Promise<boolean> {
+    if (await this.#applyStatus(issue, record, session)) return true;
+    if (session.activity.kind !== 'suspended' || session.activity.resumable) return false;
+    const fresh = this.#store.get(record.key) ?? record;
+    if (!HANDOFF_STAGES.includes(fresh.stage)) return false;
+    const result = this.#event(fresh, {
+      type: 'handoff-requested',
+      reason: 'session-suspended',
+      detail: `The Devin session was suspended and cannot resume on its own (${session.activity.detail ?? session.activity.reason})`,
+    });
+    return (await this.#commit(issue, fresh, result, 'session-suspended')) === 'applied';
   }
 
   /** On a closed issue only the stopped session's live state is followed, so a reopen can start new work. */

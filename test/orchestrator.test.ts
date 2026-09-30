@@ -532,6 +532,46 @@ describe('orchestrator: capacity', () => {
     assert.equal(h.messages(idA).length, 1);
   });
 
+  it('does not hold a session slot for a fix waiting on a verifier that can never run', async (t) => {
+    const h = await setup(t, { env: { MAX_ACTIVE_SESSIONS: '1' }, requireLiveResults: true });
+    const a = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const pr = h.tracker.seedPullRequest({ title: 'Fix A', body: `Fixes #${a.number}`, headSha: HEAD_1, references: [a.number] });
+    h.opensPr(h.sessionId(a.key), pr.url);
+    await h.cycle(3);
+    const verifying = h.record(a.key);
+    assert.equal(verifying.stage, 'verifying');
+    assert.ok(h.types(a.key).includes('verifier-unavailable'), 'no live verifier: the proof can never be produced');
+    assert.equal(consumesCapacity(verifying, false), false, 'a fix that can never be verified holds no slot');
+
+    const b = h.tracker.seedIssue({ title: 'B', labels: ['bug-smasher'] });
+    await h.cycle(3);
+    assert.equal(h.record(a.key).stage, 'verifying', 'still waiting on the missing verifier, not handed off');
+    assert.equal(h.record(b.key).stage, 'fixing', 'the free slot dispatches the next bug');
+    assert.equal(h.createRequests().length, 2);
+  });
+
+  it('hands off a session suspended in a way that cannot resume, freeing its slot', async (t) => {
+    const h = await setup(t, { env: { MAX_ACTIVE_SESSIONS: '1' } });
+    const a = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const idA = h.sessionId(a.key);
+    h.working(idA);
+    await h.cycle();
+    assert.equal(h.record(a.key).session?.liveState, 'running');
+
+    h.offline.updateSession(idA, { status: 'suspended', status_detail: 'usage_limit_exceeded' });
+    const b = h.tracker.seedIssue({ title: 'B', labels: ['bug-smasher'] });
+    await h.cycle(4);
+    const recordA = h.record(a.key);
+    assert.equal(recordA.stage, 'with-engineer', 'a session that cannot resume is handed off');
+    assert.equal(recordA.handoff?.reason, 'session-suspended');
+    assert.ok((await h.tracker.getIssue(a.number)).labels.includes('needs-engineer'));
+    assert.equal(h.session(idA).status, 'exit', 'the stuck session is stopped');
+    assert.equal(h.record(b.key).stage, 'fixing', 'the freed slot dispatches the next bug');
+    assert.equal(h.createRequests().length, 2);
+  });
+
   it('never runs two cycles at once', async (t) => {
     const h = await setup(t);
     h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });

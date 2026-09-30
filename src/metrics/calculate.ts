@@ -48,11 +48,12 @@ export const STALLED_AFTER_MS = 2 * HOUR_MS;
 export const LARGEST_SESSIONS = 5;
 
 /** Handoffs that count as a failed fix; other reasons are a person's or Devin's own choice. */
-export const FAILURE_REASONS = ['verification-failed', 'verification-error', 'session-ended', 'pr-closed-unmerged'] as const satisfies readonly HandoffReason[];
+export const FAILURE_REASONS = ['verification-failed', 'verification-error', 'session-ended', 'session-suspended', 'pr-closed-unmerged'] as const satisfies readonly HandoffReason[];
 const FAILURE_LABELS: Record<(typeof FAILURE_REASONS)[number], string> = {
   'verification-failed': 'verification failed twice',
   'verification-error': 'verification could not run',
   'session-ended': 'the session ended',
+  'session-suspended': 'the session was suspended and cannot resume',
   'pr-closed-unmerged': 'the pull request was closed unmerged',
 };
 

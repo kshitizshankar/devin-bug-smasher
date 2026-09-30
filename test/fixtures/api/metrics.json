@@ -892,6 +892,24 @@
             "note": null
           },
           {
+            "id": "failure:session-suspended",
+            "label": "Failure rate: the session was suspended and cannot resume",
+            "window": {
+              "start": "2026-02-16T12:00:00.000Z",
+              "end": "2026-03-18T12:00:00.000Z",
+              "label": "last 30 days"
+            },
+            "source": "bug store records (first sent to a fix in the window; current handoff reason)",
+            "unit": "ratio",
+            "status": "value",
+            "value": 0,
+            "numerator": 0,
+            "denominator": 4,
+            "samples": 4,
+            "display": "0% (0 of 4)",
+            "note": null
+          },
+          {
             "id": "failure:pr-closed-unmerged",
             "label": "Failure rate: the pull request was closed unmerged",
             "window": {

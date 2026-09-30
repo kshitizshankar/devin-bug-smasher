@@ -316,6 +316,7 @@ const HANDOFF_TEXT: Record<Handoff['reason'], string> = {
   'engineer-label': 'the engineer label was added',
   person: 'a person asked for an engineer',
   'session-ended': 'the Devin session ended before finishing',
+  'session-suspended': 'the Devin session was suspended and cannot resume on its own',
   'pr-closed-unmerged': 'the pull request was closed without merging',
   'verification-error': 'verification could not run',
   'verification-failed': 'the fix failed verification',

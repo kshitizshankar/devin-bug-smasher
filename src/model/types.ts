@@ -45,6 +45,8 @@ export const HANDOFF_REASONS = [
   'engineer-label',
   'person',
   'session-ended',
+  /** Suspended in a way a message cannot resume (provider limits, provider errors). */
+  'session-suspended',
   'pr-closed-unmerged',
   'verification-error',
   'verification-failed',
