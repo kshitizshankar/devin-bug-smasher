@@ -1,6 +1,7 @@
 # Results
 
-Two static pages of the Bug Smasher dashboard, linked by tabs, each with the data file it was rendered from. They are published with GitHub Pages (links above); a local copy also opens directly in a browser, since the
+Two static pages of the Bug Smasher dashboard, linked by tabs, each with the data file it was rendered from.
+They are published with GitHub Pages (the links below). A local copy also opens directly in a browser, since the
 data is embedded. Both have a light and dark theme switch.
 
 | Page | What it shows | Data |
