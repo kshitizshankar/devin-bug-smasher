@@ -25,7 +25,7 @@ export interface GitHubRepo {
   name: string;
 }
 
-/** Independent verification (M1.5); see docs/VERIFICATION.md. */
+/** Independent verification (M1.5); see src/verify/verifier.ts. */
 export interface VerifySettings {
   /** The target repository's test image; verification is unavailable until it is set. */
   image: string | null;

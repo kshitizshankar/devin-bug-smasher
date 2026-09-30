@@ -6,7 +6,7 @@
 - If you are blocked by missing access, or a requirement would change the issue's scope, ask one focused
   question through the channel your session prompt names, and wait.
 - The `devin-builds-feature` label starts a feature session: the service implements the issue's acceptance
-  criteria and opens one pull request (see `docs/DEVIN-PROMPTS.md`).
+  criteria and opens one pull request.
 
 ## Change process
 
@@ -45,8 +45,8 @@ Run a selected test file with `node --test <file>`, e.g. `node --test test/healt
 
 CI (`.github/workflows/ci.yml`) runs the same commands in the jobs `typecheck` and `build-and-smoke-test`.
 
-For browser checks of the frontend, follow [`docs/TESTING.md`](docs/TESTING.md). Report only what you
-actually checked; never invent screenshots or results.
+For browser checks of the frontend, report only what you actually checked; never invent screenshots or
+results.
 
 ## Repository hygiene
 

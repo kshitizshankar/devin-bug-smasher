@@ -43,7 +43,7 @@ the same test runs again on the merged code.
 The orchestrator runs one cycle a minute. It reads labelled issues and comments, starts or messages the Devin
 session for each bug, sends pull requests to the verifier, and writes labels and commit statuses back to GitHub.
 The store holds only what GitHub can't: each bug's stages, decisions, sessions and proofs. The API and the
-results pages read from it.
+dashboard pages read from it.
 
 ## Inside the service
 

@@ -145,7 +145,7 @@
   <rect class="box dashed" x="318" y="400" width="196" height="40" rx="8"/>
   <text class="t" x="416" y="425" text-anchor="middle">Docker: repo's test image</text>
   <rect class="box dashed" x="526" y="400" width="196" height="40" rx="8"/>
-  <text class="t" x="624" y="425" text-anchor="middle">bugs.json · results pages</text>
+  <text class="t" x="624" y="425" text-anchor="middle">bugs.json · dashboard pages</text>
   <path class="edge" d="M416 350 V396" marker-end="url(#ah)"/>
   <path class="edge" d="M624 350 V396" marker-end="url(#ah)"/>
 

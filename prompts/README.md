@@ -3,8 +3,7 @@
 Everything the service says to Devin is written here, not in code. `src/orchestrator/prompts.ts` loads these
 files and fills `{{name}}` placeholders; rendering fails if a placeholder has no value or a value is unused,
 so a template and its caller cannot drift apart silently. Substituted values are inserted once and never
-re-scanned, so issue text containing `{{...}}` stays literal. What lives where, and how Playbooks are
-attached, is described in [`docs/DEVIN-PROMPTS.md`](../docs/DEVIN-PROMPTS.md).
+re-scanned, so issue text containing `{{...}}` stays literal.
 
 | File | Sent when |
 | --- | --- |

@@ -142,7 +142,7 @@
 <rect class="tile muted" x="64" y="216" width="36" height="36" rx="9"/>
 <rect class="glyph muted" x="73" y="227" width="18" height="14" rx="2"/><path class="glyph muted" d="M73 231 H91"/>
 <text class="h" x="112" y="232">Results</text>
-<text class="s" x="112" y="250">API · results pages</text>
+<text class="s" x="112" y="250">API · dashboard pages</text>
 <circle class="glyphfill muted" cx="68" cy="284" r="3.5"/>
 <text class="s strong" x="78" y="288">read-only</text>
 <rect class="card" x="410" y="202" width="220" height="96" rx="12"/>

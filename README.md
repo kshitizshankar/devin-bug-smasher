@@ -9,9 +9,9 @@ before the fix and pass after it. Features work the same way, with their own lab
 ## Where it has run
 
 - **On itself.** Devin built Bug Smasher. Later changes were started by Bug Smasher itself: someone labelled an
-  issue in this repository, and Devin opened the pull request. [Build results](results/building-bug-smasher.html)
+  issue in this repository, and Devin opened the pull request. [Build dashboard](results/building-bug-smasher.html)
 - **On Apache Superset.** Open upstream bugs, copied into the fork
-  [kshitizshankar/superset](https://github.com/kshitizshankar/superset). [Superset results](results/superset-run.html)
+  [kshitizshankar/superset](https://github.com/kshitizshankar/superset). [Superset dashboard](results/superset-run.html)
 
 ## How it works
 
@@ -29,7 +29,7 @@ before the fix and pass after it. Features work the same way, with their own lab
    `bug-smasher/verification` status. A fix that fails the check goes back to Devin once, then to an engineer.
 6. **A person merges.** Bug Smasher runs the check again on the merged code.
 7. **Everything is recorded.** Each bug's history is kept in `data/bugs.json`. `GET /api/metrics` reports the
-   figures ([definitions](docs/METRICS.md)), and `npm run results` turns a run into a results page.
+   figures ([definitions](docs/METRICS.md)), and `npm run results` turns a run into a dashboard page.
 
 ## Quick start
 
@@ -114,13 +114,13 @@ src/
 ├── tracker/       GitHub, plus an in-memory version for tests and the replay
 ├── devin/         the Devin API client
 ├── verify/        the check: test containers, before-and-after runs, flags
-├── metrics/       every figure in the API and on the results pages
+├── metrics/       every figure in the API and on the dashboard pages
 ├── store/         the bug records (data/bugs.json)
 ├── operator/      commands: setup, mirror, report, verify-check
 ├── replay/        the offline replay
 └── config/        settings, read from the environment
 prompts/           what Bug Smasher sends Devin
-results/           results pages and their data
+results/           dashboard pages and their data
 scripts/results/   npm run results: record a run and render its page
 web/               the web dashboard (a placeholder)
 docs/              reference for each part
@@ -139,8 +139,8 @@ Requires Node 22. CI runs the typecheck and a build-and-smoke test on every pull
 
 ## Known limitations
 
-- There is no live dashboard yet. Opening Bug Smasher in a browser shows a placeholder page. To see how a run is
-  going, render its results page with `npm run results`, or read `GET /api/overview`.
+- There is no live web dashboard yet. Opening Bug Smasher in a browser shows a placeholder page. The dashboard
+  pages in `results/` are generated with `npm run results`; `GET /api/overview` shows a run as it goes.
 - Issues found in review and not yet fixed are open and labelled
   [`deferred`](https://github.com/kshitizshankar/devin-bug-smasher/issues?q=is%3Aissue+is%3Aopen+label%3Adeferred).
   The ones that matter most in a live run:

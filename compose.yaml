@@ -1,5 +1,5 @@
 # One service. Without GITHUB_TOKEN and DEVIN_API_KEY it serves the credential-free replay; with the live
-# settings from .env it polls the target repository. See docs/DOCKER.md.
+# settings from .env it polls the target repository. See the README's quick start.
 name: bug-smasher
 
 services:

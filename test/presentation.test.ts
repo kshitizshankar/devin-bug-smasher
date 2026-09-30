@@ -30,7 +30,7 @@ const mergedPr = (state: 'open' | 'closed') =>
   facts([LABEL.fix], { state, pullRequest: { number: 7, state: 'merged', headSha: HEAD_A } });
 const ready = () => event(verifyingRecord(), { type: 'verification-recorded', attempt: attempt('pass') });
 
-/** The state/action table documented in docs/MODEL.md, built through real transitions. */
+/** The state/action table, built through real transitions. */
 const TABLE: Row[] = [
   {
     scenario: 'unknown, unlabelled open issue',
