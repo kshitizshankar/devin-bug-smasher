@@ -178,7 +178,8 @@ function archiveFix(record: BugRecord): void {
   record.fix = null;
 }
 
-function newRecord(facts: GitHubFacts, now: Timestamp): BugRecord {
+/** A record for an issue that is not enrolled yet, queued without a route. */
+export function newRecord(facts: GitHubFacts, now: Timestamp): BugRecord {
   return {
     key: formatBugKey({ owner: facts.issue.owner, repo: facts.issue.repo, number: facts.issue.number }),
     kind: 'bug',

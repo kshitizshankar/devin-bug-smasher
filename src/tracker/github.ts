@@ -556,6 +556,13 @@ export class GitHubTracker implements Tracker, RepositoryAdmin {
     return { mergeCommitSha: this.#string(op, result, 'sha'), alreadyMerged: false };
   }
 
+  /** Login of the account the token acts as (`GET /user`); installation tokens of GitHub Apps cannot read it. */
+  async getAuthenticatedLogin(): Promise<string> {
+    const op = 'getAuthenticatedLogin';
+    const response = await this.#send(op, 'GET', 'user');
+    return this.#string(op, this.#object(op, this.#json(op, response), 'user'), 'login');
+  }
+
   // Internals ----------------------------------------------------------------------------------------------
 
   #repoPath(path: string): string {

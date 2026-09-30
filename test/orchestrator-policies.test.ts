@@ -529,6 +529,18 @@ describe('merge policies in the orchestrator', () => {
     assert.equal((await comments(f.h, f.issueNumber, 'merge-decision:')).length, 1);
   });
 
+  it('tells people once on the issue when GitHub keeps refusing the merge of a head', async (t) => {
+    const f = await readyFix(t, { MERGE: 'auto' }, { review: false });
+    greenCi(f.h, HEAD_1);
+    f.h.tracker.blockMerge(f.pr.number, 'At least 1 approving review is required');
+    await f.h.cycle(4);
+    assert.ok(f.h.types(f.key).includes('merge-retried'));
+    const notices = await comments(f.h, f.issueNumber, 'merge-refused:');
+    assert.equal(notices.length, 1, 'one notice per refused head, however often the merge is retried');
+    assert.match(notices[0]?.body ?? '', new RegExp(`#${f.pr.number}`));
+    assert.match(notices[0]?.body ?? '', /At least 1 approving review is required/);
+  });
+
   it('refuses to merge when the head moves between evaluation and merge, then verifies the new head afresh', async (t) => {
     const f = await readyFix(t, { MERGE: 'auto' }, { review: false });
     greenCi(f.h, HEAD_1);

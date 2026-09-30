@@ -12,7 +12,7 @@ import {
   type DevinSession,
 } from '../devin/sessions.ts';
 import type { StructuredSignal } from '../devin/structured-output.ts';
-import { parseBugKey } from '../model/keys.ts';
+import { formatBugKey, parseBugKey } from '../model/keys.ts';
 import { resolveLabels } from '../model/labels.ts';
 import { currentMergeVerifications, outstandingQuestion } from '../model/presentation.ts';
 import {
@@ -21,6 +21,7 @@ import {
   countSessionAttempts,
   DEFAULT_MAX_VERIFICATION_ERRORS,
   enrollBug,
+  newRecord,
   type ActionRequest,
   type Effect,
   type ModelEvent,
@@ -56,6 +57,7 @@ import {
 } from '../tracker/types.ts';
 import {
   existingPullRequestComment,
+  mergeRefusedComment,
   policyDecisionComment,
   policyMergeComment,
   policyWaitComment,
@@ -180,6 +182,7 @@ export interface OrchestratorOptions {
 
 export type ActionOutcome =
   | { status: 'applied'; record: BugRecord }
+  | { status: 'unchanged'; record: BugRecord }
   | { status: 'deferred'; reason: string }
   | { status: 'refused'; code: string; message: string };
 
@@ -640,7 +643,7 @@ export class Orchestrator {
       const record = this.#store.get(key);
       const op = record?.workflow?.outbox[0];
       if (record === undefined || op === undefined) return true;
-      let dropped = false;
+      let dropped: string | null = null;
       try {
         await this.#applyOperation(record, op);
       } catch (error) {
@@ -648,17 +651,24 @@ export class Orchestrator {
           this.#emit(key, 'effect-failed', { operation: op.type, message: describe(error) });
           return false;
         }
-        dropped = true;
-        this.#emit(key, 'effect-dropped', { operation: op.type, message: describe(error) });
+        dropped = describe(error);
+        this.#emit(key, 'effect-dropped', { operation: op.type, message: dropped });
       }
       await this.#store.update(key, (current) => {
         if (current?.workflow === undefined) return undefined;
         const first = current.workflow.outbox[0];
         if (first === undefined || !sameOperation(first, op)) return undefined;
         current.workflow.outbox.shift();
+        if (dropped !== null && op.type === 'merge-pr') {
+          current.workflow.outbox.push({
+            type: 'post-comment',
+            key: commentKey(`merge-refused:${op.prNumber}:${op.expectedHeadSha}`),
+            body: mergeRefusedComment(op.prNumber, op.expectedHeadSha, dropped),
+          });
+        }
         return current;
       });
-      if (!dropped) this.#emit(key, 'effect-applied', { operation: op.type, ...this.#operationDetail(op) });
+      if (dropped === null) this.#emit(key, 'effect-applied', { operation: op.type, ...this.#operationDetail(op) });
     }
   }
 
@@ -1857,19 +1867,30 @@ export class Orchestrator {
   // Interface actions --------------------------------------------------------------------------------------------
 
   async #performAction(
-    key: string,
+    requestedKey: string,
     request: { name: ActionName; context?: string; answer?: string },
   ): Promise<ActionOutcome> {
-    const record = this.#store.get(key);
-    const parts = parseBugKey(key);
-    if (record === undefined || parts === null) {
-      return { status: 'refused', code: 'not-tracked', message: `${key} is not tracked` };
+    const parts = parseBugKey(requestedKey);
+    const sameRepo = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
+    if (parts === null || !sameRepo(parts.owner, this.#repo.owner) || !sameRepo(parts.repo, this.#repo.name)) {
+      return { status: 'refused', code: 'not-tracked', message: `${requestedKey} is not an issue of this repository` };
     }
+    const key = formatBugKey({ owner: this.#repo.owner, repo: this.#repo.name, number: parts.number });
+    const stored = this.#store.get(key);
     const issue = await this.#tracker.getIssue(parts.number);
-    const pr = record.fix === null ? null : await this.#tracker.getPullRequest(record.fix.prNumber);
+    const pr = stored?.fix ? await this.#tracker.getPullRequest(stored.fix.prNumber) : null;
     const facts = toGitHubFacts(this.#repo, issue, pr);
-    const result = applyAction(record, facts, { ...request, actor: INTERFACE_ACTOR }, this.#model, this.#nowIso());
+    const now = this.#nowIso();
+    const result = applyAction(stored, facts, { ...request, actor: INTERFACE_ACTOR }, this.#model, now);
     if (!result.ok) return { status: 'refused', code: result.error.code, message: result.error.message };
+    let record = stored;
+    if (record === undefined) {
+      const events = await this.#tracker.listIssueEvents(issue.number);
+      record = newRecord(facts, now);
+      record.workflow = emptyWorkflow();
+      record.workflow.handledEventIds = events.filter((event) => this.#workflowLabelEvent(event)).map((event) => event.id);
+      result.record.workflow = structuredClone(record.workflow);
+    }
     const ops: WorkflowOperation[] = [];
     const session = record.session;
     if (request.name === 'reply' && session !== null && session.liveState !== 'ended') {
@@ -1889,6 +1910,10 @@ export class Orchestrator {
     }
     const status = await this.#commit(issue, record, result, `interface-${request.name}`, { ops });
     if (status === 'deferred') return { status: 'deferred', reason: 'Waiting for session capacity' };
-    return { status: 'applied', record: this.#store.get(key) as BugRecord };
+    if (status === 'refused') {
+      return { status: 'refused', code: 'not-applied', message: `Action ${request.name} was not applied to ${key}` };
+    }
+    const current = this.#store.get(key) ?? record;
+    return status === 'unchanged' ? { status: 'unchanged', record: current } : { status: 'applied', record: current };
   }
 }
