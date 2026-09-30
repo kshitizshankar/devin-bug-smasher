@@ -35,20 +35,31 @@ repository owner's token. Devin now posts them from its own account, as on the S
 ## How it works
 
 1. **A person labels an issue.** One label asks Devin to investigate, one to fix, one to build a feature.
-2. **Bug Smasher starts a Devin session.** It checks GitHub every minute and runs one session per bug, with a limit
-   on how many run at once and how much each may spend. It never starts a second fix for a bug that already has an
-   open pull request.
+2. **Bug Smasher starts a Devin session.** It checks GitHub every minute and starts one Devin session per bug
+   through the Devin API, with the matching Playbook, a spending cap and a limit on how many run at once. It never
+   starts a second fix for a bug that already has an open pull request.
 3. **Devin investigates.** It reproduces the bug in the repository and posts its findings on the issue: what
-   happens, the likely cause, a test that shows the bug, and its recommendation.
+   happens, the likely cause, a test that shows the bug, and its recommendation. Bug Smasher reads the same
+   findings as structured output and acts only on those fields.
 4. **A person decides on GitHub.** The fix label sends the bug back to Devin, in the same session, to fix.
    `needs-engineer` hands it to a person. Closing the issue ends it.
-5. **Devin opens a pull request, and Bug Smasher checks it.** Bug Smasher runs Devin's test in the project's own
-   test image, with the network off. The test must fail on the code before the fix and pass on the pull request. A
-   fix that silences a lint or type check is flagged for review. The result appears on the pull request as the
-   `bug-smasher/verification` status. A fix that fails the check goes back to Devin once, then to an engineer.
-6. **A person merges.** Bug Smasher runs the check again on the merged code.
+5. **Devin opens a pull request, and two checks run on it.**
+   - **Devin Review.** Bug Smasher requests a Devin Review of the pull request and sends its findings back to the
+     same session to fix. After two rounds, a person decides what to do with any findings left.
+   - **Bug Smasher's own check.** It runs Devin's test in the project's own test image, with the network off. The
+     test must fail on the code before the fix and pass on the pull request. A fix that silences a lint or type
+     check is flagged for review. The result appears on the pull request as the `bug-smasher/verification`
+     status. A fix that fails the check goes back to Devin once, then to an engineer.
+
+   A second status, `bug-smasher/ready`, turns green when Devin has finished with the latest commit.
+6. **A person merges.** Bug Smasher runs its check again on the merged code.
 7. **Everything is recorded.** Each bug's history is kept in `data/bugs.json`. `GET /api/metrics` reports the
    figures ([definitions](docs/METRICS.md)), and `npm run results` turns a run into a dashboard page.
+
+**Devin features it uses:** sessions through the Devin API (one per bug, with structured output, a spending cap and
+tags), Playbooks for triage, fixes and features, messages into a running session (a person's reply, a failed check,
+review findings), Devin Review, and Devin's GitHub integration for branches, pull requests and comments.
+`npm run setup` also creates the Playbooks, Knowledge notes and the repository's Devin environment.
 
 ## Quick start
 
