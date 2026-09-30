@@ -1,0 +1,185 @@
+{
+  "inputs": {
+    "repo": "kshitizshankar/superset",
+    "upstream": "apache/superset",
+    "baseCommit": "f639b22",
+    "store": "data/bugs.json",
+    "usage": "results/superset-run.usage.json",
+    "comparison": {
+      "firstLabelHours": 70,
+      "medianDays": 12.9,
+      "measured": "28 Sep 2026"
+    }
+  },
+  "page": {
+    "eyebrow": "Bug Smasher · results",
+    "title": "Bugs on {name}",
+    "subtitle": "Every bug labelled for Bug Smasher in [{repo}]({repoUrl}), a fork of {upstream} at {baseCommit}, since {since}. Times are Berlin.",
+    "tiles": [
+      {
+        "label": "How fast does a bug get investigated?",
+        "value": "{triageMedian}",
+        "small": "median",
+        "subs": [
+          {
+            "label": "Bugs investigated",
+            "value": "{triaged} of {bugs}"
+          },
+          {
+            "label": "Recommended a fix",
+            "value": "{recFix}"
+          },
+          {
+            "label": "Recommended an engineer",
+            "value": "{recEngineer}"
+          },
+          {
+            "label": "{name} today: first maintainer label",
+            "value": "{firstLabelHours}"
+          }
+        ]
+      },
+      {
+        "label": "Are the fixes real?",
+        "value": "{proven} of {sentToFix}",
+        "small": "proven",
+        "subs": [
+          {
+            "label": "Pull requests opened",
+            "value": "{prsOpened}"
+          },
+          {
+            "label": "Proven: test fails before, passes after",
+            "value": "{proven}"
+          },
+          {
+            "label": "Proven on the first try",
+            "value": "{firstTry}"
+          },
+          {
+            "label": "Merged",
+            "value": "{merged}"
+          }
+        ]
+      },
+      {
+        "label": "How fast is a fix ready?",
+        "value": "{fixReadyMedian}",
+        "small": "median",
+        "subs": [
+          {
+            "label": "Label to pull request, median",
+            "value": "{prOpenMedian}"
+          },
+          {
+            "label": "Fastest proven fix",
+            "value": "{fixReadyFastest}"
+          },
+          {
+            "label": "Slowest proven fix",
+            "value": "{fixReadySlowest}"
+          },
+          {
+            "label": "{name} today: issue to close",
+            "value": "{closeDays}"
+          }
+        ]
+      },
+      {
+        "label": "What does it cost?",
+        "value": "{costPerFix}",
+        "small": "per fix",
+        "subs": [
+          {
+            "label": "Total Devin spend",
+            "value": "{totalSpend}"
+          },
+          {
+            "label": "Sessions",
+            "value": "{sessions}"
+          },
+          {
+            "label": "Per session",
+            "value": "{perSession}"
+          },
+          {
+            "label": "Handed to an engineer",
+            "value": "{handedOff}"
+          }
+        ]
+      }
+    ],
+    "table": {
+      "title": "Every bug",
+      "caption": "One row per bug. Links open the issue and the pull request on GitHub."
+    },
+    "columns": {
+      "item": "Bug",
+      "second": "Devin recommended",
+      "outcome": "Outcome",
+      "pr": "PR",
+      "proof": "Proof: Devin's test fails before, passes after",
+      "time": "To proven",
+      "cost": "Cost"
+    },
+    "words": {
+      "second": {
+        "devin_fix": "fix",
+        "needs_engineer": "an engineer"
+      },
+      "outcome": {
+        "merged": "✓ merged",
+        "ready": "proven, ready",
+        "engineer": "with an engineer",
+        "triaged": "triaged"
+      },
+      "tags": {
+        "flagged": "a silenced check flagged and removed",
+        "retried": "second attempt"
+      },
+      "proof": "{f} of {t} tests",
+      "median": "median",
+      "recorded": "Recorded"
+    },
+    "charts": {
+      "time": {
+        "title": "How long each bug took",
+        "caption": "From the triage label to a fix proven by the verifier (or to the handoff)."
+      },
+      "cost": {
+        "title": "What it cost",
+        "caption": "Devin session cost per bug, triage and fix together."
+      }
+    },
+    "notesTitle": "What we learned",
+    "notes": [
+      {
+        "title": "The verifier flags fixes that silence checkers.",
+        "body": "Two fixes passed their tests but added a lint or type-check suppression. The verifier flagged both for review; Devin removed the suppressions and both fixes were proven again without them."
+      },
+      {
+        "title": "A gap in the verifier sent one bug to an engineer, and a one-line fix brought it back.",
+        "body": "The verifier did not recognise Superset's `*_tests.py` test files, so the first fix for #4 could not be proven and hit the retry limit. After the fix, the retry was proven: 6 of 1,210 tests fail before, all pass after."
+      },
+      {
+        "title": "Devin speaks for the work; the service only moves labels and statuses.",
+        "body": "Every comment on these bugs comes from Devin's own GitHub account. The service needs nothing but the operator's token."
+      },
+      {
+        "title": "Polling every bug each minute is expensive.",
+        "body": "Re-reading every tracked bug and pull request once a minute used a token's 5,000 GitHub requests an hour. Webhooks or conditional requests are the next step."
+      }
+    ],
+    "footer": "Figures from Bug Smasher's own store and metrics; cost from Devin's usage history, read {spendReadAt}. {name} comparisons measured upstream {comparisonMeasured}. The data file sits beside this page.",
+    "sections": {
+      "metrics": {
+        "title": "Metrics",
+        "caption": "Is it working? Measured from Bug Smasher's own records."
+      },
+      "results": {
+        "title": "Results",
+        "caption": "The evidence behind the numbers: every bug, its pull request and its proof."
+      }
+    }
+  }
+}

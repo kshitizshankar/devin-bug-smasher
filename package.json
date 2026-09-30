@@ -18,7 +18,8 @@
     "dev:web": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
-    "test": "node --test \"test/**/*.test.ts\""
+    "test": "node --test \"test/**/*.test.ts\"",
+    "results": "node --env-file-if-exists=.env scripts/results/freeze.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.4",

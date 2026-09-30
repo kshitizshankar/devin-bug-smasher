@@ -22,5 +22,19 @@ A fix counts as **proven** when Bug Smasher's verifier runs Devin's test in Supe
 fails on the code before the fix and passes on the fix. Merging in a fork is the fork owner's call, so merges
 are shown in the table, not in the headline figures.
 
-Each data file holds the figures, the rows and the page's wording. Re-running the freeze step on new data
-rewrites both files.
+## Capturing a new run
+
+Each page has a run file (`<run>.run.json`) that says where the data is and holds every word on the page as a
+template with `{figure}` placeholders. With Bug Smasher running against the target repository:
+
+```sh
+npm run results -- results/superset-run.run.json     # writes results/superset-run.json and .html
+```
+
+It reads the service's own figures (`GET /api/overview`, `GET /api/metrics`) and store (`data/bugs.json`), and,
+for per-bug cost, a usage file copied from Devin's usage history (`results/superset-run.usage.json`). Copy the
+run file to start a new run's page; edit its words there, not in code.
+`node scripts/results/render.mjs results/<run>.json` re-renders a page from its data file alone.
+
+The build page is a snapshot: its data came from GitHub and the build's own logs, so it is re-rendered from
+`building-bug-smasher.json` rather than captured again.

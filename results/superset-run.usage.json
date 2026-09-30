@@ -1,0 +1,50 @@
+{
+  "readAt": "2026-09-30T05:05:04.559Z",
+  "source": "Devin usage history (Settings > Usage & limits > Usage history); Devin's API reports no ACUs on this plan",
+  "sessions": [
+    {
+      "title": "Fix kshitizshankar/superset#4: 'group by all' is not working in Superset SQL Lab with ClickHouse DB.",
+      "cost": 1.13
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#5: 6.0.0 - Deleting a user via the GUI fails with IntegrityError on MariaDB",
+      "cost": 1.32
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#4: 'group by all' is not working in Superset SQL Lab with ClickHouse DB.",
+      "cost": 2.98
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#3: Ignore cache when generating report” does not propagate `force` to `/api/v1/chart/data` for dashboard reports (cached results still used)",
+      "cost": 3.28
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#2: bug(dashboards): Adding a new chart to a dashboard does not update Last modified",
+      "cost": 2.58
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#1: BigQuery: Copy SELECT / latest-partition WHERE uses PARSE_DATE('%Y%m%d', '__NULL__') and the query fails",
+      "cost": 2.35
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#5: 6.0.0 - Deleting a user via the GUI fails with IntegrityError on MariaDB",
+      "cost": 1.17
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#4: 'group by all' is not working in Superset SQL Lab with ClickHouse DB.",
+      "cost": 0.94
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#3: Ignore cache when generating report” does not propagate `force` to `/api/v1/chart/data` for dashboard reports (cached results still used)",
+      "cost": 0.66
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#2: bug(dashboards): Adding a new chart to a dashboard does not update Last modified",
+      "cost": 0.86
+    },
+    {
+      "title": "Investigate kshitizshankar/superset#1: BigQuery: Copy SELECT / latest-partition WHERE uses PARSE_DATE('%Y%m%d', '__NULL__') and the query fails",
+      "cost": 0.62
+    }
+  ]
+}
