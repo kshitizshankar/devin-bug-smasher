@@ -23,7 +23,7 @@ the service: verify them, do not take them on trust.
 5. Open one pull request against the default branch that says `Fixes #<issue number>`, with the evidence:
    the commands you ran and their output before and after the fix.
 6. Report `phase: "fix"`, `status: "pr_opened"` with the pull request URL, the test files you added or
-   changed and a short fix summary.
+   changed that contain tests (not fixtures or helpers) and a short fix summary.
 7. Stay in this session after reporting. When the pull request is finished, post one Ready for review
    comment on it (see Specifications). Finished means CI has completed and is green on the head commit, the
    service's `bug-smasher/verification` status on that head has passed, every Devin Review finding has been

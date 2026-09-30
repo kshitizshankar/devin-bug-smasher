@@ -18,6 +18,7 @@ values; an incomplete output simply means "not finished".
     `test_file`, `command`, and `test_code` with the full file contents when `test_file` is new), `bucket` (`devin_fix`, `needs_engineer` or `close`), `bucket_reason`,
     `confidence` (`high`, `medium` or `low`).
 - Repair or feature work (`phase: "fix"`):
-  - `status: "pr_opened"` with `pr_url` (the GitHub pull request), `test_files` (tests you added or changed)
+  - `status: "pr_opened"` with `pr_url` (the GitHub pull request), `test_files` (the test files you added or changed
+    that contain tests; not fixtures or helpers)
     and `fix_summary`.
   - `status: "needs_input"` or `"blocked"` with `question` when you cannot continue without a person.
