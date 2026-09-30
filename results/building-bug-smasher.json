@@ -678,17 +678,19 @@
     ],
     "workflow": {
       "devin": "Devin",
+      "devinSub": "investigates, builds",
       "more": "+{n}",
       "nodes": {
         "backlog": {
           "title": "Backlog",
           "sub": "Open issues",
           "value": "{openIssues}",
-          "note": "{deferred} of them deferred findings"
+          "foot": "{deferred} of them deferred findings"
         },
         "triage": {
           "title": "Triage",
-          "sub": "Devin investigates"
+          "sub": "Devin investigates",
+          "foot": "needs-triage"
         },
         "decision": {
           "title": "Decision",
@@ -696,7 +698,8 @@
         },
         "fix": {
           "title": "Fix",
-          "sub": "Devin builds, CI checks"
+          "sub": "Devin builds, CI checks",
+          "foot": "devin-builds-feature"
         },
         "merge": {
           "title": "Merge",
@@ -704,15 +707,36 @@
         },
         "merged": {
           "title": "Merged",
-          "sub": "Pull requests",
+          "sub": "Pull requests by Devin",
           "value": "{prs}",
-          "note": "Every one written by Devin"
+          "foot": "Every one merged by a person"
         }
       },
       "edges": {
-        "straight": "{prs} straight to a fix",
-        "proven": "{ciPassed} passed CI",
-        "merged": "{prs} merged"
+        "labelled": {
+          "label": "triage starts"
+        },
+        "toFix": {
+          "label": "to fix"
+        },
+        "engineer": {
+          "label": "needs an engineer"
+        },
+        "close": {
+          "label": "close"
+        },
+        "straight": {
+          "label": "straight to a fix",
+          "value": "{prs}"
+        },
+        "proven": {
+          "label": "passed CI",
+          "value": "{ciPassed}"
+        },
+        "merged": {
+          "label": "merged",
+          "value": "{prs}"
+        }
       }
     },
     "table": {

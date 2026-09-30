@@ -111,15 +111,18 @@
     ],
     "workflow": {
       "devin": "Devin",
+      "devinSub": "investigates, fixes",
       "more": "+{n}",
       "nodes": {
         "backlog": {
           "title": "Backlog",
-          "sub": "Waiting for a person or an engineer"
+          "sub": "Waiting for a person",
+          "foot": "no label · needs-engineer"
         },
         "triage": {
           "title": "Triage",
-          "sub": "Devin investigates"
+          "sub": "Devin investigates",
+          "foot": "devin:triage"
         },
         "decision": {
           "title": "Decision",
@@ -127,7 +130,8 @@
         },
         "fix": {
           "title": "Fix",
-          "sub": "Devin fixes, the verifier proves"
+          "sub": "Devin fixes, verifier proves",
+          "foot": "devin:fix"
         },
         "merge": {
           "title": "Merge",
@@ -135,17 +139,39 @@
         },
         "merged": {
           "title": "Merged",
-          "sub": "Proven again after the merge"
+          "sub": "The proven commit",
+          "foot": "Proven again after the merge"
         }
       },
       "edges": {
-        "labelled": "{bugs} labelled",
-        "toFix": "{fixStarted} sent to fix",
-        "close": "{closed} closed",
-        "engineer": "{handedOff} to an engineer",
-        "straight": "{straightToFix} straight to a fix",
-        "proven": "{proven} proven",
-        "merged": "{merged} merged"
+        "labelled": {
+          "label": "triage starts",
+          "value": "{bugs}"
+        },
+        "toFix": {
+          "label": "to fix",
+          "value": "{fixStarted}"
+        },
+        "proven": {
+          "label": "proven",
+          "value": "{proven}"
+        },
+        "merged": {
+          "label": "merged",
+          "value": "{merged}"
+        },
+        "engineer": {
+          "label": "needs an engineer",
+          "value": "{handedOff}"
+        },
+        "straight": {
+          "label": "straight to a fix",
+          "value": "{straightToFix}"
+        },
+        "close": {
+          "label": "close",
+          "value": "{closed}"
+        }
       }
     },
     "table": {

@@ -104,52 +104,81 @@ function bars(items, { unit = '', fmt = v => v.toFixed(2), refLine = null, refLa
   return svg + '</svg>';
 }
 
-// The workflow diagram (docs/architecture drawing 3) with live numbers: each stage shows how many items are in it
-// and which ones; each arrow shows how many took that path. Words come from the run file's `workflow` block; a
-// stage's `value` overrides the count of rows whose `node` is that stage (for pages whose rows are not the items).
+// The workflow diagram (docs/architecture drawing 3, same layout and look) with live numbers: each stage shows how
+// many items are in it and which ones; each path shows how many took it. Words come from the run file's `workflow`
+// block; a stage's `value` overrides the count of rows whose `node` is that stage (for pages whose rows are not the
+// items), and its `foot` shows when no item is there.
 function workflowSvg(W, rows, fill) {
   const N = W.nodes, E = W.edges || {};
   const here = k => rows.filter(r => r.node === k);
-  const count = k => (N[k]?.value != null ? fill(N[k].value) : String(here(k).length));
-  const edge = k => (E[k] ? esc(fill(E[k])) : '');
-  const chips = (k, x, y, maxW) => {
-    let out = '', cx = x;
-    const items = here(k);
-    for (let i = 0; i < items.length; i++) {
-      const r = items[i], w = 12 + r.label.length * 7.4;
-      if (cx + w > x + maxW) { out += `<text class="wf-more" x="${cx}" y="${y + 14}">${esc(fill(W.more ?? '').replace('{n}', items.length - i))}</text>`; break; }
-      out += `<a href="${esc(r.url)}"><g class="wf-chip" ${tip(`${r.label} ${r.title}`)}><rect x="${cx}" y="${y}" width="${w}" height="20" rx="4"/><text x="${cx + 6}" y="${y + 14}">${esc(r.label)}</text></g></a>`;
-      cx += w + 5;
+  const count = k => (N[k]?.value != null ? Number(fill(N[k].value)) || 0 : here(k).length);
+  const chipW = r => 12 + r.label.length * 7;
+  const chipRow = (items, x, y, maxW, align = 'start') => {
+    const shown = [];
+    let used = 0;
+    for (const r of items) { if (used + chipW(r) > maxW - 34) break; shown.push(r); used += chipW(r) + 5; }
+    const more = items.length - shown.length;
+    let cx = align === 'end' ? x - used - (more ? 30 : 0) : x;
+    let out = '';
+    for (const r of shown) {
+      out += `<a href="${esc(r.url)}"><g class="wf-chip" ${tip(`${r.label} ${r.title}`)}><rect x="${cx}" y="${y}" width="${chipW(r)}" height="18" rx="4"/><text x="${cx + 6}" y="${y + 13}">${esc(r.label)}</text></g></a>`;
+      cx += chipW(r) + 5;
     }
+    if (more) out += `<text class="wf-s" x="${cx + 2}" y="${y + 13}">${esc(fill(W.more ?? '+{n}').replace('{n}', more))}</text>`;
     return out;
   };
-  const busy = k => Number(count(k)) > 0;
-  const box = (k, x, y) => `<g class="wf-node ${k}${busy(k) ? ' busy' : ''}"><rect x="${x}" y="${y}" width="250" height="104" rx="8"/>`
-    + `<text class="wf-t" x="${x + 16}" y="${y + 28}">${esc(fill(N[k].title))}</text><text class="wf-s" x="${x + 16}" y="${y + 46}">${esc(fill(N[k].sub))}</text>`
-    + `<text class="wf-n" x="${x + 234}" y="${y + 36}" text-anchor="end">${esc(count(k))}</text>`
-    + (N[k].note ? `<text class="wf-s" x="${x + 16}" y="${y + 80}">${esc(fill(N[k].note))}</text>` : chips(k, x + 16, y + 64, 218)) + '</g>';
-  const diamond = (k, cx, cy, side) => {
-    const tx = side === 'left' ? cx - 38 : cx + 38, anchor = side === 'left' ? 'end' : 'start';
-    const n = count(k), chipX = side === 'left' ? cx - 38 - 170 : cx + 38;
-    return `<g class="wf-node gate ${k}${busy(k) ? ' busy' : ''}"><path d="M${cx},${cy - 24} L${cx + 24},${cy} L${cx},${cy + 24} L${cx - 24},${cy} Z"/>`
-      + `<text class="wf-t" x="${tx}" y="${cy - 4}" text-anchor="${anchor}">${esc(fill(N[k].title))} <tspan class="wf-g">${esc(n)}</tspan></text>`
-      + `<text class="wf-s" x="${tx}" y="${cy + 14}" text-anchor="${anchor}">${esc(fill(N[k].sub))}</text>`
-      + chips(k, chipX, cy + 24, 170) + '</g>';
+  const pill = (n, x, y) => {
+    const w = 16 + String(n).length * 8;
+    return `<rect class="wf-pill${n ? ' on' : ''}" x="${x - w}" y="${y}" width="${w}" height="22" rx="11"/><text class="wf-pilltext${n ? ' on' : ''}" x="${x - w / 2}" y="${y + 15}" text-anchor="middle">${n}</text>`;
   };
-  const label = (k, x, y, anchor = 'start') => (edge(k) ? `<text class="wf-e" x="${x}" y="${y}" text-anchor="${anchor}">${edge(k)}</text>` : '');
-  return `<svg viewBox="0 0 1040 520" role="img" class="wf-svg"><defs><marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="wf-head"/></marker></defs>`
-    + `<path class="wf-line" d="M645,76 H846 Q860,76 860,90 V174" marker-end="url(#wf-arrow)"/>${label('labelled', 870, 132)}`
-    + `<path class="wf-line" d="M860,280 V324" marker-end="url(#wf-arrow)"/>`
-    + `<path class="wf-line" d="M860,374 V430 Q860,444 846,444 H647" marker-end="url(#wf-arrow)"/>${label('toFix', 870, 412)}`
-    + `<path class="wf-line" d="M884,350 H1010" marker-end="url(#wf-arrow)"/>${label('close', 947, 340, 'middle')}`
-    + `<path class="wf-line alt" d="M735,226 C660,226 604,196 604,130" marker-end="url(#wf-arrow)"/>${label('engineer', 676, 184, 'middle')}`
-    + `<path class="wf-line dash" d="M440,128 V390" marker-end="url(#wf-arrow)"/>${label('straight', 430, 262, 'end')}`
-    + `<path class="wf-line" d="M395,444 H194 Q180,444 180,430 V376" marker-end="url(#wf-arrow)"/>${label('proven', 288, 436, 'middle')}`
-    + `<path class="wf-line" d="M180,326 V282" marker-end="url(#wf-arrow)"/>${label('merged', 192, 310)}`
-    + `<path class="wf-link" d="M560,258 H733"/><path class="wf-link" d="M520,298 V390"/>`
-    + `<g class="wf-devin"><circle cx="520" cy="258" r="40"/><text x="520" y="263" text-anchor="middle">${esc(fill(W.devin ?? 'Devin'))}</text></g>`
-    + box('backlog', 395, 24) + box('triage', 735, 176) + box('fix', 395, 392) + box('merged', 55, 176)
-    + diamond('decision', 860, 350, 'left') + diamond('merge', 180, 350, 'right')
+  const GLYPH = {
+    backlog: (x, y) => `<rect class="wf-glyph" x="${x + 9}" y="${y + 11}" width="18" height="14" rx="2"/><path class="wf-glyph" d="M${x + 9} ${y + 19} H${x + 14} L${x + 16} ${y + 22} H${x + 20} L${x + 22} ${y + 19} H${x + 27}"/>`,
+    triage: (x, y) => `<circle class="wf-glyph" cx="${x + 16}" cy="${y + 16}" r="6"/><path class="wf-glyph" d="M${x + 20.5} ${y + 20.5} L${x + 26} ${y + 26}"/>`,
+    fix: (x, y) => `<path class="wf-glyph" d="M${x + 14} ${y + 12} L${x + 9} ${y + 18} L${x + 14} ${y + 24} M${x + 22} ${y + 12} L${x + 27} ${y + 18} L${x + 22} ${y + 24} M${x + 20} ${y + 10} L${x + 16} ${y + 26}"/>`,
+    merged: (x, y) => `<rect class="wf-glyph" x="${x + 10}" y="${y + 10}" width="16" height="16" rx="3"/><path class="wf-glyph" d="M${x + 14} ${y + 18} L${x + 17} ${y + 21} L${x + 22} ${y + 15}"/>`,
+  };
+  const card = (k, x, y, tone) => {
+    const items = here(k), n = count(k);
+    const foot = items.length ? chipRow(items, x + 14, y + 73, 212)
+      : `<circle class="wf-dot ${tone}" cx="${x + 18}" cy="${y + 82}" r="3.5"/><text class="wf-m" x="${x + 28}" y="${y + 86}">${esc(fill(N[k].foot ?? ''))}</text>`;
+    return `<g class="wf-card"><rect class="wf-cardbg" x="${x}" y="${y}" width="240" height="96" rx="12"/>`
+      + `<path class="wf-foot" d="M${x} ${y + 68} H${x + 240} V${y + 84} Q${x + 240} ${y + 96} ${x + 228} ${y + 96} H${x + 12} Q${x} ${y + 96} ${x} ${y + 84} Z"/><line class="wf-tick" x1="${x}" y1="${y + 68}" x2="${x + 240}" y2="${y + 68}"/>`
+      + `<rect class="wf-tile ${tone}" x="${x + 14}" y="${y + 14}" width="36" height="36" rx="9"/><g class="wf-g ${tone}">${GLYPH[k](x + 14, y + 14)}</g>`
+      + `<text class="wf-h" x="${x + 62}" y="${y + 30}">${esc(fill(N[k].title))}</text><text class="wf-s" x="${x + 62}" y="${y + 48}">${esc(fill(N[k].sub))}</text>`
+      + pill(n, x + 226, y + 16) + foot + '</g>';
+  };
+  const gate = (k, cx, cy, side) => {
+    const tx = side === 'left' ? cx - 36 : cx + 36, anchor = side === 'left' ? 'end' : 'start';
+    return `<polygon class="wf-gate" points="${cx},${cy - 24} ${cx + 24},${cy} ${cx},${cy + 24} ${cx - 24},${cy}"/>`
+      + `<text class="wf-h" x="${tx}" y="${cy - 4}" text-anchor="${anchor}">${esc(fill(N[k].title))}</text>`
+      + `<text class="wf-s" x="${tx}" y="${cy + 14}" text-anchor="${anchor}">${esc(fill(N[k].sub))}</text>`
+      + chipRow(here(k), tx, cy + 24, 190, side === 'left' ? 'end' : 'start');
+  };
+  // A path label reads "4 to fix" when items took it, and just "to fix" when none did.
+  const lab = (k, x, y, anchor = 'start') => {
+    const e = E[k]; if (!e) return '';
+    const n = e.value != null ? Number(fill(e.value)) || 0 : 0;
+    return `<text class="wf-s wf-halo" x="${x}" y="${y}" text-anchor="${anchor}">${n ? `<tspan class="wf-c">${n}</tspan> ` : ''}${esc(fill(e.label))}</text>`;
+  };
+  return `<svg viewBox="0 0 1040 640" role="img" class="wf-svg"><defs>`
+    + `<marker id="wf-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="wf-ah" d="M0,0 L10,5 L0,10 z"/></marker>`
+    + `<marker id="wf-ah-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="wf-ah warn" d="M0,0 L10,5 L0,10 z"/></marker>`
+    + `<pattern id="wf-dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle class="wf-dotgrid" cx="2" cy="2" r="1"/></pattern></defs>`
+    + `<rect class="wf-canvas" x="0" y="0" width="1040" height="640" rx="14"/><rect x="0" y="0" width="1040" height="640" rx="14" fill="url(#wf-dots)"/>`
+    + `<path class="wf-edge" d="M640 88 H800 Q820 88 820 108 V250" marker-end="url(#wf-ah)"/>${lab('labelled', 830, 170)}`
+    + `<path class="wf-edge" d="M820 354 V396" marker-end="url(#wf-ah)"/>`
+    + `<path class="wf-edge" d="M820 444 V528 Q820 548 800 548 H642" marker-end="url(#wf-ah)"/>${lab('toFix', 830, 500)}`
+    + `<path class="wf-edge" d="M400 548 H240 Q220 548 220 528 V446" marker-end="url(#wf-ah)"/>${lab('proven', 310, 540, 'middle')}`
+    + `<path class="wf-edge" d="M220 396 V356" marker-end="url(#wf-ah)"/>${lab('merged', 210, 380, 'end')}`
+    + `<path class="wf-edge warn" d="M700 282 C640 282 600 230 600 146" marker-end="url(#wf-ah-warn)"/>${lab('engineer', 592, 214, 'end')}`
+    + `<path class="wf-edge dashed" d="M450 146 V492" marker-end="url(#wf-ah)"/>${lab('straight', 440, 214, 'end')}`
+    + `<path class="wf-edge" d="M844 420 H1000" marker-end="url(#wf-ah)"/>${lab('close', 922, 411, 'middle')}`
+    + `<path class="wf-edge dotted" d="M566 302 H698"/><path class="wf-edge dotted" d="M520 404 V492"/>`
+    + `<circle class="wf-cardbg" cx="520" cy="302" r="46"/><rect class="wf-tile accent" x="498" y="280" width="44" height="44" rx="11"/>`
+    + `<g class="wf-g accent"><polygon class="wf-glyph" points="520,293 528,297.5 528,306.5 520,311 512,306.5 512,297.5"/></g><circle class="wf-glyphfill" cx="520" cy="302" r="2.5"/>`
+    + `<text class="wf-h" x="520" y="370" text-anchor="middle">${esc(fill(W.devin ?? 'Devin'))}</text><text class="wf-s" x="520" y="389" text-anchor="middle">${esc(fill(W.devinSub ?? ''))}</text>`
+    + gate('decision', 820, 420, 'left') + gate('merge', 220, 420, 'right')
+    + card('backlog', 400, 40, 'muted') + card('triage', 700, 252, 'accent') + card('fix', 400, 494, 'accent') + card('merged', 100, 254, 'ok')
     + '</svg>';
 }
 
@@ -161,7 +190,7 @@ export function renderRun(dataFile) {
 
   const sec = k => P.sections?.[k] ? `<div class="sechead"><h3>${md(P.sections[k].title)}</h3>${P.sections[k].caption ? `<div class="cap">${md(P.sections[k].caption)}</div>` : ''}</div>` : '';
   const tiles = P.tiles.map((t, i) => `<div class="card tile${t.hero ? ' hero' : ''}"><div class="label">${md(t.label)}</div><div class="value">${esc(fill(t.value))}${t.small ? `<small> ${esc(fill(t.small))}</small>` : ''}</div>${t.note ? `<div class="note">${md(t.note)}</div>` : ''}${t.subs ? `<dl class="subs">${t.subs.map(x => `<div><dt>${md(x.label)}</dt><dd>${esc(fill(x.value))}</dd></div>`).join('')}</dl>` : ''}</div>`).join('');
-  const workflow = P.workflow ? `<section class="card wf">${workflowSvg(P.workflow, rows, fill)}</section>` : '';
+  const workflow = P.workflow ? `<section class="wf">${workflowSvg(P.workflow, rows, fill)}</section>` : '';
   const C = P.columns;
   // A column whose heading is null in the run file is left out.
   const COLS = [
@@ -195,16 +224,20 @@ export function renderRun(dataFile) {
 .rrow{display:grid;grid-template-columns:${COLS.map(([, w]) => w).join(' ')};gap:12px;align-items:center;padding:9px 2px;border-top:1px solid var(--line);font-size:13px}.rrow a{color:var(--ink);text-decoration:none}.rrow a:hover{text-decoration:underline}.rrow.rhead{border-top:0;color:var(--muted);font-size:11.5px;padding-top:2px}
 .learn{padding:9px 0;border-top:1px solid var(--line)}.learn:first-child{border-top:0}.learn b{font-weight:600;font-size:13.5px}.learn p{margin:3px 0 0;color:var(--ink2);font-size:13px}.learn a{color:var(--s1)}
 code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink2)}
-.wf{margin-bottom:14px;padding:18px 20px}.wf-svg text{font-family:inherit}
-.wf-node>rect,.wf-node>path{fill:var(--card);stroke:var(--line);stroke-width:1.5}.wf-node.busy>rect{stroke:var(--s1);stroke-width:2}
-.wf-node.gate>path{fill:#fff1d6;stroke:#e0a100}[data-theme=dark] .wf-node.gate>path{fill:#3a2c0c;stroke:#b98600}.wf-node.gate.busy>path{stroke-width:2.5}
-.wf-node.merged.busy>rect{stroke:var(--good)}
-.wf-t{font-size:15px;font-weight:600;fill:var(--ink)}.wf-s{font-size:12px;fill:var(--muted)}.wf-n{font-size:30px;font-weight:300;fill:var(--ink)}.wf-g{font-weight:300;fill:var(--ink2)}
-.wf-line{fill:none;stroke:var(--muted);stroke-width:1.5}.wf-line.dash{stroke-dasharray:5 5}.wf-line.alt{stroke:var(--s2);stroke-dasharray:6 5}.wf-head{fill:var(--muted)}
-.wf-link{fill:none;stroke:var(--s1);stroke-width:1.5;stroke-dasharray:2 4;opacity:.7}
-.wf-e{font-size:12.5px;fill:var(--ink2);font-weight:500;paint-order:stroke;stroke:var(--card);stroke-width:5px;stroke-linejoin:round}
-.wf-devin circle{fill:var(--chip);stroke:var(--s1);stroke-width:1.5}.wf-devin text{font-size:14px;font-weight:600;fill:var(--s1)}
-.wf-chip rect{fill:var(--chip);stroke:var(--line)}.wf-chip text{font-size:11.5px;font-weight:600;fill:var(--s1)}.wf-chip:hover rect{stroke:var(--s1)}.wf-more{font-size:11.5px;fill:var(--muted)}
+.wf{margin-bottom:14px}.wf-svg{border-radius:14px;box-shadow:var(--shadow)}.wf-svg text{font-family:inherit}
+.wf-svg{--wf-canvas:#fbfcfd;--wf-bg:#fff;--wf-stroke:#cfd5dc;--wf-box:#f4f6f8;--wf-muted:#6b7480;--wf-text:#1f2328;--wf-accent:#533afd;--wf-accent-soft:#eeebff;--wf-warn:#b26a00;--wf-warn-soft:#fff1d6;--wf-ok:#1f7a4d;--wf-ok-soft:#e3f4ea;--wf-dotc:#dde2e8}
+[data-theme=dark] .wf-svg{--wf-canvas:#0a1d31;--wf-bg:#0d2238;--wf-stroke:#2a4563;--wf-box:#12304d;--wf-muted:#8ea3bd;--wf-text:#eef2f8;--wf-accent:#8b80ff;--wf-accent-soft:#1f2a55;--wf-warn:#f0b35a;--wf-warn-soft:#33260f;--wf-ok:#5fcf8e;--wf-ok-soft:#12291c;--wf-dotc:#18324d}
+.wf-canvas{fill:var(--wf-canvas);stroke:var(--wf-stroke)}.wf-dotgrid{fill:var(--wf-dotc)}
+.wf-cardbg{fill:var(--wf-bg);stroke:var(--wf-stroke)}.wf-foot{fill:var(--wf-box)}.wf-tick{stroke:var(--wf-stroke)}
+.wf-tile{fill:var(--wf-box)}.wf-tile.accent{fill:var(--wf-accent-soft)}.wf-tile.ok{fill:var(--wf-ok-soft)}
+.wf-glyph{fill:none;stroke:var(--wf-muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.wf-g.accent .wf-glyph{stroke:var(--wf-accent)}.wf-g.ok .wf-glyph{stroke:var(--wf-ok)}.wf-glyphfill{fill:var(--wf-accent)}
+.wf-dot{fill:var(--wf-muted)}.wf-dot.accent{fill:var(--wf-accent)}.wf-dot.ok{fill:var(--wf-ok)}
+.wf-h{font-size:15px;font-weight:650;fill:var(--wf-text)}.wf-s{font-size:12px;fill:var(--wf-muted)}.wf-m{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--wf-muted)}
+.wf-c{font-weight:700;fill:var(--wf-text)}.wf-halo{paint-order:stroke;stroke:var(--wf-canvas);stroke-width:5px;stroke-linejoin:round}
+.wf-edge{fill:none;stroke:var(--wf-muted);stroke-width:1.5}.wf-edge.warn{stroke:var(--wf-warn);stroke-dasharray:5 4}.wf-edge.dashed{stroke-dasharray:5 4}.wf-edge.dotted{stroke:var(--wf-accent);stroke-dasharray:2 4}
+.wf-ah{fill:var(--wf-muted)}.wf-ah.warn{fill:var(--wf-warn)}.wf-gate{fill:var(--wf-warn-soft);stroke:var(--wf-warn)}
+.wf-pill{fill:var(--wf-box)}.wf-pill.on{fill:var(--wf-accent-soft)}.wf-pilltext{font-size:12.5px;font-weight:600;fill:var(--wf-muted)}.wf-pilltext.on{fill:var(--wf-accent)}
+.wf-chip rect{fill:var(--wf-bg);stroke:var(--wf-stroke)}.wf-chip text{font-size:11px;font-weight:600;fill:var(--wf-accent)}.wf-chip:hover rect{stroke:var(--wf-accent)}
 </style>
 <div class="wrap">
 <header><div><div class="eyebrow">${md(P.eyebrow)}</div><h1>${md(P.title)}</h1><div class="sub">${md(P.subtitle)}</div></div>
