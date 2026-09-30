@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-09-30T13:43:28.717Z",
+  "frozenAt": "2026-09-30T13:45:55.444Z",
   "figures": {
     "name": "Superset",
     "repo": "kshitizshankar/superset",
@@ -344,6 +344,42 @@
           "label": "close",
           "value": "{closed}"
         }
+      },
+      "through": {
+        "title": "Went through",
+        "caption": "How many bugs reached each stage. The number on each card in the diagram is how many are there now.",
+        "steps": [
+          {
+            "label": "Labelled",
+            "value": "{bugs}"
+          },
+          {
+            "label": "Triaged",
+            "value": "{triaged}"
+          },
+          {
+            "label": "Sent to fix",
+            "value": "{fixStarted}"
+          },
+          {
+            "label": "Proven",
+            "value": "{proven}"
+          },
+          {
+            "label": "Merged",
+            "value": "{merged}"
+          }
+        ],
+        "exits": [
+          {
+            "label": "Handed to an engineer",
+            "value": "{handedOff}"
+          },
+          {
+            "label": "Closed without a fix",
+            "value": "{closed}"
+          }
+        ]
       }
     },
     "table": {

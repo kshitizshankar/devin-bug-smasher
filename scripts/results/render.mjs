@@ -194,7 +194,15 @@ export function renderRun(dataFile) {
   // Tabs link the dashboard's pages (files in the same folder); the page's own tab is marked current.
   const self = path.basename(dataFile).replace(/\.json$/, '.html');
   const tabs = P.tabs?.length ? `<nav class="tabs">${P.tabs.map(t => `<a href="${esc(t.href)}"${t.href === self ? ' aria-current="page"' : ''}>${md(t.label)}</a>`).join('')}</nav>` : '';
-  const workflow = P.workflow ? `<section class="wf">${workflowSvg(P.workflow, rows, fill)}</section>` : '';
+  // Beside the diagram (where items are now), a panel of how many went through each stage.
+  const T = P.workflow?.through;
+  const tSteps = (T?.steps || []).map(x => ({ ...x, n: Number(fill(x.value)) || 0 }));
+  const tMax = Math.max(1, ...tSteps.map(x => x.n));
+  const through = !T ? '' : `<aside class="card wf-through"><h2>${md(T.title)}</h2><div class="cap">${md(T.caption)}</div>`
+    + tSteps.map(x => `<div class="wt-step"><div class="wt-row"><span>${md(x.label)}</span><b>${x.n}</b></div><div class="wt-bar"><i style="width:${(100 * x.n / tMax).toFixed(1)}%"></i></div></div>`).join('')
+    + (T.exits?.length ? `<div class="wt-exits">${T.exits.map(x => `<div class="wt-exit"><span>${md(x.label)}</span><b>${esc(fill(x.value))}</b></div>`).join('')}</div>` : '')
+    + '</aside>';
+  const workflow = P.workflow ? `<section class="wf${T ? ' with-through' : ''}">${workflowSvg(P.workflow, rows, fill)}${through}</section>` : '';
   const C = P.columns;
   // A column whose heading is null in the run file is left out.
   const COLS = [
@@ -229,7 +237,7 @@ export function renderRun(dataFile) {
 .learn{padding:9px 0;border-top:1px solid var(--line)}.learn:first-child{border-top:0}.learn b{font-weight:600;font-size:13.5px}.learn p{margin:3px 0 0;color:var(--ink2);font-size:13px}.learn a{color:var(--s1)}
 code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink2)}
 .pill{white-space:nowrap}.tabs{display:flex;gap:2px;margin:-8px 0 22px;border-bottom:1px solid var(--line)}.tabs a{padding:10px 16px;color:var(--ink2);text-decoration:none;font-weight:500;font-size:14px;border-bottom:2px solid transparent;margin-bottom:-1px}.tabs a:hover{color:var(--ink)}.tabs a[aria-current=page]{color:var(--s1);border-bottom-color:var(--s1)}
-.wf{margin-bottom:14px}.wf-svg{border-radius:14px;box-shadow:var(--shadow)}.wf-svg text{font-family:inherit}
+.wf{margin-bottom:14px}.wf.with-through{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px;align-items:stretch}.wf-through{padding:20px 22px}.wt-step{margin-top:14px}.wt-row{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--ink2)}.wt-row b{font-size:22px;font-weight:300;color:var(--ink);font-variant-numeric:tabular-nums}.wt-bar{height:6px;background:var(--track);border-radius:3px;margin-top:5px;overflow:hidden}.wt-bar i{display:block;height:100%;background:var(--s1)}.wt-exits{margin-top:18px;padding-top:10px;border-top:1px solid var(--line)}.wt-exit{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink2);padding:4px 0}.wt-exit b{color:var(--s2);font-weight:600}@media(max-width:1000px){.wf.with-through{grid-template-columns:1fr}}.wf-svg{border-radius:14px;box-shadow:var(--shadow)}.wf-svg text{font-family:inherit}
 .wf-svg{--wf-canvas:#fbfcfd;--wf-bg:#fff;--wf-stroke:#cfd5dc;--wf-box:#f4f6f8;--wf-muted:#6b7480;--wf-text:#1f2328;--wf-accent:#533afd;--wf-accent-soft:#eeebff;--wf-warn:#b26a00;--wf-warn-soft:#fff1d6;--wf-ok:#1f7a4d;--wf-ok-soft:#e3f4ea;--wf-dotc:#dde2e8}
 [data-theme=dark] .wf-svg{--wf-canvas:#0a1d31;--wf-bg:#0d2238;--wf-stroke:#2a4563;--wf-box:#12304d;--wf-muted:#8ea3bd;--wf-text:#eef2f8;--wf-accent:#8b80ff;--wf-accent-soft:#1f2a55;--wf-warn:#f0b35a;--wf-warn-soft:#33260f;--wf-ok:#5fcf8e;--wf-ok-soft:#12291c;--wf-dotc:#18324d}
 .wf-canvas{fill:var(--wf-canvas);stroke:var(--wf-stroke)}.wf-dotgrid{fill:var(--wf-dotc)}

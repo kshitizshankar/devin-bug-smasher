@@ -747,6 +747,34 @@
           "label": "merged",
           "value": "{prs}"
         }
+      },
+      "through": {
+        "title": "Went through",
+        "caption": "How many issues reached each stage. The number on each card in the diagram is how many are there now.",
+        "steps": [
+          {
+            "label": "Issues filed",
+            "value": "{issuesFiled}"
+          },
+          {
+            "label": "Given to Devin",
+            "value": "{prs}"
+          },
+          {
+            "label": "Passed CI",
+            "value": "{ciPassed}"
+          },
+          {
+            "label": "Merged",
+            "value": "{prs}"
+          }
+        ],
+        "exits": [
+          {
+            "label": "Deferred as known limitations",
+            "value": "{deferred}"
+          }
+        ]
       }
     },
     "table": {
