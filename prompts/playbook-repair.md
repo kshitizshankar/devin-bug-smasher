@@ -24,6 +24,10 @@ the service: verify them, do not take them on trust.
    the commands you ran and their output before and after the fix.
 6. Report `phase: "fix"`, `status: "pr_opened"` with the pull request URL, the test files you added or
    changed and a short fix summary.
+7. When the pull request is finished, post one Ready for review comment on it (see Specifications).
+   Finished means CI has completed and is green on the head commit, every Devin Review finding has been
+   answered (fixed, or deferred to an issue you name) and you have nothing left to push. Do not post it while
+   CI is still running or while you are still addressing a Review round.
 
 ## Specifications
 
@@ -33,6 +37,20 @@ the service: verify them, do not take them on trust.
   not fail on the base proves nothing and fails verification.
 - Every existing test is kept and still passes.
 - Exactly one pull request exists for the bug, and it says `Fixes #<issue number>`.
+- A finished pull request gets exactly one Ready for review comment for its head commit, written in your
+  own words and in this shape, with all three parts filled in:
+
+  ```
+  **Ready for review** · head `<short SHA>`
+  **What this does:** one or two lines.
+  **Things to note:** behavior changes, risks, or findings deferred to issues (#N). Write "nothing" if there is nothing.
+  **Checked:** the tests added, CI, and the Review result.
+  ```
+
+  The first line is always `**Ready for review**` followed by the short SHA of the head commit it describes,
+  so a reader can tell whether it still matches the current head. Keep it short: a reader should get the
+  change without reading the diff. If you push another commit afterwards, do not edit the old comment; once
+  you are finished again, post a new one for the new head.
 
 ## Advice
 
