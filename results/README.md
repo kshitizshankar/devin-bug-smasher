@@ -1,12 +1,12 @@
 # Results
 
-Two static pages, each with the data file it was rendered from. Open the HTML directly in a browser; the data is
+Two static pages of the Bug Smasher dashboard, linked by tabs, each with the data file it was rendered from. Open the HTML directly in a browser; the data is
 embedded, so no server is needed. Both have a light and dark theme switch.
 
 | Page | What it shows | Data |
 | --- | --- | --- |
-| [`superset-run.html`](superset-run.html) | The live run on [kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of apache/superset: how fast bugs were investigated, whether the fixes are real, how fast a fix was ready, and what it cost; then where every bug is in the workflow and how many took each path; then every bug with its pull request and proof. | [`superset-run.json`](superset-run.json) |
-| [`building-bug-smasher.html`](building-bug-smasher.html) | How Bug Smasher itself was built by Devin: how the build's issues moved through the workflow, then every merged pull request, how it was started, checked, how long it took and what it cost. | [`building-bug-smasher.json`](building-bug-smasher.json) |
+| [`superset-run.html`](superset-run.html) | The dashboard for the live run on [kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of apache/superset: how fast bugs were investigated, whether the fixes are real, how fast a fix was ready, and what it cost; then where every bug is in the workflow and how many took each path; then every bug with its pull request and proof. | [`superset-run.json`](superset-run.json) |
+| [`building-bug-smasher.html`](building-bug-smasher.html) | The dashboard for how Bug Smasher itself was built by Devin: how the build's issues moved through the workflow, then every merged pull request, how it was started, checked, how long it took and what it cost. | [`building-bug-smasher.json`](building-bug-smasher.json) |
 
 ## Where the numbers come from
 

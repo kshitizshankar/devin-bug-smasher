@@ -579,6 +579,16 @@
     }
   ],
   "page": {
+    "tabs": [
+      {
+        "label": "Superset run",
+        "href": "superset-run.html"
+      },
+      {
+        "label": "Building Bug Smasher",
+        "href": "building-bug-smasher.html"
+      }
+    ],
     "eyebrow": "Building Bug Smasher",
     "title": "Bug Smasher dashboard",
     "subtitle": "Every pull request Devin wrote and a person merged in [{repo}]({repoUrl}), since {since}. From {selfBuiltFrom}, Bug Smasher dispatched its own work. Times are Berlin.",

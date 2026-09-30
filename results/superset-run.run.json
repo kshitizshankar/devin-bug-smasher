@@ -12,6 +12,16 @@
     }
   },
   "page": {
+    "tabs": [
+      {
+        "label": "Superset run",
+        "href": "superset-run.html"
+      },
+      {
+        "label": "Building Bug Smasher",
+        "href": "building-bug-smasher.html"
+      }
+    ],
     "eyebrow": "{name}",
     "title": "Bug Smasher dashboard",
     "subtitle": "Every bug labelled for Bug Smasher in [{repo}]({repoUrl}), a fork of {upstream} at {baseCommit}, since {since}. Times are Berlin.",

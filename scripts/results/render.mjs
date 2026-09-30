@@ -191,6 +191,9 @@ export function renderRun(dataFile) {
 
   const sec = k => P.sections?.[k] ? `<div class="sechead"><h3>${md(P.sections[k].title)}</h3>${P.sections[k].caption ? `<div class="cap">${md(P.sections[k].caption)}</div>` : ''}</div>` : '';
   const tiles = P.tiles.map((t, i) => `<div class="card tile${t.hero ? ' hero' : ''}"><div class="label">${md(t.label)}</div><div class="value">${esc(fill(t.value))}${t.small ? `<small> ${esc(fill(t.small))}</small>` : ''}</div>${t.note ? `<div class="note">${md(t.note)}</div>` : ''}${t.subs ? `<dl class="subs">${t.subs.map(x => `<div><dt>${md(x.label)}</dt><dd>${esc(fill(x.value))}</dd></div>`).join('')}</dl>` : ''}</div>`).join('');
+  // Tabs link the dashboard's pages (files in the same folder); the page's own tab is marked current.
+  const self = path.basename(dataFile).replace(/\.json$/, '.html');
+  const tabs = P.tabs?.length ? `<nav class="tabs">${P.tabs.map(t => `<a href="${esc(t.href)}"${t.href === self ? ' aria-current="page"' : ''}>${md(t.label)}</a>`).join('')}</nav>` : '';
   const workflow = P.workflow ? `<section class="wf">${workflowSvg(P.workflow, rows, fill)}</section>` : '';
   const C = P.columns;
   // A column whose heading is null in the run file is left out.
@@ -225,6 +228,7 @@ export function renderRun(dataFile) {
 .rrow{display:grid;grid-template-columns:${COLS.map(([, w]) => w).join(' ')};gap:12px;align-items:center;padding:9px 2px;border-top:1px solid var(--line);font-size:13px}.rrow a{color:var(--ink);text-decoration:none}.rrow a:hover{text-decoration:underline}.rrow.rhead{border-top:0;color:var(--muted);font-size:11.5px;padding-top:2px}
 .learn{padding:9px 0;border-top:1px solid var(--line)}.learn:first-child{border-top:0}.learn b{font-weight:600;font-size:13.5px}.learn p{margin:3px 0 0;color:var(--ink2);font-size:13px}.learn a{color:var(--s1)}
 code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink2)}
+.pill{white-space:nowrap}.tabs{display:flex;gap:2px;margin:-8px 0 22px;border-bottom:1px solid var(--line)}.tabs a{padding:10px 16px;color:var(--ink2);text-decoration:none;font-weight:500;font-size:14px;border-bottom:2px solid transparent;margin-bottom:-1px}.tabs a:hover{color:var(--ink)}.tabs a[aria-current=page]{color:var(--s1);border-bottom-color:var(--s1)}
 .wf{margin-bottom:14px}.wf-svg{border-radius:14px;box-shadow:var(--shadow)}.wf-svg text{font-family:inherit}
 .wf-svg{--wf-canvas:#fbfcfd;--wf-bg:#fff;--wf-stroke:#cfd5dc;--wf-box:#f4f6f8;--wf-muted:#6b7480;--wf-text:#1f2328;--wf-accent:#533afd;--wf-accent-soft:#eeebff;--wf-warn:#b26a00;--wf-warn-soft:#fff1d6;--wf-ok:#1f7a4d;--wf-ok-soft:#e3f4ea;--wf-dotc:#dde2e8}
 [data-theme=dark] .wf-svg{--wf-canvas:#0a1d31;--wf-bg:#0d2238;--wf-stroke:#2a4563;--wf-box:#12304d;--wf-muted:#8ea3bd;--wf-text:#eef2f8;--wf-accent:#8b80ff;--wf-accent-soft:#1f2a55;--wf-warn:#f0b35a;--wf-warn-soft:#33260f;--wf-ok:#5fcf8e;--wf-ok-soft:#12291c;--wf-dotc:#18324d}
@@ -241,7 +245,7 @@ code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink2)}
 .wf-chip rect{fill:var(--wf-bg);stroke:var(--wf-stroke)}.wf-chip text{font-size:11px;font-weight:600;fill:var(--wf-accent)}.wf-chip:hover rect{stroke:var(--wf-accent)}
 </style>
 <div class="wrap">
-<header><div><div class="eyebrow">${md(P.eyebrow)}</div><h1>${md(P.title)}</h1><div class="sub">${md(P.subtitle)}</div></div>
+${tabs}<header><div><div class="eyebrow">${md(P.eyebrow)}</div><h1>${md(P.title)}</h1><div class="sub">${md(P.subtitle)}</div></div>
 <div class="right"><div id="theme-switch" role="group" aria-label="Theme"></div><div class="pill">${esc(P.words?.recorded ?? 'Recorded')} <b>${dmhm(frozenAt)}</b></div></div></header>
 ${sec('metrics')}<section class="tiles">${tiles}</section>
 ${sec('workflow')}${workflow}
