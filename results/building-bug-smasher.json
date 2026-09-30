@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-09-30T13:22:21.959416Z",
+  "frozenAt": "2026-09-30T13:59:21.484Z",
   "figures": {
     "repo": "kshitizshankar/devin-bug-smasher",
     "repoUrl": "https://github.com/kshitizshankar/devin-bug-smasher",
@@ -21,10 +21,10 @@
     "totalCost": "$137.12",
     "costedPrs": 24,
     "costPerPr": "$5.71",
-    "deferred": 35,
-    "spendReadAt": "30 Sep 2026",
+    "deferred": 33,
     "issuesFiled": 80,
-    "openIssues": 49
+    "openIssues": 49,
+    "spendReadAt": "30 Sep 2026"
   },
   "rows": [
     {
