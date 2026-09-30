@@ -64,6 +64,10 @@ CHECK_COMMAND=python -m pytest -q -p no:cacheprovider --junitxml={results} {file
 docker compose up --build -d
 ```
 
+The label names in `.env` are the only ones the service reads. `npm run setup` creates them on the target with
+descriptions, adds an issue form that names them, and configures Devin's side (`npm run setup -- --dry-run` lists
+every change first); Devin's comments name the same labels.
+
 Devin needs its GitHub integration on the target repository so it can push branches and open pull requests. To
 work on a fork, `npm run mirror -- owner/repo#N` copies an upstream issue with links and mentions neutralised.
 
