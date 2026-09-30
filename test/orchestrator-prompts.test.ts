@@ -213,12 +213,15 @@ describe('prompt assets: Ready for review comment', () => {
     }
   });
 
-  it('hold the comment until CI is green, Devin Review is answered and nothing is left to push', async () => {
+  it('hold the comment until CI is green, verification passed, Devin Review is answered and nothing is left to push', async () => {
     for (const [route, prompt] of Object.entries(await pullRequestRoutes())) {
-      assert.match(prompt, /When the pull request is finished, post one Ready for review comment/, `${route}: posted when finished`);
-      assert.match(prompt, /CI has completed and is green on the head commit, every Devin Review finding has been\s+answered/, `${route}: CI and Review`);
+      assert.match(prompt, /Stay in this session after reporting/, `${route}: the session outlives the report`);
+      assert.match(prompt, /When the pull request is finished, post one Ready for review\s+comment/, `${route}: posted when finished`);
+      assert.match(prompt, /CI has completed and is green on the head commit/, `${route}: CI`);
+      assert.match(prompt, /`bug-smasher\/verification` status on that head has passed/, `${route}: independent verification`);
+      assert.match(prompt, /every Devin Review finding has been\s+answered/, `${route}: Review`);
       assert.match(prompt, /you have nothing left to push/, `${route}: nothing left to push`);
-      assert.match(prompt, /Do not post it while\s+CI is still running or while you are still addressing a Review round/, `${route}: not early`);
+      assert.match(prompt, /Do not post it while\s+CI or verification is still running or while you are still addressing a Review round/, `${route}: not early`);
     }
   });
 

@@ -26,10 +26,11 @@ people and any decision context. The criteria are the specification.
    mapping each criterion to its test, and the commands you ran and their results.
 8. Report `phase: "fix"`, `status: "pr_opened"` with the pull request URL, the test files you added or
    changed and a short summary.
-9. When the pull request is finished, post one Ready for review comment on it (see Specifications).
-   Finished means CI has completed and is green on the head commit, every Devin Review finding has been
+9. Stay in this session after reporting. When the pull request is finished, post one Ready for review
+   comment on it (see Specifications). Finished means CI has completed and is green on the head commit, the
+   service's `bug-smasher/verification` status on that head has passed, every Devin Review finding has been
    answered (fixed, or deferred to an issue you name) and you have nothing left to push. Do not post it while
-   CI is still running or while you are still addressing a Review round.
+   CI or verification is still running or while you are still addressing a Review round.
 
 ## Specifications
 
