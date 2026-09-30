@@ -192,6 +192,21 @@ describe('verification failures, errors and retries', () => {
     assert.equal(handed.verifications.length, 2);
   });
 
+  it('hands off a failed proof with retries left when the session already ended during verification', () => {
+    const ended = event(verifyingRecord(), { type: 'session-status', sessionId: 'session-fix', liveState: 'ended' });
+    assert.equal(ended.stage, 'verifying', 'an ended session does not interrupt verification');
+    const result = expectOk(applyEvent(ended, { type: 'verification-recorded', attempt: attempt('fail') }, options, now()));
+    assert.equal(result.record.stage, 'with-engineer', 'no session is left to retry the fix');
+    assert.equal(result.record.handoff?.reason, 'session-ended');
+    assert.equal(result.record.verifications.length, 1);
+    assert.deepEqual(result.effects, [
+      { type: 'add-label', label: LABEL.engineer },
+      { type: 'remove-label', label: LABEL.triage },
+      { type: 'remove-label', label: LABEL.fix },
+      { type: 'remove-label', label: LABEL.feature },
+    ]);
+  });
+
   it('honours a configured retry budget of zero', () => {
     const verifying = verifyingRecord();
     const result = expectOk(

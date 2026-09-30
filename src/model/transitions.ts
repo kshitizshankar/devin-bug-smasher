@@ -493,6 +493,9 @@ function transition(current: BugRecord, event: ModelEvent, options: ModelOptions
       if (countSessionAttempts(record, 'fail') > options.maxFixRetries) {
         return done(record, now, handOff(record, 'verification-failed', attempt.reason, options, now));
       }
+      if (!sessionRunning(record)) {
+        return done(record, now, handOff(record, 'session-ended', 'Session ended before retrying a failed proof', options, now));
+      }
       moveTo(record, 'fixing', now);
       return done(record, now);
     }
