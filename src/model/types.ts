@@ -378,11 +378,11 @@ export type WorkflowOperation =
   /** `marker` is part of `message`; a message already carrying it in the session is not sent again. */
   | { type: 'send-message'; sessionId: string; marker: string; message: string }
   | { type: 'merge-pr'; prNumber: number; expectedHeadSha: string }
-  /** Publishes a verification result on the exact commit that was checked. Repeating it is harmless. */
+  /** Publishes a verification result or readiness on the exact commit it describes. Repeating it is harmless. */
   | {
       type: 'set-commit-status';
       sha: string;
-      state: 'success' | 'failure' | 'error';
+      state: 'success' | 'failure' | 'error' | 'pending';
       context: string;
       description: string;
     };
@@ -393,6 +393,18 @@ export interface WorkQuestion {
   sessionId: string;
   summary: string;
   askedAt: Timestamp;
+}
+
+export const READY_STATES = ['pending', 'success'] as const;
+export type ReadyState = (typeof READY_STATES)[number];
+
+/** The `bug-smasher/ready` evaluation last published on a fix head; never green on missing information. */
+export interface ReadyEvaluation {
+  headSha: string;
+  /** `pending`: Devin is still working on the pull request (the detail says why); `success`: it is done. */
+  state: ReadyState;
+  detail: string;
+  at: Timestamp;
 }
 
 /** Persisted orchestrator state that lets a restarted service continue without repeating or losing effects. */
@@ -409,6 +421,8 @@ export interface WorkflowState {
   notices: string[];
   /** Consecutive verifier runs that produced no result for the current head; cleared by a real attempt. */
   verifierUnavailable?: { headSha: string; count: number } | null;
+  /** Latest `bug-smasher/ready` evaluation for the fix's head; absent until the first publish. */
+  ready?: ReadyEvaluation;
 }
 
 /** Latest GitHub snapshot used as input to derivation. */

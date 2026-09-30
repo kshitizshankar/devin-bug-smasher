@@ -110,6 +110,8 @@ export interface Automation {
   ci: PolicyCheck | null;
   /** Whether branch protection requires the verification status (`branch-protection` check). */
   requiredVerification: PolicyCheck | null;
+  /** Latest `bug-smasher/ready` evaluation for the current PR head; `null` until published for it. */
+  ready: { state: 'pending' | 'success'; detail: string } | null;
   /** Why the workflow is waiting for a person now; empty when nothing is blocking. */
   blockers: string[];
 }
@@ -130,6 +132,10 @@ export function automation(record: BugRecord | undefined): Automation {
   if (record?.stage === 'ready-to-merge' && merge?.outcome === 'wait') {
     blockers.push(...merge.checks.filter((check) => check.blocking && !check.ok).map((check) => check.detail));
   }
+  const published = record?.workflow?.ready;
+  const ready = head === null || published === undefined || published.headSha !== head
+    ? null
+    : { state: published.state, detail: published.detail };
   return {
     decision,
     review,
@@ -137,6 +143,7 @@ export function automation(record: BugRecord | undefined): Automation {
     merge,
     ci: merge?.checks.find((check) => check.name === 'ci') ?? null,
     requiredVerification: merge?.checks.find((check) => check.name === 'branch-protection') ?? null,
+    ready,
     blockers,
   };
 }
@@ -387,8 +394,18 @@ function nextAction(presentation: Presentation): Attention {
       return blockers.length > 0
         ? { gate: 'engineer', waitingOn: 'person', text: withBlockers('The fix needs a person.', blockers) }
         : { gate: null, waitingOn: 'service', text: 'Waiting for verification and review of the current pull request head.' };
-    case 'ready-to-merge':
-      return { gate: 'merge', waitingOn: 'person', text: withBlockers('Review and merge the pull request on GitHub.', blockers) };
+    case 'ready-to-merge': {
+      const ready = presentation.automation.ready;
+      if (ready?.state === 'success') {
+        return { gate: 'merge', waitingOn: 'person', text: withBlockers('Review and merge the pull request on GitHub.', blockers) };
+      }
+      const reason = ready === null ? '' : `: ${ready.detail}`;
+      return {
+        gate: null,
+        waitingOn: 'devin',
+        text: withBlockers(`Devin is still working on the pull request${reason}.`, blockers),
+      };
+    }
     case 'merged': {
       const proof = history.postMergeVerified === true ? ' Post-merge verification passed.' : '';
       return issueOpen

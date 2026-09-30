@@ -8,7 +8,7 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 | File | Contents |
 | --- | --- |
 | `orchestrator.ts` | `Orchestrator` (polling, steps, outbox, dispatch, sessions, replies, verification, decisions), `consumesCapacity`, `TraceEvent` |
-| `contracts.ts` | `Verifier` (implemented by `src/verify/`, see `docs/VERIFICATION.md`), `DecisionPolicy` (M1.6), `VERIFICATION_STATUS_CONTEXT`, `verificationStatus`, unavailable stubs, actor helpers |
+| `contracts.ts` | `Verifier` (implemented by `src/verify/`, see `docs/VERIFICATION.md`), `DecisionPolicy` (M1.6), `VERIFICATION_STATUS_CONTEXT`, `verificationStatus`, `READY_STATUS_CONTEXT`, `readyStatus`, unavailable stubs, actor helpers |
 | `prompts.ts` | Loads and renders `prompts/*.md` strictly |
 | `playbooks.ts` | Route Playbook titles and bodies, and which synced Playbook ids to attach (see `docs/DEVIN-PROMPTS.md`) |
 | `comments.ts` | GitHub comment bodies (question, triage summary, notices) |
@@ -48,11 +48,12 @@ verifier, with the reason logged), and the unavailable policy until M1.6 provide
 6. Label snapshot → `labels-changed`, except that a snapshot never moves a `triaged` record into repair
    (`decision-label-ignored`): only a person's label event or a policy decides. The issue is re-read
    after the outbox moved labels in this step, so the snapshot is never older than those moves.
-7. Pending dispatch → reconcile (below).
-8. Live session → read it: valid structured output → model event; otherwise only its live state.
-9. Relay one genuine human comment to the live session.
-10. `merged` without a settled post-merge proof → `Verifier` (`post-merge`, merge commit); `verifying` → injected `Verifier`; `triaged` with `DECISION` ≠ `person` → injected `DecisionPolicy`.
-11. `queued` with a route → dispatch.
+7. `bug-smasher/ready` commit status → published on the fix PR's current head (below).
+8. Pending dispatch → reconcile (below).
+9. Live session → read it: valid structured output → model event; otherwise only its live state.
+10. Relay one genuine human comment to the live session.
+11. `merged` without a settled post-merge proof → `Verifier` (`post-merge`, merge commit); `verifying` → injected `Verifier`; `triaged` with `DECISION` ≠ `person` → injected `DecisionPolicy`.
+12. `queued` with a route → dispatch.
 
 ## Durable state and exact-once effects
 
@@ -64,6 +65,7 @@ verifier, with the reason logged), and the unavailable policy until M1.6 provide
 | `outbox` | Pending `WorkflowOperation`s, written in the same atomic store write as the transition that caused them |
 | `relayedCommentIds` | Human comments already delivered to Devin (prompt or message) |
 | `handledEventIds` | Label events already considered as decisions |
+| `ready` | Last published `bug-smasher/ready` evaluation: head, `pending`/`success`, detail and time |
 | `workQuestion` | Question asked by a repair/feature session (the model's questions are triage-only) |
 | `notices` | One-time notices already queued |
 
@@ -152,6 +154,26 @@ as the model defines. A failed proof with retries left sends `verification-retry
 same PR branch. With `requireLiveResults`, non-live verifiers and policies are not called. Policy decisions
 are attributed to `policy:<rule>` and explained in one comment.
 
+## Whether Devin is still working (`bug-smasher/ready`)
+
+While an issue's fix PR is open, each step publishes the `bug-smasher/ready` commit status on the PR's
+current head through a `set-commit-status` outbox operation, persisted as `workflow.ready` so a head's
+evaluation is never computed or published twice:
+
+- **pending** ("Devin is still working on this") while the session behind the PR is still working
+  (a fresh `getSession` read, so a session that resumed is caught), Devin's autofix review comment says it
+  is addressing findings, or the newest commit is under about 90 seconds old (the fix may still be running
+  its own checks).
+- **success** ("Devin is done") when none of those holds.
+- If the session or the review comment cannot be read, the status stays pending and the detail says why —
+  it never turns green on missing information.
+
+While pending, the bug's next-action text waits on Devin rather than asking anyone to merge, and both
+merge policies refuse (the `ready` check above). A green `ready` says nothing about whether the fix is
+correct — `bug-smasher/verification` still decides that. Owners who want the merge button itself held can
+add `bug-smasher/ready` as a required status check in the base branch's branch protection; the service
+never touches branch protection.
+
 ## Decision and merge policies
 
 Policies act only through the model's actions (`fix`, `engineer`, `merge`) with actor `policy:<rule>`,
@@ -191,7 +213,8 @@ Once a head is `ready-to-merge`:
 | --- | --- | --- |
 | Latest pre-merge verification of the **current** head passed | required | required |
 | No verification violations or flags (`deletion-only`, `check-silenced`) | required | flags allowed |
-| CI green (check runs and commit statuses other than `bug-smasher/verification`) — `pending`, `failing`, `missing` or `unknown` (incomplete listing) refuse | required | required |
+| CI green (check runs and commit statuses other than `bug-smasher/verification` and `bug-smasher/ready`) — `pending`, `failing`, `missing` or `unknown` (incomplete listing) refuse | required | required |
+| `bug-smasher/ready` on the current head is `success` (Devin is done) | required | required |
 | Devin Review completed for this head and no unresolved Devin Review thread | required | not checked |
 | Additions + deletions `<= MERGE_MAX_LINES` | required | not checked |
 | Base branch requires `bug-smasher/verification` (`required`/`missing`/`unknown`) | reported, not blocking | reported, not blocking |

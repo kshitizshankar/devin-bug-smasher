@@ -15,6 +15,7 @@ import {
   type CheckRun,
   type CheckRuns,
   type CombinedStatus,
+  type Commit,
   type CommitStatus,
   type IssueCloseReason,
   type IssueEvent,
@@ -94,6 +95,8 @@ export interface SeedPullRequest {
   references?: readonly number[];
   /** Labels on the PR itself. GitHub lists labelled PRs among issues; trackers must filter them out. */
   labels?: readonly string[];
+  /** Committer date of the seeded head; defaults to long ago, a pre-existing commit. `pushHead` stamps at call time. */
+  committedAt?: string;
 }
 
 export interface InMemoryTrackerOptions {
@@ -140,6 +143,7 @@ export class InMemoryTracker implements Tracker {
   readonly #pulls = new Map<number, PullRequestEntry>();
   readonly #statuses = new Map<string, CommitStatus[]>();
   readonly #checkRuns = new Map<string, CheckRun[]>();
+  readonly #commits = new Map<string, string>();
   readonly #failures = new Map<FailurePoint, SimulatedFailure[]>();
   readonly #branches = new Map<string, Branch>([['main', { name: 'main', sha: '0'.repeat(40), protected: false, requiredChecks: [] }]]);
   #defaultBranch = 'main';
@@ -221,6 +225,7 @@ export class InMemoryTracker implements Tracker {
       threads: [],
       mergeBlock: null,
     });
+    this.#commits.set(seed.headSha, seed.committedAt ?? '2000-01-01T00:00:00.000Z');
     for (const issueNumber of seed.references ?? []) this.#issueEntry('findLinkedPullRequests', issueNumber).references.push(number);
     return copy(pr);
   }
@@ -263,6 +268,7 @@ export class InMemoryTracker implements Tracker {
     const entry = this.#pullEntry('getPullRequest', prNumber);
     entry.pr.headSha = headSha;
     entry.pr.updatedAt = this.#now();
+    this.#commits.set(headSha, entry.pr.updatedAt);
   }
 
   /** Simulates branch protection or a conflict refusing the merge (`null` clears it). */
@@ -493,6 +499,18 @@ export class InMemoryTracker implements Tracker {
     return this.getBranch(this.#defaultBranch);
   }
 
+  async getCommit(ref: string): Promise<Commit> {
+    const op = 'getCommit';
+    if (ref.trim() === '') this.#invalid(op, 'ref must not be empty');
+    this.#maybeFail(op);
+    const sha = this.#resolveRef(ref);
+    const committedAt = this.#commits.get(sha);
+    if (committedAt === undefined) {
+      throw new TrackerError({ code: 'not-found', operation: op, status: 404, message: `Commit ${ref} was not found` });
+    }
+    return { sha, committedAt };
+  }
+
   async listCheckRuns(ref: string): Promise<CheckRuns> {
     const op = 'listCheckRuns';
     if (ref.trim() === '') this.#invalid(op, 'ref must not be empty');
@@ -693,6 +711,7 @@ export class InMemoryTracker implements Tracker {
     if (pr.state === 'merged' && pr.mergeCommitSha !== null) return pr.mergeCommitSha;
     const at = this.#now();
     const sha = mergeCommitSha ?? createHash('sha1').update(`merge:${pr.number}:${pr.headSha}`).digest('hex');
+    this.#commits.set(sha, at);
     Object.assign(pr, {
       state: 'merged',
       mergeCommitSha: sha,

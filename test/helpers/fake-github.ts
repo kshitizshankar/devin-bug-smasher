@@ -139,6 +139,7 @@ const ROUTES: Record<FailurePoint, { method: string; pattern: RegExp; diff?: boo
   listReviews: { method: 'GET', pattern: /^pulls\/\d+\/reviews$/ },
   listCheckRuns: { method: 'GET', pattern: /^commits\/[^/]+\/check-runs$/ },
   getCombinedStatus: { method: 'GET', pattern: /^commits\/[^/]+\/status$/ },
+  getCommit: { method: 'GET', pattern: /^commits\/[^/]+$/ },
   createCommitStatus: { method: 'POST', pattern: /^statuses\/[^/]+$/ },
   mergePullRequest: { method: 'PUT', pattern: /^pulls\/\d+\/merge$/ },
   listReviewThreads: { method: 'POST', pattern: /^\/graphql$/ },
@@ -192,6 +193,7 @@ export class FakeGitHub {
   readonly #issues = new Map<number, FakeIssue>();
   readonly #statuses = new Map<string, FakeStatus[]>();
   readonly #checkRuns = new Map<string, object[]>();
+  readonly #commits = new Map<string, string>();
   readonly #branches = new Map<string, FakeBranch>([['main', { sha: '0'.repeat(40), protected: false, requiredChecks: [] }]]);
   #defaultBranch = 'main';
   readonly #repoLabels: { name: string; color: string; description: string | null }[] = [];
@@ -317,6 +319,7 @@ export class FakeGitHub {
     });
     const pull = issue.pull as FakePull;
     pull.head_ref = seed.headRef ?? `fix-${issue.number}`;
+    this.#commits.set(seed.headSha, seed.committedAt ?? '2000-01-01T00:00:00.000Z');
     for (const number of seed.references ?? []) this.#issue(number).references.push(issue.number);
     return { number: issue.number };
   }
@@ -356,6 +359,7 @@ export class FakeGitHub {
 
   pushHead(prNumber: number, headSha: string): void {
     this.#pull(this.#issue(prNumber)).head_sha = headSha;
+    this.#commits.set(headSha, this.#tick());
   }
 
   blockMerge(prNumber: number, reason: string | null): void {
@@ -708,6 +712,15 @@ export class FakeGitHub {
       const runs = this.#checkRuns.get(this.#resolve(decodeURIComponent(match[1] ?? ''))) ?? [];
       return this.#page(url, runs, (items) => ({ total_count: runs.length, check_runs: items }));
     }
+    if ((match = /^commits\/([^/]+)$/.exec(route)) && method === 'GET') {
+      const sha = this.#resolve(decodeURIComponent(match[1] ?? ''));
+      const committedAt = this.#commits.get(sha);
+      if (committedAt === undefined) return this.#error(404, 'Not Found');
+      return {
+        status: 200,
+        body: { sha, commit: { committer: { date: committedAt }, author: { date: committedAt }, message: `commit ${sha.slice(0, 7)}` } },
+      };
+    }
     if ((match = /^commits\/([^/]+)\/status$/.exec(route))) {
       const sha = this.#resolve(decodeURIComponent(match[1] ?? ''));
       const latest = new Map<string, FakeStatus>();
@@ -844,6 +857,7 @@ export class FakeGitHub {
     if (pull.merge_commit_sha !== null) return pull.merge_commit_sha;
     const at = this.#tick();
     const sha = createHash('sha1').update(`merge:${issue.number}:${pull.head_sha}`).digest('hex');
+    this.#commits.set(sha, at);
     Object.assign(pull, { merged_at: at, merged_by: actor, merge_commit_sha: sha });
     issue.events.push({ id: this.#nextId++, event: 'merged', actor, commit_id: sha, created_at: at });
     Object.assign(issue, { state: 'closed', closed_at: at, updated_at: at });

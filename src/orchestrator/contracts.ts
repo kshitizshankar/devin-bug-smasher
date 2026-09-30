@@ -102,6 +102,27 @@ export function verificationStatus(attempt: Omit<VerificationAttempt, 'sessionId
   };
 }
 
+/**
+ * Stable commit-status context for "Devin is done", so branch protection can hold merges. It says
+ * nothing about verification: a green `bug-smasher/ready` never means the fix was verified.
+ */
+export const READY_STATUS_CONTEXT = 'bug-smasher/ready';
+
+/** The commit status published on the fix PR's current head each cycle while it is unmerged. */
+export function readyStatus(
+  headSha: string,
+  ready: { state: 'pending' | 'success'; detail: string },
+): Extract<WorkflowOperation, { type: 'set-commit-status' }> {
+  const description = ready.state === 'pending' ? `Devin is still working on this: ${ready.detail}` : ready.detail;
+  return {
+    type: 'set-commit-status',
+    sha: headSha,
+    state: ready.state,
+    context: READY_STATUS_CONTEXT,
+    description: description.length > 140 ? `${description.slice(0, 139)}…` : description,
+  };
+}
+
 export const UNAVAILABLE_VERIFIER: Verifier = {
   live: false,
   verify: async () => ({ status: 'unavailable', reason: 'No verifier is configured yet (M1.5)' }),

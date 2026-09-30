@@ -9,6 +9,7 @@ import {
   HANDOFF_REASONS,
   POLICY_KINDS,
   POLICY_OUTCOMES,
+  READY_STATES,
   RECOMMENDATIONS,
   REPRODUCTION_OUTCOMES,
   REVIEW_ROUND_STATUSES,
@@ -300,7 +301,7 @@ export function validateWorkflowState(value: unknown, path: string): Problems {
         break;
       case 'set-commit-status':
         checkSha(item.sha, `${itemPath}.sha`, list);
-        checkOneOf(item.state, ['success', 'failure', 'error'], `${itemPath}.state`, list);
+        checkOneOf(item.state, ['success', 'failure', 'error', 'pending'], `${itemPath}.state`, list);
         checkString(item.context, `${itemPath}.context`, list, { nonEmpty: true });
         checkString(item.description, `${itemPath}.description`, list);
         break;
@@ -315,6 +316,12 @@ export function validateWorkflowState(value: unknown, path: string): Problems {
     checkTimestamp(value.workQuestion.askedAt, `${path}.workQuestion.askedAt`, problems);
   }
   checkArray(value.notices, `${path}.notices`, problems, checkStringItem);
+  if (value.ready !== undefined && checkObject(value.ready, `${path}.ready`, problems)) {
+    checkSha(value.ready.headSha, `${path}.ready.headSha`, problems);
+    checkOneOf(value.ready.state, READY_STATES, `${path}.ready.state`, problems);
+    checkString(value.ready.detail, `${path}.ready.detail`, problems);
+    checkTimestamp(value.ready.at, `${path}.ready.at`, problems);
+  }
   return problems;
 }
 
