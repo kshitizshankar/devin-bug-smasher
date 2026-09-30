@@ -10,7 +10,7 @@ import { validateVerificationAttempt } from '../src/model/validate.ts';
 import type { VerificationOutcome, VerificationRequest } from '../src/orchestrator/contracts.ts';
 import { DockerRuntime } from '../src/verify/docker.ts';
 import { GitRepository } from '../src/verify/git.ts';
-import { testPathProblem } from '../src/verify/paths.ts';
+import { isRunnableTestPath, testPathProblem } from '../src/verify/paths.ts';
 import {
   CheckedVerifier,
   checkCommandProblems,
@@ -417,6 +417,13 @@ describe('independent verification against fixture repositories', () => {
       for (const path of ['test/add.test.mjs', 'tests/unit/test_math.py', 'pkg/math_test.go', 'src/__tests__/Add.spec.tsx']) {
         assert.equal(testPathProblem(path), null, path);
       }
+    });
+
+    it('runs pytest files named *_tests.py, as Superset names them', () => {
+      for (const path of ['tests/unit_tests/sql/parse_tests.py', 'tests/unit_tests/test_math.py', 'tests/math_test.py']) {
+        assert.equal(isRunnableTestPath(path), true, path);
+      }
+      assert.equal(isRunnableTestPath('tests/unit_tests/conftest.py'), false);
     });
   });
 

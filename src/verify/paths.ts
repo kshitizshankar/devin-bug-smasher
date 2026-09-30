@@ -12,6 +12,7 @@ const TEST_FILE = [
   /\.(test|spec)\.[A-Za-z0-9]+$/,
   /^test_[^/]+\.py$/,
   /_test\.(py|go|rb|exs?)$/,
+  /_tests\.py$/,
   /_spec\.rb$/,
   /Tests?\.(java|kt|cs|swift)$/,
 ];
