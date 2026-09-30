@@ -13,6 +13,7 @@ import type {
   ReviewRound,
   TaskKind,
   VerificationAttempt,
+  WorkQuestion,
 } from './types.ts';
 
 export const OVERVIEW_GROUPS = ['Backlog', 'Triage', 'Fix', 'Merged'] as const;
@@ -87,6 +88,8 @@ export interface Presentation {
     postMergeVerified: boolean | null;
     handoff: Handoff | null;
     outstandingQuestion: Question | null;
+    /** A repair or feature session's open question to a person, while that session is the current one. */
+    workQuestion: WorkQuestion | null;
     wasMerged: boolean;
     /** Sessions that were stopped but could not be archived. */
     unarchivedSessions: string[];
@@ -136,6 +139,12 @@ export function automation(record: BugRecord | undefined): Automation {
     requiredVerification: merge?.checks.find((check) => check.name === 'branch-protection') ?? null,
     blockers,
   };
+}
+
+function openWorkQuestion(record: BugRecord): WorkQuestion | null {
+  const question = record.workflow?.workQuestion ?? null;
+  if (record.stage !== 'fixing' || question === null || question.sessionId !== record.session?.id) return null;
+  return question;
 }
 
 export function outstandingQuestion(record: BugRecord): Question | null {
@@ -286,6 +295,7 @@ export function presentBug(
       postMergeVerified: postMerge === undefined ? null : postMerge.result === 'pass',
       handoff: record?.handoff ?? null,
       outstandingQuestion: record === undefined ? null : outstandingQuestion(record),
+      workQuestion: record === undefined ? null : openWorkQuestion(record),
       wasMerged: record !== undefined && wasMerged(record),
       unarchivedSessions: record?.unarchivedSessions ?? [],
     },
@@ -366,6 +376,9 @@ function nextAction(presentation: Presentation): Attention {
       return { gate: 'decision', waitingOn: 'person', text: withBlockers(`Decide on GitHub: fix, engineer or close.${advice}`, blockers) };
     }
     case 'fixing':
+      if (history.workQuestion !== null) {
+        return { gate: 'reply', waitingOn: 'person', text: `Reply on GitHub to Devin's question: ${history.workQuestion.summary}` };
+      }
       return blockers.length > 0
         ? { gate: 'engineer', waitingOn: 'person', text: withBlockers('The fix needs a person.', blockers) }
         : { gate: null, waitingOn: 'devin', text: kind === 'feature' ? 'Devin is implementing the feature.' : 'Devin is working on the fix.' };

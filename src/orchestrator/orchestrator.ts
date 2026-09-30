@@ -61,6 +61,8 @@ import {
   questionComment,
   reviewBlockerComment,
   sessionStartedComment,
+  sessionWaitingComment,
+  sessionWaitingSummary,
   thankYouComment,
   triageComment,
   triagePullRequestNotice,
@@ -130,6 +132,8 @@ export type TraceType =
   | 'reply-relayed'
   | 'comment-ignored'
   | 'question-posted'
+  | 'session-waiting'
+  | 'session-resumed'
   | 'verifier-unavailable'
   | 'policy-unavailable'
   | 'policy-waiting'
@@ -188,6 +192,7 @@ const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 /** How long a requested Review may be reported missing (or on another commit) before it counts as unavailable. */
 const REVIEW_MISSING_GRACE_MS = 30 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
+const WAITING_QUESTION_PREFIX = 'w-';
 
 export function emptyWorkflow(): WorkflowState {
   return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [] };
@@ -207,6 +212,28 @@ export function consumesCapacity(record: BugRecord): boolean {
   if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) return false;
   if (!WORKING_STAGES.includes(record.stage)) return false;
   return record.workflow?.workQuestion?.sessionId !== session.id;
+}
+
+/**
+ * Whether the session stopped to wait for a person without a structured question. Only the provider's
+ * status is read, never chat text. A wait last updated before the record entered its stage predates the
+ * message that started this stage (a relayed reply or an approval), so it is not a new stop.
+ */
+function waitingWithoutQuestion(record: BugRecord, session: DevinSession, signal: StructuredSignal | null): boolean {
+  if (session.activity.kind !== 'waiting') return false;
+  if (signal?.type === 'needs-input' || signal?.type === 'blocked') return false;
+  const entered = record.stageHistory.at(-1)?.at;
+  return entered === undefined || Date.parse(session.updatedAt) >= Math.floor(Date.parse(entered) / 1000) * 1000;
+}
+
+/** Stable per stop: re-reading the same stopped session yields the same id; a later stop gets a new one. */
+function waitingQuestionId(session: DevinSession): string {
+  return `${WAITING_QUESTION_PREFIX}${hash(`${session.id}\n${session.updatedAt}`)}`;
+}
+
+/** Whether a wait without a structured question ended in Devin itself (e.g. an approval), with no reply. */
+function resumedInDevin(questionId: string | undefined, session: DevinSession): boolean {
+  return questionId?.startsWith(WAITING_QUESTION_PREFIX) === true && ['working', 'idle'].includes(session.activity.kind);
 }
 
 function commentKey(raw: string): string {
@@ -1120,6 +1147,14 @@ export class Orchestrator {
     const output = session.structuredOutput;
     const signal: StructuredSignal | null = output.status === 'valid' ? output.signal : null;
 
+    if (record.stage === 'needs-input') {
+      const question = outstandingQuestion(record);
+      if (question !== null && resumedInDevin(question.id, session)) {
+        this.#emit(record.key, 'session-resumed', { sessionId: session.id, questionId: question.id });
+        const result = this.#event(record, { type: 'reply-received', questionId: question.id });
+        return (await this.#commit(issue, record, result, 'session-resumed')) === 'applied';
+      }
+    }
     if (record.stage === 'triaging' || record.stage === 'needs-input') {
       if (current.route === 'triage' && (session.pullRequests.length > 0 || signal?.type === 'pr-opened')) {
         const notice = `triage-pr:${session.id}`;
@@ -1159,8 +1194,27 @@ export class Orchestrator {
           return (await this.#commit(issue, record, result, event.type, { ops })) === 'applied';
         }
         this.#noteIgnoredOutput(record, session);
+        if (waitingWithoutQuestion(record, session, signal)) {
+          const question = { id: waitingQuestionId(session), summary: sessionWaitingSummary(session.url) };
+          const result = this.#event(record, { type: 'question-asked', question });
+          if (result.ok && result.changed) {
+            this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: question.id, phase: 'triage' });
+            const ops: WorkflowOperation[] = [
+              { type: 'post-comment', key: commentKey(`question:${question.id}`), body: sessionWaitingComment(session.url) },
+            ];
+            return (await this.#commit(issue, record, result, 'session-waiting', { ops })) === 'applied';
+          }
+        }
       }
     } else if (record.stage === 'fixing') {
+      const question = workflow.workQuestion;
+      if (question?.sessionId === session.id && resumedInDevin(question.id, session)) {
+        this.#emit(record.key, 'session-resumed', { sessionId: session.id, questionId: question.id });
+        await this.#persistWorkflow(record, (state) => {
+          state.workQuestion = null;
+        });
+        return true;
+      }
       if (signal?.type === 'pr-opened') {
         if (await this.#submitFix(issue, record, session, signal)) return true;
       } else if ((signal?.type === 'needs-input' || signal?.type === 'blocked') && signal.phase === 'fix') {
@@ -1184,6 +1238,24 @@ export class Orchestrator {
         }
       } else {
         this.#noteIgnoredOutput(record, session);
+        const id = waitingQuestionId(session);
+        const notice = `work-question:${id}`;
+        if (
+          waitingWithoutQuestion(record, session, signal) &&
+          workflow.workQuestion?.sessionId !== session.id &&
+          !workflow.notices.includes(notice)
+        ) {
+          await this.#persistWorkflow(
+            record,
+            (state) => {
+              state.notices.push(notice);
+              state.workQuestion = { id, sessionId: session.id, summary: sessionWaitingSummary(session.url), askedAt: this.#nowIso() };
+            },
+            [{ type: 'post-comment', key: commentKey(`question:${id}`), body: sessionWaitingComment(session.url) }],
+          );
+          this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: id, phase: 'fix' });
+          return true;
+        }
       }
     }
     return this.#applyStatus(issue, record, session);
