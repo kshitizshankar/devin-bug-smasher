@@ -1,15 +1,17 @@
 # Bug Smasher
 
-Bug Smasher hands bugs and features to Devin from GitHub and proves the fixes. A person adds a label to an issue;
-Devin investigates and recommends a fix, an engineer or closing it; a person decides; Devin opens a pull request
-with a test; and Bug Smasher's own verifier proves the fix before anyone merges it. Features take the same path
-with their own label: Devin builds them, and the pull request goes through the same checks.
+Bug Smasher sends bugs from GitHub to Devin and checks the fixes before anyone merges them.
 
-**Bug Smasher built itself.** Devin wrote it, and from 30 Sep it dispatched its own bugs and features on its own
-repository: a label on an issue started Devin, and the change came back as a checked pull request
-([results](results/building-bug-smasher.html)). It has also run live on
-[kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of apache/superset, on open upstream
-bugs ([results](results/superset-run.html)).
+Label an issue and Devin investigates it, then recommends a fix, a hand-off to an engineer, or closing it. A person
+decides. For a fix, Devin opens a pull request with a test, and Bug Smasher runs that test itself: it must fail
+before the fix and pass after it. Features work the same way, with their own label.
+
+## Where it has run
+
+- **On itself.** Devin built Bug Smasher. Later changes to it were started by Bug Smasher: an issue on this
+  repository was labelled, and Devin opened the pull request. [Build results](results/building-bug-smasher.html)
+- **On Apache Superset.** Open upstream bugs, copied into the fork
+  [kshitizshankar/superset](https://github.com/kshitizshankar/superset). [Superset results](results/superset-run.html)
 
 ## How it works
 
