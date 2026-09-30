@@ -14,9 +14,9 @@ export function playbookTitle(target: string, route: PlaybookRoute = 'triage'): 
   return `Bug Smasher ${route}: ${target}`;
 }
 
-/** The route's Playbook body, from `prompts/playbook-<route>.md`. */
+/** The route's Playbook body, from `prompts/playbook-<route>.md` with the configured label names filled in. */
 export function playbookBody(prompts: Prompts, route: PlaybookRoute): string {
-  return prompts.render(`playbook-${route}`, {});
+  return prompts.renderPlaybook(route);
 }
 
 export function samePlaybookText(a: string, b: string): boolean {

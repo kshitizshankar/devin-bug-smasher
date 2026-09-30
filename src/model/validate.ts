@@ -283,10 +283,6 @@ export function validateWorkflowState(value: unknown, path: string): Problems {
       case 'stop-session':
         checkString(item.sessionId, `${itemPath}.sessionId`, list, { nonEmpty: true });
         break;
-      case 'post-comment':
-        checkString(item.key, `${itemPath}.key`, list, { nonEmpty: true });
-        checkString(item.body, `${itemPath}.body`, list, { nonEmpty: true });
-        break;
       case 'send-message':
         checkString(item.sessionId, `${itemPath}.sessionId`, list, { nonEmpty: true });
         checkString(item.marker, `${itemPath}.marker`, list, { nonEmpty: true });
@@ -309,6 +305,14 @@ export function validateWorkflowState(value: unknown, path: string): Problems {
   });
   checkArray(value.relayedCommentIds, `${path}.relayedCommentIds`, problems, checkStringItem);
   checkArray(value.handledEventIds, `${path}.handledEventIds`, problems, checkStringItem);
+  if (value.ownLabelChanges !== undefined) {
+    checkArray(value.ownLabelChanges, `${path}.ownLabelChanges`, problems, (item, itemPath, list) => {
+      if (!checkObject(item, itemPath, list)) return;
+      checkOneOf(item.type, ['labeled', 'unlabeled'], `${itemPath}.type`, list);
+      checkString(item.label, `${itemPath}.label`, list, { nonEmpty: true });
+      checkTimestamp(item.at, `${itemPath}.at`, list);
+    });
+  }
   if (value.workQuestion !== null && checkObject(value.workQuestion, `${path}.workQuestion`, problems)) {
     checkString(value.workQuestion.id, `${path}.workQuestion.id`, problems, { nonEmpty: true });
     checkString(value.workQuestion.sessionId, `${path}.workQuestion.sessionId`, problems, { nonEmpty: true });

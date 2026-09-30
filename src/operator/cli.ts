@@ -125,7 +125,7 @@ async function setupCommand(args: readonly string[], settings: Settings, io: Ope
   }
   const pitfalls = await optionalFile(pitfallsPath);
   if (pitfalls === null && parsed.values.has('--pitfalls')) throw new UsageError(`No pitfalls file at ${pitfallsOption}`);
-  const prompts = await Prompts.load();
+  const prompts = await Prompts.load(undefined, settings.labels);
   const github = target(settings, io);
   const plan = await planSetup({
     settings,

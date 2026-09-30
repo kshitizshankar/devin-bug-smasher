@@ -361,7 +361,6 @@ export const WORKFLOW_OPERATION_TYPES = [
   'remove-label',
   'close-issue',
   'stop-session',
-  'post-comment',
   'send-message',
   'merge-pr',
   'set-commit-status',
@@ -373,8 +372,6 @@ export type WorkflowOperation =
   | { type: 'remove-label'; label: string }
   | { type: 'close-issue' }
   | { type: 'stop-session'; sessionId: string }
-  /** `key` is the tracker idempotency key, so a repeated post returns the existing comment. */
-  | { type: 'post-comment'; key: string; body: string }
   /** `marker` is part of `message`; a message already carrying it in the session is not sent again. */
   | { type: 'send-message'; sessionId: string; marker: string; message: string }
   | { type: 'merge-pr'; prNumber: number; expectedHeadSha: string }
@@ -386,6 +383,14 @@ export type WorkflowOperation =
       context: string;
       description: string;
     };
+
+/** A label change the service applied itself; the matching issue event must not be a person's decision. */
+export interface OwnLabelChange {
+  type: 'labeled' | 'unlabeled';
+  label: string;
+  /** When the change was applied, so only an event at or after it can match. */
+  at: Timestamp;
+}
 
 /** Question a repair or feature session asked; the model tracks investigation questions itself. */
 export interface WorkQuestion {
@@ -416,6 +421,12 @@ export interface WorkflowState {
   relayedCommentIds: string[];
   /** Issue label events already considered as person decisions. */
   handledEventIds: string[];
+  /**
+   * Label changes the service itself applied through the outbox, with the time each was applied. The
+   * matching issue event is ignored rather than read as a person's decision — the service tells its own
+   * changes apart by what it did, not by the account that applied them.
+   */
+  ownLabelChanges: OwnLabelChange[];
   workQuestion: WorkQuestion | null;
   /** One-time notices already queued, e.g. `triage-pr:<sessionId>`. */
   notices: string[];

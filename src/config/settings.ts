@@ -12,6 +12,14 @@ export interface LabelSettings {
   feature: string;
 }
 
+/** Label names used when the environment does not set them. */
+export const DEFAULT_LABELS: LabelSettings = {
+  triage: 'needs-triage',
+  fix: 'bug-smasher',
+  engineer: 'needs-engineer',
+  feature: 'devin-builds-feature',
+};
+
 export interface GitHubRepo {
   owner: string;
   name: string;
@@ -231,10 +239,10 @@ export function loadSettings(env: Env = process.env): Settings {
   const read = new Reader(env);
 
   const labels: LabelSettings = {
-    triage: read.string('TRIAGE_LABEL', 'needs-triage'),
-    fix: read.string('FIX_LABEL', 'bug-smasher'),
-    engineer: read.string('ENGINEER_LABEL', 'needs-engineer'),
-    feature: read.string('FEATURE_LABEL', 'devin-builds-feature'),
+    triage: read.string('TRIAGE_LABEL', DEFAULT_LABELS.triage),
+    fix: read.string('FIX_LABEL', DEFAULT_LABELS.fix),
+    engineer: read.string('ENGINEER_LABEL', DEFAULT_LABELS.engineer),
+    feature: read.string('FEATURE_LABEL', DEFAULT_LABELS.feature),
   };
   const labelVariables: Record<keyof LabelSettings, string> = {
     triage: 'TRIAGE_LABEL',

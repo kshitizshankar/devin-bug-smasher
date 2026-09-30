@@ -32,6 +32,11 @@ the service: verify them, do not take them on trust.
 
 ## Specifications
 
+- You post every comment yourself from your own GitHub account: the picking-up comment the session prompt
+  describes (once per session, checked against the thread first), a question on the issue when its answer
+  blocks progress, and the Ready for review comment below. The service posts no comments.
+- When the service messages you about a failed verification, remaining Devin Review findings or a refused
+  merge, act on it and say so on the pull request.
 - The service verifies the pull request independently and applies the same rule: it runs the new or changed
   test files on the pull request's base and on its head, in fresh workspaces without git history or
   credentials. They must fail on the base with a real test failure and pass on the head. A test that does

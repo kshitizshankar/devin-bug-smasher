@@ -11,7 +11,7 @@ import {
   type Verifier,
 } from '../src/orchestrator/contracts.ts';
 import type { Env } from '../src/config/settings.ts';
-import type { TrackerComment, TrackerPullRequest } from '../src/tracker/types.ts';
+import type { TrackerPullRequest } from '../src/tracker/types.ts';
 import { Harness, report } from './helpers/orchestrator.ts';
 
 const HEAD_1 = '1'.repeat(40);
@@ -69,14 +69,6 @@ async function setup(t: TestContext, env: Env = {}, maxReviewRepairs?: number): 
   harness = h;
   t.after(() => report(t, h));
   return { h, world };
-}
-
-function serviceComments(comments: TrackerComment[], prefix: string): TrackerComment[] {
-  return comments.filter((comment) => comment.fromService && (comment.serviceKey ?? '').startsWith(prefix));
-}
-
-async function comments(h: Harness, issueNumber: number, prefix: string): Promise<TrackerComment[]> {
-  return serviceComments(await h.tracker.listComments(issueNumber), prefix);
 }
 
 async function until(h: Harness, key: string, done: (record: BugRecord) => boolean, cycles = 12): Promise<BugRecord> {
@@ -165,7 +157,7 @@ describe('decision policies in the orchestrator', () => {
     assert.deepEqual((await h.tracker.getIssue(issue.number)).labels.sort(), ['crash', 'needs-triage']);
   });
 
-  it('Rule fixes a reproduced bug whose class labels are all allowed, persisting its evidence and one comment', async (t) => {
+  it('Rule fixes a reproduced bug whose class labels are all allowed, persisting its evidence without commenting', async (t) => {
     const { h, world } = await setup(t, { DECISION: 'rule', DECISION_RULE_CLASSES: 'crash,ui' });
     const issue = await triagedIssue(h, ['needs-triage', 'crash']);
     const record = await until(h, issue.key, (r) => r.stage === 'fixing', 3);
@@ -179,7 +171,7 @@ describe('decision policies in the orchestrator', () => {
     assert.equal(world.reproductions.length, 1);
     await h.restart();
     await h.cycle(3);
-    assert.equal((await comments(h, issue.number, 'decision:')).length, 1);
+    assert.deepEqual(await h.tracker.listComments(issue.number), [], 'the service posts no decision comment');
     assert.equal(world.reproductions.length, 1);
   });
 
@@ -195,9 +187,8 @@ describe('decision policies in the orchestrator', () => {
     assert.deepEqual(record.decisions, []);
     assert.equal(record.evaluations?.length, 1);
     assert.equal(record.evaluations?.[0]?.outcome, 'wait');
-    const waits = await comments(h, issue.number, 'decision-wait:');
-    assert.equal(waits.length, 1);
-    assert.match(waits[0]?.body ?? '', /Not reproduced/);
+    assert.ok(record.evaluations?.[0]?.checks.some((check) => /reproduc/i.test(check.detail)), 'the wait records why');
+    assert.deepEqual(await h.tracker.listComments(issue.number), [], 'the service posts no wait comment');
     assert.equal(world.reproductions.length, 1, 'the same default-branch commit is not reproduced again');
   });
 
@@ -206,7 +197,9 @@ describe('decision policies in the orchestrator', () => {
     const issue = await triagedIssue(h, ['needs-triage', 'crash']);
     await h.cycle(2);
     assert.equal(h.record(issue.key).stage, 'triaged');
-    assert.match((await comments(h, issue.number, 'decision-wait:'))[0]?.body ?? '', /DECISION_RULE_CLASSES is empty/);
+    const evaluation = h.record(issue.key).evaluations?.[0];
+    assert.equal(evaluation?.outcome, 'wait');
+    assert.ok(evaluation?.checks.some((check) => /DECISION_RULE_CLASSES is empty/.test(check.detail)));
     assert.equal(world.reproductions.length, 0);
   });
 
@@ -224,12 +217,12 @@ describe('decision policies in the orchestrator', () => {
     assert.equal(closing.stage, 'triaged');
     assert.equal((await h.tracker.getIssue(close.number)).state, 'open', 'the service never closes an issue');
     assert.equal(closing.evaluations?.at(-1)?.outcome, 'wait');
-    assert.equal((await comments(h, close.number, 'decision-wait:')).length, 1);
+    assert.deepEqual(await h.tracker.listComments(close.number), [], 'the service posts no wait comment');
   });
 });
 
-describe('session-start comment', () => {
-  it('posts one reporter-addressed link per session, and another only for a new session', async (t) => {
+describe('session start', () => {
+  it('posts no comment itself when a session starts or a new session takes over', async (t) => {
     const { h } = await setup(t);
     const issue = await triagedIssue(h, ['needs-triage']);
     const first = h.sessionId(issue.key);
@@ -238,10 +231,7 @@ describe('session-start comment', () => {
     assert.equal(h.record(issue.key).session?.id, first, 'repair continues in the same session');
     await h.restart();
     await h.cycle(2);
-    let greetings = await comments(h, issue.number, 'session-started:');
-    assert.equal(greetings.length, 1);
-    assert.match(greetings[0]?.body ?? '', /@reporter/);
-    assert.ok(greetings[0]?.body.includes(h.record(issue.key).session?.url ?? '-'));
+    assert.deepEqual(await h.tracker.listComments(issue.number), [], 'the service posts no picking-up comment');
 
     h.ends(first);
     await h.cycle();
@@ -250,9 +240,7 @@ describe('session-start comment', () => {
     await h.cycle(3);
     const second = h.record(issue.key).session?.id;
     assert.notEqual(second, first);
-    greetings = await comments(h, issue.number, 'session-started:');
-    assert.equal(greetings.length, 2);
-    assert.ok(greetings[1]?.body.includes(h.record(issue.key).session?.url ?? '-'));
+    assert.deepEqual(await h.tracker.listComments(issue.number), [], 'a new session still posts nothing');
   });
 });
 
@@ -345,11 +333,11 @@ describe('Devin Review', () => {
     assert.equal(round?.correctionSentAt, null);
     assert.match(round?.blocker ?? '', /suspended and cannot resume/);
     assert.equal(f.h.messages(f.sessionId).filter((message) => message.includes('bug-smasher:review:')).length, 0);
-    assert.equal((await comments(f.h, f.issueNumber, 'review-blocker:')).length, 1);
+    assert.deepEqual(await f.h.tracker.listComments(f.issueNumber), [], 'no service comment is posted');
     assert.equal(f.h.record(f.key).stage, 'ready-to-merge');
   });
 
-  it('stops after the repair cap with a durable blocker and one comment', async (t) => {
+  it('stops after the repair cap with a durable blocker and one message to the session', async (t) => {
     const f = await readyFix(t, {}, { maxReviewRepairs: 1 });
     await f.h.cycle();
     f.h.tracker.addReviewThread(f.pr.number, { author: BOT, body: 'First finding' });
@@ -369,7 +357,10 @@ describe('Devin Review', () => {
     assert.equal(round?.correctionSentAt, null);
     assert.match(round?.blocker ?? '', /limit of 1 Devin Review repair round/);
     assert.equal(f.h.messages(f.sessionId).filter((message) => message.includes('bug-smasher:review:')).length, 1);
-    assert.equal((await comments(f.h, f.issueNumber, 'review-blocker:')).length, 1);
+    const blockers = f.h.messages(f.sessionId).filter((message) => message.includes('bug-smasher:review-blocker:'));
+    assert.equal(blockers.length, 1, 'the blocker reaches the live session as one message');
+    assert.match(blockers[0] ?? '', /limit of 1 Devin Review repair round/);
+    assert.deepEqual(await f.h.tracker.listComments(f.issueNumber), [], 'no service comment is posted');
   });
 });
 
@@ -384,7 +375,7 @@ describe('merge policies in the orchestrator', () => {
     assert.deepEqual(mergeEvaluations(f.h.record(f.key)), []);
   });
 
-  it('Rule merges the exact verified head at MERGE_MAX_LINES, records the evidence, verifies after merge and thanks the reporter once', async (t) => {
+  it('Rule merges the exact verified head at MERGE_MAX_LINES, records the evidence and verifies after merge', async (t) => {
     const f = await readyFix(t, { MERGE: 'rule', MERGE_MAX_LINES: '20' }, { changed: 20 });
     f.h.tracker.setBranch('main', { sha: HEAD_3, requiredChecks: [VERIFICATION_STATUS_CONTEXT] });
     greenCi(f.h, HEAD_1);
@@ -402,9 +393,7 @@ describe('merge policies in the orchestrator', () => {
     assert.equal(f.h.record(f.key).verifications.at(-1)?.result, 'pass');
     await f.h.restart();
     await f.h.cycle(3);
-    assert.equal((await comments(f.h, f.issueNumber, 'thanks:')).length, 1);
-    assert.match((await comments(f.h, f.issueNumber, 'thanks:'))[0]?.body ?? '', /@reporter/);
-    assert.equal((await comments(f.h, f.issueNumber, 'merge-decision:')).length, 1);
+    assert.deepEqual(await f.h.tracker.listComments(f.issueNumber), [], 'the merge outcome lives in the commit status and dashboard, not a comment');
     assert.equal((await f.h.tracker.getIssue(f.issueNumber)).state, 'closed', 'GitHub closed it through the closing keyword, not the service');
   });
 
@@ -528,19 +517,20 @@ describe('merge policies in the orchestrator', () => {
     assert.ok(f.h.types(f.key).includes('merge-retried'));
     assert.equal(merged.decisions.filter((decision) => decision.action === 'merge').length, 1);
     assert.equal(mergeEvaluations(merged).length, 1);
-    assert.equal((await comments(f.h, f.issueNumber, 'merge-decision:')).length, 1);
+    assert.deepEqual(await f.h.tracker.listComments(f.issueNumber), [], 'no service comment is posted');
   });
 
-  it('tells people once on the issue when GitHub keeps refusing the merge of a head', async (t) => {
+  it('tells the session once when GitHub keeps refusing the merge of a head, and never comments', async (t) => {
     const f = await readyFix(t, { MERGE: 'auto' }, { review: false });
     greenCi(f.h, HEAD_1);
     f.h.tracker.blockMerge(f.pr.number, 'At least 1 approving review is required');
     await f.h.cycle(4);
     assert.ok(f.h.types(f.key).includes('merge-retried'));
-    const notices = await comments(f.h, f.issueNumber, 'merge-refused:');
-    assert.equal(notices.length, 1, 'one notice per refused head, however often the merge is retried');
-    assert.match(notices[0]?.body ?? '', new RegExp(`#${f.pr.number}`));
-    assert.match(notices[0]?.body ?? '', /At least 1 approving review is required/);
+    const notices = f.h.messages(f.sessionId).filter((message) => message.includes('bug-smasher:merge-refused:'));
+    assert.equal(notices.length, 1, 'one message per refused head, however often the merge is retried');
+    assert.ok(notices[0]?.includes(f.pr.url), 'the message names the pull request');
+    assert.match(notices[0] ?? '', /At least 1 approving review is required/);
+    assert.deepEqual(await f.h.tracker.listComments(f.issueNumber), [], 'no service comment is posted');
   });
 
   it('refuses to merge when the head moves between evaluation and merge, then verifies the new head afresh', async (t) => {
@@ -568,7 +558,7 @@ describe('merge policies in the orchestrator', () => {
     assert.ok(record);
   });
 
-  it('records a direct merge by a person with actor, time and merge commit, and thanks the reporter once', async (t) => {
+  it('records a direct merge by a person with actor, time and merge commit, and posts no comment', async (t) => {
     const f = await readyFix(t, {}, { review: false });
     const sha = f.h.tracker.externalMerge(f.pr.number, 'maintainer');
     await f.h.cycle(3);
@@ -576,8 +566,7 @@ describe('merge policies in the orchestrator', () => {
     assert.equal(record.fix?.mergeCommitSha, sha);
     assert.equal(record.fix?.mergedBy, 'github:maintainer');
     assert.equal(record.fix?.mergedAt, (await f.h.tracker.getPullRequest(f.pr.number)).mergedAt);
-    assert.equal((await comments(f.h, f.issueNumber, 'thanks:')).length, 1);
-    assert.equal((await comments(f.h, f.issueNumber, 'merge-decision:')).length, 0, 'no policy merged it');
+    assert.deepEqual(await f.h.tracker.listComments(f.issueNumber), [], 'the service posts neither a merge note nor a thank-you');
   });
 
   it('hands a merged fix to an engineer when post-merge verification fails', async (t) => {

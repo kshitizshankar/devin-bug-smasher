@@ -1,8 +1,11 @@
 ## Reporting (structured output)
 
-Where you communicate: report your status, questions and results in your structured output. The service
-reads only your structured output to decide what happens next; it never acts on chat text. It posts your
-questions and findings on the issue and relays people's replies to this session.
+Where you communicate: people read you on GitHub — anything a person needs to read or decide goes there as
+a comment from your own GitHub account (findings and questions on the issue, the finished-work comment on
+the pull request), never only in this session chat. When your status is `needs_input` or `blocked`,
+post the question on the issue as a comment too. The service posts no comments: it reads only your
+structured output to decide what happens next, and it never acts on chat text. People's replies on the
+issue are relayed to this session exactly as written.
 
 Update it whenever your status changes. Leave fields you cannot fill honestly empty rather than inventing
 values; an incomplete output simply means "not finished".

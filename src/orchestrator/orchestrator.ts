@@ -35,6 +35,7 @@ import type {
   PolicyEvaluation,
   ReviewRecord,
   ReviewRound,
+  SessionInfo,
   Stage,
   VerificationAttempt,
   VerificationPhase,
@@ -55,22 +56,7 @@ import {
   type TrackerIssue,
   type TrackerPullRequest,
 } from '../tracker/types.ts';
-import {
-  existingPullRequestComment,
-  mergeRefusedComment,
-  policyDecisionComment,
-  policyMergeComment,
-  policyWaitComment,
-  questionComment,
-  reviewBlockerComment,
-  sessionStartedComment,
-  sessionWaitingComment,
-  sessionWaitingSummary,
-  thankYouComment,
-  triageComment,
-  triagePullRequestNotice,
-  verificationFlagsComment,
-} from './comments.ts';
+import { sessionWaitingSummary, verificationFlagsText } from './comments.ts';
 import {
   githubActor,
   INTERFACE_ACTOR,
@@ -171,8 +157,6 @@ export interface OrchestratorOptions {
   maxReviewRepairs?: number;
   /** When true, results from dependencies that are not live (stubs, fixtures) are refused as unavailable. */
   requireLiveResults?: boolean;
-  /** Logins whose comments and label changes are the service's own, besides bots and marked comments. */
-  serviceLogins?: readonly string[];
   /** Synced Devin Playbook ids by route; a route without one gets its Playbook text inlined in the prompt. */
   playbookIds?: PlaybookIds;
   /** Reconciliation lookups without a match before an unconfirmed create is abandoned (default 3). */
@@ -198,6 +182,11 @@ const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 const REVIEW_MISSING_GRACE_MS = 30 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
 const WAITING_QUESTION_PREFIX = 'w-';
+/**
+ * Margin applied when matching a recorded own label change to its issue event: GitHub may stamp the
+ * echo slightly earlier than the moment before the request was sent (clock skew, second precision).
+ */
+const OWN_LABEL_SKEW_MS = 5_000;
 /** How new the fix head's commit may be before Devin counts as still working on it. */
 const READY_COMMIT_AGE_MS = 90 * 1000;
 /** Marker on Devin Review's auto-fix status review on the pull request. */
@@ -206,11 +195,22 @@ const DEVIN_REVIEW_STATUS_MARKER = 'devin-review-autofix-status';
 const DEVIN_REVIEW_ADDRESSING = /devin is addressing/i;
 
 export function emptyWorkflow(): WorkflowState {
-  return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [], verifierUnavailable: null };
+  return {
+    dispatch: null,
+    outbox: [],
+    relayedCommentIds: [],
+    handledEventIds: [],
+    ownLabelChanges: [],
+    workQuestion: null,
+    notices: [],
+    verifierUnavailable: null,
+  };
 }
 
 function workflowOf(record: BugRecord): WorkflowState {
-  return structuredClone(record.workflow ?? emptyWorkflow());
+  const workflow = structuredClone(record.workflow ?? emptyWorkflow());
+  workflow.ownLabelChanges ??= [];
+  return workflow;
 }
 
 /**
@@ -250,8 +250,10 @@ function resumedInDevin(questionId: string | undefined, session: DevinSession): 
   return questionId?.startsWith(WAITING_QUESTION_PREFIX) === true && ['working', 'idle'].includes(session.activity.kind);
 }
 
-function commentKey(raw: string): string {
-  return raw.replace(/[^A-Za-z0-9._:/-]/g, '-').slice(0, 100);
+/** The record's session when it is live and not asked to stop, so it can act on a message sent to it. */
+function liveSession(record: BugRecord): SessionInfo | null {
+  const session = record.session;
+  return session !== null && session.liveState !== 'ended' && session.stopRequestedAt === null ? session : null;
 }
 
 function policyReasons(evaluation: PolicyEvaluation): string[] {
@@ -293,7 +295,6 @@ export class Orchestrator {
   readonly #policy: DecisionPolicy;
   readonly #requireLive: boolean;
   readonly #maxReviewRepairs: number;
-  readonly #serviceLogins: ReadonlySet<string>;
   readonly #playbookIds: PlaybookIds;
   readonly #reconcileAttempts: number;
   readonly #now: () => Date;
@@ -329,7 +330,6 @@ export class Orchestrator {
       });
     this.#requireLive = options.requireLiveResults ?? false;
     this.#maxReviewRepairs = options.maxReviewRepairs ?? DEFAULT_MAX_REVIEW_REPAIRS;
-    this.#serviceLogins = new Set((options.serviceLogins ?? []).map((login) => login.toLowerCase()));
     this.#playbookIds = options.playbookIds ?? {};
     this.#reconcileAttempts = options.reconcileAttempts ?? 3;
     this.#trace = options.trace ?? (() => {});
@@ -636,12 +636,6 @@ export class Orchestrator {
         );
         return { type: 'send-message', sessionId: effect.sessionId, marker, message };
       }
-      case 'post-comment':
-        return {
-          type: 'post-comment',
-          key: commentKey(`model-comment:${hash(`${record.key}\n${record.updatedAt}\n${effect.body}`)}`),
-          body: effect.body,
-        };
       default:
         return effect;
     }
@@ -654,6 +648,7 @@ export class Orchestrator {
       const op = record?.workflow?.outbox[0];
       if (record === undefined || op === undefined) return true;
       let dropped: string | null = null;
+      const appliedAt = this.#nowIso();
       try {
         await this.#applyOperation(record, op);
       } catch (error) {
@@ -669,11 +664,30 @@ export class Orchestrator {
         const first = current.workflow.outbox[0];
         if (first === undefined || !sameOperation(first, op)) return undefined;
         current.workflow.outbox.shift();
-        if (dropped !== null && op.type === 'merge-pr') {
+        if (dropped === null && (op.type === 'add-label' || op.type === 'remove-label')) {
+          // The issue event this produces is the service's own change, not a person's decision. `appliedAt`
+          // was taken before the change, so the event should not predate it; a small skew margin covers a
+          // GitHub clock that stamps the echo slightly earlier than the request started.
+          current.workflow.ownLabelChanges ??= [];
+          current.workflow.ownLabelChanges.push({
+            type: op.type === 'add-label' ? 'labeled' : 'unlabeled',
+            label: op.label,
+            at: appliedAt,
+          });
+        }
+        const session = liveSession(current);
+        if (dropped !== null && op.type === 'merge-pr' && session !== null) {
+          const marker = `bug-smasher:merge-refused:${op.prNumber}:${op.expectedHeadSha}`;
           current.workflow.outbox.push({
-            type: 'post-comment',
-            key: commentKey(`merge-refused:${op.prNumber}:${op.expectedHeadSha}`),
-            body: mergeRefusedComment(op.prNumber, op.expectedHeadSha, dropped),
+            type: 'send-message',
+            sessionId: session.id,
+            marker,
+            message: this.#prompts.mergeRefused({
+              prUrl: current.fix?.prUrl ?? '',
+              headSha: op.expectedHeadSha,
+              reason: dropped,
+              marker,
+            }),
           });
         }
         return current;
@@ -689,8 +703,6 @@ export class Orchestrator {
         return { label: op.label };
       case 'stop-session':
         return { sessionId: op.sessionId };
-      case 'post-comment':
-        return { commentKey: op.key };
       case 'send-message':
         return { sessionId: op.sessionId, marker: op.marker };
       case 'merge-pr':
@@ -724,9 +736,6 @@ export class Orchestrator {
           if (!(error instanceof DevinError && (error.kind === 'not-found' || error.kind === 'conflict'))) throw error;
           if (error.kind === 'conflict' && !(await this.#archive(op.sessionId))) await this.#archiveFailed(record.key, op.sessionId);
         }
-        return;
-      case 'post-comment':
-        await this.#tracker.postComment(number, op.body, { key: op.key });
         return;
       case 'send-message': {
         const messages = await this.#devin.listMessages(op.sessionId);
@@ -801,10 +810,20 @@ export class Orchestrator {
 
   // People and comments ----------------------------------------------------------------------------------------
 
+  /**
+   * Every `user` actor is a person, including the account the service's own token belongs to: the service
+   * never comments and records its own label changes, so nothing written or labelled by a login needs to
+   * be filtered out by name.
+   */
   #isPerson(actor: Actor | null): actor is Actor {
-    return actor !== null && actor.type === 'user' && !this.#serviceLogins.has(actor.login.toLowerCase());
+    return actor !== null && actor.type === 'user';
   }
 
+  /**
+   * A comment a person wrote. The `fromService` marker keeps service comments written by an earlier
+   * release (with a person's token) from being relayed as replies; the service posts no comments now, so
+   * the marker answers nothing else.
+   */
   #isHumanComment(comment: TrackerComment): boolean {
     return !comment.fromService && this.#isPerson(comment.author) && comment.body.trim() !== '';
   }
@@ -859,12 +878,15 @@ export class Orchestrator {
       issueUrl: issue.url,
       title: issue.title,
       body: issue.body,
+      author: issue.author?.login ?? null,
     };
   }
 
   /**
    * A workflow label added by a person since enrollment is that person's decision, recorded with their
-   * GitHub login and the label event time. Labels changed by the service or bots are not decisions.
+   * GitHub login and the label event time. The service recognises its own label changes by the record it
+   * keeps of each one it applied (`ownLabelChanges`), never by the account the token belongs to; labels
+   * changed by bots are not decisions.
    */
   async #personLabelDecision(issue: TrackerIssue, record: BugRecord): Promise<boolean> {
     const workflow = workflowOf(record);
@@ -873,11 +895,18 @@ export class Orchestrator {
       (candidate) => this.#workflowLabelEvent(candidate) && !workflow.handledEventIds.includes(candidate.id),
     );
     if (event === undefined) return false;
+    const label = event.label as string;
+    const own = workflow.ownLabelChanges.findIndex(
+      (change) =>
+        change.type === 'labeled' &&
+        change.label.toLowerCase() === label.toLowerCase() &&
+        Date.parse(change.at) - OWN_LABEL_SKEW_MS <= Date.parse(event.at),
+    );
     const markHandled = (state: WorkflowState): void => {
       state.handledEventIds.push(event.id);
+      if (own >= 0) state.ownLabelChanges.splice(own, 1);
     };
-    const label = event.label as string;
-    if (!this.#isPerson(event.actor) || !hasLabel(issue.labels, label)) {
+    if (own >= 0 || !this.#isPerson(event.actor) || !hasLabel(issue.labels, label)) {
       await this.#persistWorkflow(record, markHandled);
       return false;
     }
@@ -932,23 +961,6 @@ export class Orchestrator {
       });
     }
     const after: WorkflowOperation[] = [];
-    if (event.type === 'pr-merged') {
-      const policyMerge = (record.evaluations ?? []).findLast(
-        (evaluation) => evaluation.kind === 'merge' && evaluation.outcome === 'merge' && evaluation.subject === pr.headSha,
-      );
-      if (policyMerge !== undefined) {
-        after.push({
-          type: 'post-comment',
-          key: commentKey(`merge-decision:${record.key}:${pr.headSha}`),
-          body: policyMergeComment(policyMerge.rule, fix.prUrl, pr.headSha, policyReasons(policyMerge)),
-        });
-      }
-      after.push({
-        type: 'post-comment',
-        key: commentKey(`thanks:${record.key}:${event.mergeCommitSha}`),
-        body: thankYouComment(issue.author?.login ?? null, fix.prUrl, event.mergeCommitSha),
-      });
-    }
     const quiet = record.stage === 'closed' || record.stage === 'with-engineer';
     const result = this.#event(record, event);
     return (await this.#commit(issue, record, result, event.type, { first: ops, ops: after, quiet })) === 'applied';
@@ -1042,10 +1054,7 @@ export class Orchestrator {
       reason: 'existing-pr',
       detail: `Open pull request #${pr.number} already addresses this issue: ${pr.url}`,
     });
-    const body = existingPullRequestComment(pr.number, pr.url, this.#settings.labels.engineer);
-    return this.#commit(issue, record, result, 'existing-pr', {
-      ops: [{ type: 'post-comment', key: commentKey(`existing-pr:${pr.number}`), body }],
-    });
+    return this.#commit(issue, record, result, 'existing-pr');
   }
 
   // Sessions -----------------------------------------------------------------------------------------------------
@@ -1214,18 +1223,8 @@ export class Orchestrator {
       return;
     }
     const delivered = record.workflow?.dispatch?.commentIds ?? [];
-    const comments = await this.#tracker.listComments(issue.number);
-    const greeting: WorkflowOperation[] = comments.some((comment) => comment.body.includes(session.url))
-      ? []
-      : [
-          {
-            type: 'post-comment',
-            key: commentKey(`session-started:${session.id}`),
-            body: sessionStartedComment(issue.author?.login ?? null, session.url),
-          },
-        ];
     await this.#commit(issue, record, result, what, {
-      ops: [...greeting, ...extraOps],
+      ops: extraOps,
       mutate: (state) => {
         state.dispatch = null;
         state.relayedCommentIds.push(...delivered);
@@ -1270,13 +1269,9 @@ export class Orchestrator {
         if (signal?.type === 'pr-opened' && !urls.includes(signal.pullRequest.url)) urls.push(signal.pullRequest.url);
         this.#emit(record.key, 'unexpected-triage-pr', { sessionId: session.id, pullRequests: urls });
         if (!workflow.notices.includes(notice)) {
-          await this.#persistWorkflow(
-            record,
-            (state) => {
-              state.notices.push(notice);
-            },
-            [{ type: 'post-comment', key: commentKey(notice), body: triagePullRequestNotice(urls) }],
-          );
+          await this.#persistWorkflow(record, (state) => {
+            state.notices.push(notice);
+          });
           return true;
         }
         return this.#settleSession(issue, record, session);
@@ -1285,21 +1280,7 @@ export class Orchestrator {
         for (const event of structuredOutputEvents(session)) {
           const result = this.#event(record, event);
           if (!result.ok || !result.changed) continue;
-          const ops: WorkflowOperation[] = [];
-          if (event.type === 'question-asked') {
-            ops.push({
-              type: 'post-comment',
-              key: commentKey(`question:${event.question.id}`),
-              body: questionComment(event.question.summary),
-            });
-          } else if (event.type === 'triage-completed') {
-            ops.push({
-              type: 'post-comment',
-              key: commentKey(`triage:${session.id}`),
-              body: triageComment(event.findings, this.#settings.labels),
-            });
-          }
-          return (await this.#commit(issue, record, result, event.type, { ops })) === 'applied';
+          return (await this.#commit(issue, record, result, event.type)) === 'applied';
         }
         this.#noteIgnoredOutput(record, session);
         if (waitingWithoutQuestion(record, session, signal)) {
@@ -1307,10 +1288,10 @@ export class Orchestrator {
           const result = this.#event(record, { type: 'question-asked', question });
           if (result.ok && result.changed) {
             this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: question.id, phase: 'triage' });
-            const ops: WorkflowOperation[] = [
-              { type: 'post-comment', key: commentKey(`question:${question.id}`), body: sessionWaitingComment(session.url) },
-            ];
-            return (await this.#commit(issue, record, result, 'session-waiting', { ops })) === 'applied';
+            return (
+              (await this.#commit(issue, record, result, 'session-waiting', { ops: [this.#sessionWaitingOp(issue, session, question.id)] })) ===
+              'applied'
+            );
           }
         }
       }
@@ -1339,7 +1320,6 @@ export class Orchestrator {
                 askedAt: this.#nowIso(),
               };
             },
-            [{ type: 'post-comment', key: commentKey(`question:${signal.questionId}`), body: questionComment(signal.question) }],
           );
           this.#emit(record.key, 'question-posted', { questionId: signal.questionId, phase: 'fix' });
           return true;
@@ -1359,7 +1339,7 @@ export class Orchestrator {
               state.notices.push(notice);
               state.workQuestion = { id, sessionId: session.id, summary: sessionWaitingSummary(session.url), askedAt: this.#nowIso() };
             },
-            [{ type: 'post-comment', key: commentKey(`question:${id}`), body: sessionWaitingComment(session.url) }],
+            [this.#sessionWaitingOp(issue, session, id)],
           );
           this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: id, phase: 'fix' });
           return true;
@@ -1367,6 +1347,20 @@ export class Orchestrator {
       }
     }
     return this.#settleSession(issue, record, session);
+  }
+
+  /**
+   * A session that stopped without asking a structured question is nudged to put what it needs on the
+   * issue itself, so a person reading only GitHub sees the ask. One message per stop (`notices` dedups).
+   */
+  #sessionWaitingOp(issue: TrackerIssue, session: DevinSession, questionId: string): WorkflowOperation {
+    const marker = `bug-smasher:session-waiting:${questionId}`;
+    return {
+      type: 'send-message',
+      sessionId: session.id,
+      marker,
+      message: this.#prompts.sessionWaiting({ issueUrl: issue.url, marker }),
+    };
   }
 
   /**
@@ -1540,11 +1534,19 @@ export class Orchestrator {
       }
     }
     const flags = attempt.evidence?.flags ?? [];
-    if (attempt.result === 'pass' && flags.length > 0) {
+    const target = liveSession(record);
+    if (attempt.result === 'pass' && flags.length > 0 && target !== null) {
+      const marker = `bug-smasher:verification-flags:${fix.headSha}`;
       ops.push({
-        type: 'post-comment',
-        key: commentKey(`verification-flags:${record.key}:${fix.headSha}`),
-        body: verificationFlagsComment(fix.prUrl, fix.headSha, flags),
+        type: 'send-message',
+        sessionId: target.id,
+        marker,
+        message: this.#prompts.verificationFlags({
+          prUrl: fix.prUrl,
+          headSha: fix.headSha,
+          flags: verificationFlagsText(flags),
+          marker,
+        }),
       });
     }
     await this.#commit(issue, record, result, `verification-${attempt.result}`, { first: [verificationStatus(attempt)], ops });
@@ -1660,17 +1662,7 @@ export class Orchestrator {
       this.#emit(record.key, 'policy-waiting', { rule: outcome.rule, reason: outcome.reason });
       const evaluation = outcome.evaluation;
       if (evaluation === null || this.#seen(record, evaluation)) return;
-      const rule = outcome.rule ?? evaluation.rule;
-      const reasons = policyReasons(evaluation);
-      await this.#commit(issue, record, this.#event(record, { type: 'policy-evaluated', evaluation }), 'policy-wait', {
-        ops: [
-          {
-            type: 'post-comment',
-            key: commentKey(`decision-wait:${record.key}:${hash(`${evaluation.subject}\n${reasons.join('\n')}`)}`),
-            body: policyWaitComment(rule, reasons, this.#settings.labels),
-          },
-        ],
-      });
+      await this.#commit(issue, record, this.#event(record, { type: 'policy-evaluated', evaluation }), 'policy-wait');
       return;
     }
     let base = record;
@@ -1689,15 +1681,7 @@ export class Orchestrator {
       this.#model,
       this.#nowIso(),
     );
-    await this.#commit(issue, record, result, `policy-${outcome.action}`, {
-      ops: [
-        {
-          type: 'post-comment',
-          key: commentKey(`decision:${record.key}:${record.decisions.length}`),
-          body: policyDecisionComment(outcome.action, outcome.rule, outcome.reasons),
-        },
-      ],
-    });
+    await this.#commit(issue, record, result, `policy-${outcome.action}`);
   }
 
   /** An evaluation equal to the latest one for the same kind and subject is not recorded again. */
@@ -1767,6 +1751,21 @@ export class Orchestrator {
         const session = record.session;
         if (repairs >= this.#maxReviewRepairs) {
           round.blocker = `The limit of ${this.#maxReviewRepairs} Devin Review repair round(s) was reached; a person decides what to do with the remaining findings.`;
+          if (session !== null && session.liveState !== 'ended' && session.stopRequestedAt === null) {
+            const marker = `bug-smasher:review-blocker:${fix.headSha}`;
+            ops.push({
+              type: 'send-message',
+              sessionId: session.id,
+              marker,
+              message: this.#prompts.reviewBlocker({
+                prUrl: fix.prUrl,
+                headSha: fix.headSha,
+                blocker: round.blocker,
+                findings: round.findings.map((finding) => finding.url).join('\n'),
+                marker,
+              }),
+            });
+          }
         } else if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) {
           round.blocker = 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
         } else {
@@ -1785,13 +1784,6 @@ export class Orchestrator {
           } else {
             round.blocker = unreachable;
           }
-        }
-        if (round.blocker !== null) {
-          ops.push({
-            type: 'post-comment',
-            key: commentKey(`review-blocker:${record.key}:${fix.headSha}`),
-            body: reviewBlockerComment(fix.prUrl, fix.headSha, round.blocker, round.findings.map((finding) => finding.url)),
-          });
         }
       } else {
         return false;

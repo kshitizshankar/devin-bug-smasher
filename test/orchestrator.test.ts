@@ -3,14 +3,8 @@ import { afterEach, describe, it, type TestContext } from 'node:test';
 import { UNAVAILABLE_POLICY, VERIFICATION_STATUS_CONTEXT, type VerificationOutcome, type Verifier } from '../src/orchestrator/contracts.ts';
 import { attention, presentBug } from '../src/model/presentation.ts';
 import { consumesCapacity } from '../src/orchestrator/orchestrator.ts';
-import type { TrackerComment } from '../src/tracker/types.ts';
 import { facts } from './helpers/model.ts';
 import { Harness, report } from './helpers/orchestrator.ts';
-
-/** Service comments other than the one-per-session greeting. */
-function workflowComment(comment: TrackerComment): boolean {
-  return comment.fromService && !(comment.serviceKey ?? '').startsWith('session-started:');
-}
 
 const HEAD_1 = '1'.repeat(40);
 const HEAD_2 = '2'.repeat(40);
@@ -93,9 +87,8 @@ describe('orchestrator: investigation, question, reply, approval, repair', () =>
     await h.restart();
     await h.cycle();
     assert.equal(h.record(issue.key).stage, 'needs-input');
-    const question = (await h.tracker.listComments(issue.number)).filter(workflowComment);
-    assert.equal(question.length, 1);
-    assert.match(question[0]?.body ?? '', /Which chart library version do you use\?/);
+    assert.match(h.record(issue.key).questions.at(-1)?.summary ?? '', /Which chart library version do you use\?/);
+    assert.ok((await h.tracker.listComments(issue.number)).every((c) => !c.fromService), 'the question is recorded, not posted');
 
     h.tracker.externalComment(issue.number, 'ci-helper[bot]', 'Automated: build passed');
     h.tracker.externalComment(issue.number, 'reporter', 'Version 4.2.1\n  with *custom* theme');
@@ -115,10 +108,8 @@ describe('orchestrator: investigation, question, reply, approval, repair', () =>
     assert.equal(triaged.stage, 'triaged');
     assert.equal(triaged.triage?.recommendation, 'devin_fix');
     assert.deepEqual(triaged.decisions.filter((d) => d.action !== 'reply'), [], 'a recommendation is not a decision');
-    const summaries = (await h.tracker.listComments(issue.number)).filter((c) => c.serviceKey?.startsWith('triage:'));
-    assert.equal(summaries.length, 1);
-    assert.match(summaries[0]?.body ?? '', /recommendation, not a decision/);
-    assert.match(summaries[0]?.body ?? '', /npm test -- test\/legend\.test\.ts/);
+    const comments = await h.tracker.listComments(issue.number);
+    assert.ok(comments.every((c) => !c.fromService), 'the service posts no comments, including the triage findings');
 
     h.tracker.externalLabel(issue.number, 'bug-smasher', 'add', 'maintainer');
     await h.restart();
@@ -138,9 +129,6 @@ describe('orchestrator: investigation, question, reply, approval, repair', () =>
     await h.restart();
     await h.cycle(3);
     assert.equal(h.messages(id).length, 2, 'restarts repeat no messages');
-    const comments = await h.tracker.listComments(issue.number);
-    assert.equal(comments.filter(workflowComment).length, 2);
-    assert.equal(comments.filter((c) => c.serviceKey?.startsWith('session-started:')).length, 1, 'repair in the same session posts no second link');
   });
 });
 
@@ -410,9 +398,8 @@ describe('orchestrator: existing pull requests', () => {
     assert.equal(record.stage, 'with-engineer');
     assert.equal(record.handoff?.reason, 'existing-pr');
     assert.equal(h.createRequests().length, 0);
-    const notices = (await h.tracker.listComments(issue.number)).filter((c) => c.fromService);
-    assert.equal(notices.length, 1);
-    assert.match(notices[0]?.body ?? '', new RegExp(`#${pr.number}`));
+    const notices = await h.tracker.listComments(issue.number);
+    assert.deepEqual(notices, [], 'the service posts no comment about the existing PR');
   });
 
   it('hands off instead of continuing a live investigation into a duplicate repair', async (t) => {
@@ -479,17 +466,13 @@ describe('orchestrator: review hardening', () => {
 });
 
 describe('orchestrator: exact-once effects', () => {
-  it('does not resend a reply whose delivery answer was lost, nor repost a comment after a failed write', async (t) => {
+  it('does not resend a reply whose delivery answer was lost', async (t) => {
     const h = await setup(t);
     const issue = h.tracker.seedIssue({ title: 'A', labels: ['needs-triage'] });
     await h.cycle(2);
     const id = h.sessionId(issue.key);
     h.asks(id, 'Which browser?');
-    h.tracker.failNext('postComment', { code: 'server-error', applied: true });
     await h.cycle();
-    assert.ok(h.types(issue.key).includes('effect-failed'));
-    await h.cycle(2);
-    assert.equal((await h.tracker.listComments(issue.number)).filter(workflowComment).length, 1);
 
     h.tracker.externalComment(issue.number, 'reporter', 'Firefox');
     h.offline.failNext({ method: 'POST', path: '/messages', network: 'reset', applyFirst: true });
@@ -651,10 +634,10 @@ describe('orchestrator: structured output', () => {
     h.offline.updateSession(id, { structured_output: 'Triage complete: devin_fix' as unknown as Record<string, unknown> });
     await h.cycle(2);
     assert.equal(h.record(issue.key).stage, 'triaging');
-    assert.deepEqual((await h.tracker.listComments(issue.number)).filter(workflowComment), []);
+    assert.deepEqual(await h.tracker.listComments(issue.number), []);
   });
 
-  it('refuses a PR opened by an investigation session and posts one notice', async (t) => {
+  it('refuses a PR opened by an investigation session without commenting', async (t) => {
     const h = await setup(t);
     const issue = h.tracker.seedIssue({ title: 'A', labels: ['needs-triage'] });
     await h.cycle(2);
@@ -666,7 +649,7 @@ describe('orchestrator: structured output', () => {
     assert.equal(record.fix, null);
     assert.notEqual(record.stage, 'verifying');
     assert.ok(h.types(issue.key).includes('unexpected-triage-pr'));
-    assert.equal((await h.tracker.listComments(issue.number)).filter(workflowComment).length, 1);
+    assert.deepEqual(await h.tracker.listComments(issue.number), [], 'the service posts no comment');
   });
 });
 

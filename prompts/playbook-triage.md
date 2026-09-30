@@ -13,27 +13,32 @@ any decision context, and the other open bugs in the repository (number and titl
 
 ## Steps
 
-1. Read the issue and every comment. Separate what the reporter saw (messages, output, screenshots) from
+1. As your first action, post the picking-up comment the session prompt describes: check the issue thread
+   and post it once, addressed to whoever opened the issue, with the link to this session. Never post a
+   second one for the same session.
+2. Read the issue and every comment. Separate what the reporter saw (messages, output, screenshots) from
    what they assumed (causes, versions, the fix they suggest); treat assumptions as leads to check.
-2. Check whether the bug is already fixed on the default branch, already reported in one of the other open
-   bugs listed in the session prompt, or already addressed by an open pull request. Say so if it is.
-3. Reproduce it where possible: set up the project, run the smallest command or test that shows the
+3. Check whether the bug is already fixed on the default branch, already reported in one of the other open
+   bugs listed in the session prompt, or already addressed by an open pull request. Say so if it is, and
+   name a possibly-related pull request in your triage comment.
+4. Reproduce it where possible: set up the project, run the smallest command or test that shows the
    failure, and keep the exact steps, command, output and commit as evidence. If you cannot reproduce it,
    say what you tried and set `reproduced` to false.
-4. Find the likely cause in the code. Name the files and functions, and explain why they produce the
+5. Find the likely cause in the code. Name the files and functions, and explain why they produce the
    reported behavior. Separate what you observed from what you infer.
-5. Check the history of the involved code (`git log -L`, `git log -S` or `git blame` on the lines you named)
+6. Check the history of the involved code (`git log -L`, `git log -S` or `git blame` on the lines you named)
    for the change that introduced the bug. Name the commit or pull request when you find it, or say that
    you did not.
-6. Propose one regression test that fails on the current code because of this bug and passes once it is
+7. Propose one regression test that fails on the current code because of this bug and passes once it is
    fixed: its file, what it asserts, the command that runs it, and its full code when the file is new. If
    no such test can be made (the behavior cannot be exercised by a test in this repository), report
    `blocked` and say why instead of proposing a test that would not fail.
-7. Recommend `devin_fix` (small, well understood, testable), `needs_engineer` (needs judgment, design or
+8. Recommend `devin_fix` (small, well understood, testable), `needs_engineer` (needs judgment, design or
    access you do not have) or `close` (not a bug, duplicate, already fixed), with a confidence. A person
    makes the decision; your recommendation is advice.
-8. Deliver the result as one triage comment in the fixed format below, through the `triage_complete`
-   structured output. The service posts it on the issue as a single comment.
+9. Deliver the result as one triage comment on the issue in the fixed format below, posted yourself from
+   your own GitHub account, and the same fields through the `triage_complete` structured output. The
+   service posts no comment; the structured output is what it reads.
 
 ## Specifications
 
@@ -48,9 +53,22 @@ any decision context, and the other open bugs in the repository (number and titl
     `command` (the command that runs it) and `test_code` (its full code when the file is new). It must
     fail on the current code because of this bug and pass once the bug is fixed.
   - One recommendation with confidence: `bucket`, `bucket_reason`, `confidence`.
+- The triage comment carries the same information, one section per part, in this fixed format:
+  - `**Investigation: <title>**`, then the summary.
+  - `**Reproduced:** yes|no. <what you ran and saw, and the commit>` followed by the numbered steps.
+  - `**Expected:**` and `**Actual:**` lines.
+  - `**Suspected cause:** <cause>`, then `**Affected files**` and a `- ` bullet for each file.
+  - `**Proposed verification:** <description> in \`<test file>\`, run with` the command fenced in a code
+    block, and when the test file is new, the full code of `New test file \`<file>\`` fenced in its own
+    code block (use a fence longer than any backtick run inside the code).
+  - `**Recommendation:** Devin can fix this | Hand to an engineer | Close the issue (<confidence>
+    confidence). <reason>`
+  - A possibly-related open pull request, named when you found one.
+  - The closing line: This is a recommendation, not a decision. Add `{{fixLabel}}` to start the fix,
+    `{{engineerLabel}}` to hand it to an engineer, or close the issue.
 - "Could not reproduce" is a valid result: report it with `reproduced` false and what you tried.
-- At most two questions are asked over the whole investigation, one at a time, each in plain language and
-  only when missing information blocks progress.
+- At most two questions are asked over the whole investigation, one at a time, each posted yourself as a
+  comment on the issue in plain language and only when missing information blocks progress.
 
 ## Advice
 
