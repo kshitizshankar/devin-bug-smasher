@@ -1,0 +1,329 @@
+{
+  "frozenAt": "2026-09-30T05:44:54.528Z",
+  "figures": {
+    "name": "Superset",
+    "repo": "kshitizshankar/superset",
+    "repoUrl": "https://github.com/kshitizshankar/superset",
+    "upstream": "apache/superset",
+    "baseCommit": "f639b22",
+    "since": "30 Sep 2026",
+    "bugs": 5,
+    "triaged": 5,
+    "triageMedian": "7 min",
+    "sentToFix": 4,
+    "proven": 4,
+    "firstTry": 3,
+    "handedOff": 1,
+    "merged": 4,
+    "fixReadyMedian": "18 min",
+    "fixReadyFastest": "13 min",
+    "fixReadySlowest": "63 min",
+    "prOpenMedian": "15 min",
+    "prsOpened": 5,
+    "recFix": 4,
+    "recEngineer": 1,
+    "perSession": "$1.63",
+    "totalSpend": "$17.89",
+    "sessions": 11,
+    "costPerFix": "$4.47",
+    "earlierAttemptCost": "$4.25",
+    "firstLabelHours": "70 h",
+    "closeDays": "12.9 days",
+    "comparisonMeasured": "28 Sep 2026",
+    "spendReadAt": "30 Sep 2026"
+  },
+  "rows": [
+    {
+      "label": "#1",
+      "title": "BigQuery: Copy SELECT / latest-partition WHERE uses PARSE_DATE('%Y%m%d', '__NULL__') and the query fails",
+      "url": "https://github.com/kshitizshankar/superset/issues/1",
+      "second": "devin_fix",
+      "secondNote": "high",
+      "outcome": "merged",
+      "prNumber": 6,
+      "prUrl": "https://github.com/kshitizshankar/superset/pull/6",
+      "proofFailed": 3,
+      "proofTotal": 3,
+      "tags": [],
+      "time": 13,
+      "timeText": "13 min",
+      "cost": 2.35,
+      "findingsMin": 4,
+      "provenMin": 13,
+      "prOpenMin": 11,
+      "prCount": 1,
+      "firstPass": true,
+      "earlierCost": 0.62,
+      "at": "2026-09-30T03:40:14.291Z"
+    },
+    {
+      "label": "#2",
+      "title": "bug(dashboards): Adding a new chart to a dashboard does not update Last modified",
+      "url": "https://github.com/kshitizshankar/superset/issues/2",
+      "second": "devin_fix",
+      "secondNote": "high",
+      "outcome": "merged",
+      "prNumber": 7,
+      "prUrl": "https://github.com/kshitizshankar/superset/pull/7",
+      "proofFailed": 2,
+      "proofTotal": 2,
+      "tags": [
+        "flagged"
+      ],
+      "time": 19,
+      "timeText": "19 min",
+      "cost": 2.58,
+      "findingsMin": 8,
+      "provenMin": 19,
+      "prOpenMin": 18,
+      "prCount": 1,
+      "firstPass": true,
+      "earlierCost": 0.86,
+      "at": "2026-09-30T03:40:14.612Z"
+    },
+    {
+      "label": "#3",
+      "title": "Ignore cache when generating report” does not propagate `force` to `/api/v1/chart/data` for dashboard reports (cached results still used)",
+      "url": "https://github.com/kshitizshankar/superset/issues/3",
+      "second": "devin_fix",
+      "secondNote": "high",
+      "outcome": "merged",
+      "prNumber": 8,
+      "prUrl": "https://github.com/kshitizshankar/superset/pull/8",
+      "proofFailed": 5,
+      "proofTotal": 291,
+      "tags": [
+        "flagged"
+      ],
+      "time": 17,
+      "timeText": "17 min",
+      "cost": 3.28,
+      "findingsMin": 4,
+      "provenMin": 17,
+      "prOpenMin": 15,
+      "prCount": 1,
+      "firstPass": true,
+      "earlierCost": 0.66,
+      "at": "2026-09-30T03:40:14.982Z"
+    },
+    {
+      "label": "#4",
+      "title": "'group by all' is not working in Superset SQL Lab with ClickHouse DB.",
+      "url": "https://github.com/kshitizshankar/superset/issues/4",
+      "second": "devin_fix",
+      "secondNote": "medium",
+      "outcome": "merged",
+      "prNumber": 11,
+      "prUrl": "https://github.com/kshitizshankar/superset/pull/11",
+      "proofFailed": 6,
+      "proofTotal": 1210,
+      "tags": [
+        "retried"
+      ],
+      "time": 63,
+      "timeText": "63 min",
+      "cost": 4.109999999999999,
+      "findingsMin": 8,
+      "provenMin": 63,
+      "prOpenMin": 15,
+      "prCount": 2,
+      "firstPass": false,
+      "earlierCost": 0.94,
+      "at": "2026-09-30T03:40:15.263Z"
+    },
+    {
+      "label": "#5",
+      "title": "6.0.0 - Deleting a user via the GUI fails with IntegrityError on MariaDB",
+      "url": "https://github.com/kshitizshankar/superset/issues/5",
+      "second": "needs_engineer",
+      "secondNote": "medium",
+      "outcome": "engineer",
+      "prNumber": null,
+      "prUrl": null,
+      "proofFailed": null,
+      "proofTotal": null,
+      "tags": [],
+      "time": 9,
+      "timeText": "9 min",
+      "cost": 1.32,
+      "findingsMin": 7,
+      "provenMin": null,
+      "prOpenMin": null,
+      "prCount": 0,
+      "firstPass": null,
+      "earlierCost": 1.17,
+      "at": "2026-09-30T03:40:15.638Z"
+    }
+  ],
+  "page": {
+    "eyebrow": "Bug Smasher · results",
+    "title": "Bugs on {name}",
+    "subtitle": "Every bug labelled for Bug Smasher in [{repo}]({repoUrl}), a fork of {upstream} at {baseCommit}, since {since}. Times are Berlin.",
+    "tiles": [
+      {
+        "label": "How fast does a bug get investigated?",
+        "value": "{triageMedian}",
+        "small": "median",
+        "subs": [
+          {
+            "label": "Bugs investigated",
+            "value": "{triaged} of {bugs}"
+          },
+          {
+            "label": "Recommended a fix",
+            "value": "{recFix}"
+          },
+          {
+            "label": "Recommended an engineer",
+            "value": "{recEngineer}"
+          },
+          {
+            "label": "{name} today: first maintainer label",
+            "value": "{firstLabelHours}"
+          }
+        ]
+      },
+      {
+        "label": "Are the fixes real?",
+        "value": "{proven} of {sentToFix}",
+        "small": "proven",
+        "subs": [
+          {
+            "label": "Pull requests opened",
+            "value": "{prsOpened}"
+          },
+          {
+            "label": "Proven: test fails before, passes after",
+            "value": "{proven}"
+          },
+          {
+            "label": "Proven on the first try",
+            "value": "{firstTry}"
+          },
+          {
+            "label": "Merged",
+            "value": "{merged}"
+          }
+        ]
+      },
+      {
+        "label": "How fast is a fix ready?",
+        "value": "{fixReadyMedian}",
+        "small": "median",
+        "subs": [
+          {
+            "label": "Label to pull request, median",
+            "value": "{prOpenMedian}"
+          },
+          {
+            "label": "Fastest proven fix",
+            "value": "{fixReadyFastest}"
+          },
+          {
+            "label": "Slowest proven fix",
+            "value": "{fixReadySlowest}"
+          },
+          {
+            "label": "{name} today: issue to close",
+            "value": "{closeDays}"
+          }
+        ]
+      },
+      {
+        "label": "What does it cost?",
+        "value": "{costPerFix}",
+        "small": "per fix",
+        "subs": [
+          {
+            "label": "Total Devin spend",
+            "value": "{totalSpend}"
+          },
+          {
+            "label": "Sessions",
+            "value": "{sessions}"
+          },
+          {
+            "label": "Per session",
+            "value": "{perSession}"
+          },
+          {
+            "label": "Handed to an engineer",
+            "value": "{handedOff}"
+          }
+        ]
+      }
+    ],
+    "table": {
+      "title": "Every bug",
+      "caption": "One row per bug. Links open the issue and the pull request on GitHub."
+    },
+    "columns": {
+      "item": "Bug",
+      "second": "Devin recommended",
+      "outcome": "Outcome",
+      "pr": "PR",
+      "proof": "Proof: Devin's test fails before, passes after",
+      "time": "To proven",
+      "cost": "Cost"
+    },
+    "words": {
+      "second": {
+        "devin_fix": "fix",
+        "needs_engineer": "an engineer"
+      },
+      "outcome": {
+        "merged": "✓ merged",
+        "ready": "proven, ready",
+        "engineer": "with an engineer",
+        "triaged": "triaged"
+      },
+      "tags": {
+        "flagged": "a silenced check flagged and removed",
+        "retried": "second attempt"
+      },
+      "proof": "{f} of {t} tests",
+      "median": "median",
+      "recorded": "Recorded"
+    },
+    "charts": {
+      "time": {
+        "title": "How long each bug took",
+        "caption": "From the triage label to a fix proven by the verifier (or to the handoff)."
+      },
+      "cost": {
+        "title": "What it cost",
+        "caption": "Devin session cost per bug, triage and fix together."
+      }
+    },
+    "notesTitle": "What we learned",
+    "notes": [
+      {
+        "title": "The verifier flags fixes that silence checkers.",
+        "body": "Two fixes passed their tests but added a lint or type-check suppression. The verifier flagged both for review; Devin removed the suppressions and both fixes were proven again without them."
+      },
+      {
+        "title": "A gap in the verifier sent one bug to an engineer, and a one-line fix brought it back.",
+        "body": "The verifier did not recognise Superset's `*_tests.py` test files, so the first fix for #4 could not be proven and hit the retry limit. After the fix, the retry was proven: 6 of 1,210 tests fail before, all pass after."
+      },
+      {
+        "title": "Devin speaks for the work; the service only moves labels and statuses.",
+        "body": "Every comment on these bugs comes from Devin's own GitHub account. The service needs nothing but the operator's token."
+      },
+      {
+        "title": "Polling every bug each minute is expensive.",
+        "body": "Re-reading every tracked bug and pull request once a minute used a token's 5,000 GitHub requests an hour. Webhooks or conditional requests are the next step."
+      }
+    ],
+    "footer": "Figures from Bug Smasher's own store and metrics; cost from Devin's usage history, read {spendReadAt}. {name} comparisons measured upstream {comparisonMeasured}. The data file sits beside this page.",
+    "sections": {
+      "metrics": {
+        "title": "Metrics",
+        "caption": "Is it working? Measured from Bug Smasher's own records."
+      },
+      "results": {
+        "title": "Results",
+        "caption": "The evidence behind the numbers: every bug, its pull request and its proof."
+      }
+    }
+  }
+}
