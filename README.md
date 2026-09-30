@@ -9,9 +9,9 @@ before the fix and pass after it. Features work the same way, with their own lab
 ## Where it has run
 
 - **On itself.** Devin built Bug Smasher, and Bug Smasher ran the last part of its own build (below).
-  [Build dashboard](results/building-bug-smasher.html)
+  [Build dashboard](https://kshitizshankar.github.io/devin-bug-smasher/results/building-bug-smasher.html)
 - **On Apache Superset.** Open upstream bugs, copied into the fork
-  [kshitizshankar/superset](https://github.com/kshitizshankar/superset). [Superset dashboard](results/superset-run.html)
+  [kshitizshankar/superset](https://github.com/kshitizshankar/superset). [Superset dashboard](https://kshitizshankar.github.io/devin-bug-smasher/results/superset-run.html)
 
 ## Bug Smasher built itself
 
