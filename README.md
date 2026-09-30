@@ -83,6 +83,8 @@ its links and @mentions.
 
 ## Design decisions
 
+The diagrams are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 **Devin does the engineering. Bug Smasher routes the work and checks it.** Devin investigates, reproduces, fixes
 and writes the test, in one session, so its findings carry into the fix. By default Bug Smasher makes no decisions
 on its own: people decide what to fix and what to merge. Teams can let clear cases through automatically with the

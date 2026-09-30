@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 400" width="760" height="400" class="fig">
+<style>svg{
+    color-scheme: light;
+    --bg: #ffffff; --text: #1f2328; --muted: #59636e; --faint: #818b98; --rule: #e3e6ea;
+    --quote-bg: #f7f8fa; --link: #0b5cad; --code-bg: #f3f4f6;
+    --fig-group: #fbfcfd; --fig-box: #f4f6f8; --fig-stroke: #cfd5dc; --fig-muted: #6b7480;
+    --fig-accent: #3b5bdb; --fig-accent-soft: #e8edfd;
+    --fig-warn: #b26a00; --fig-warn-soft: #fff1d6;
+    --fig-ok: #1f7a4d; --fig-ok-soft: #e3f4ea;
+    --fig-bad: #b42318; --fig-bad-soft: #fde8e7;
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+    --grid: #e7e9ec; --axis: #c3c7cd; --good: #006300; --surface: #ffffff;
+  }
+@media (prefers-color-scheme: dark){svg{
+    color-scheme: dark;
+    --bg: #121417; --text: #e6e8eb; --muted: #a4acb6; --faint: #7d8591; --rule: #2b3037;
+    --quote-bg: #181b1f; --link: #7cb4f0; --code-bg: #1d2126;
+    --fig-group: #15181c; --fig-box: #1b1f24; --fig-stroke: #3a424c; --fig-muted: #9aa3ad;
+    --fig-accent: #8aa2ff; --fig-accent-soft: #1c2444;
+    --fig-warn: #f0b35a; --fig-warn-soft: #33260f;
+    --fig-ok: #5fcf8e; --fig-ok-soft: #12291c;
+    --fig-bad: #ff8a80; --fig-bad-soft: #3a1714;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --grid: #262b31; --axis: #3a414a; --good: #0ca30c; --surface: #121417;
+  }}
+.fig text { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text); }
+.fig .h { font-size: 15px; font-weight: 650; }
+.fig .t { font-size: 13px; }
+.fig .s { font-size: 12px; fill: var(--fig-muted); }
+.fig .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; fill: var(--fig-muted); }
+.fig .group { fill: var(--fig-group); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .box { fill: var(--fig-box); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .box.accent { fill: var(--fig-accent-soft); stroke: var(--fig-accent); }
+.fig .box.warn { fill: var(--fig-warn-soft); stroke: var(--fig-warn); }
+.fig .box.ok { fill: var(--fig-ok-soft); stroke: var(--fig-ok); }
+.fig .box.bad { fill: var(--fig-bad-soft); stroke: var(--fig-bad); }
+.fig .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; fill: var(--text); }
+.fig text.ok { fill: var(--fig-ok); font-weight: 600; }
+.fig .box.dashed { stroke-dasharray: 4 3; }
+.fig .edge { fill: none; stroke: var(--fig-muted); stroke-width: 1.5; }
+.fig .edge.accent { stroke: var(--fig-accent); }
+.fig .edge.warn { stroke: var(--fig-warn); stroke-dasharray: 5 4; }
+.fig .edge.dashed { stroke-dasharray: 5 4; }
+.fig .edge.dotted { stroke: var(--fig-accent); stroke-dasharray: 2 4; stroke-width: 1.5; }
+.fig .tick { fill: none; stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .big { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+.fig .strong { font-weight: 650; fill: var(--text); }
+.fig .s1 { fill: var(--series-1); }
+.fig .s2 { fill: var(--series-2); }
+.fig .s3 { fill: var(--series-3); }
+.fig .s4 { fill: var(--series-4); }
+.fig .ring { stroke: var(--surface); stroke-width: 2; }
+.fig .grid { stroke: var(--grid); stroke-width: 1; }
+.fig .axis { stroke: var(--axis); stroke-width: 1; }
+.fig .num { font-variant-numeric: tabular-nums; }
+.fig .hero { font-size: 56px; font-weight: 700; letter-spacing: -0.02em; fill: var(--text); }
+.fig .good { fill: var(--good); font-weight: 600; }
+.fig .spark { fill: none; stroke: var(--fig-muted); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.fig .spark-end { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
+.fig .dashed-line { stroke-dasharray: 4 4; }
+.fig .halo { paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+.fig .canvas { fill: var(--fig-group); stroke: var(--fig-stroke); }
+.fig .card { fill: var(--bg); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .strong-card { stroke: var(--fig-muted); stroke-width: 1.6; }
+.fig .cardfoot { fill: var(--fig-box); }
+.fig .tile { fill: var(--fig-box); }
+.fig .tile.accent { fill: var(--fig-accent-soft); }
+.fig .tile.ok { fill: var(--fig-ok-soft); }
+.fig .tile.warn { fill: var(--fig-warn-soft); }
+.fig .glyph { fill: none; stroke: var(--fig-muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fig .glyph.accent { stroke: var(--fig-accent); }
+.fig .glyph.ok { stroke: var(--fig-ok); }
+.fig .glyph.warn { stroke: var(--fig-warn); }
+.fig .glyphfill { fill: var(--fig-muted); }
+.fig .glyphfill.accent { fill: var(--fig-accent); }
+.fig .glyphfill.ok { fill: var(--fig-ok); }
+.fig .glyphfill.warn { fill: var(--fig-warn); }
+.ah { fill: var(--fig-muted); }
+.ah.accent { fill: var(--fig-accent); }
+.ah.warn { fill: var(--fig-warn); }</style>
+<defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah accent" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="ah-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah warn" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse">
+      <circle class="dotgrid" cx="2" cy="2" r="1"/>
+    </pattern>
+  </defs>
+<rect x="0" y="0" width="760.0" height="400.0" rx="12" style="fill:var(--bg)"/>
+<g class="fig">
+  <title id="f1t">System overview: people, GitHub, the Bug Smasher service and Devin</title>
+  <!-- People -->
+  <rect class="box warn" x="20" y="18" width="190" height="52" rx="8"/>
+  <text class="h" x="115" y="41" text-anchor="middle">People</text>
+  <text class="s" x="115" y="59" text-anchor="middle">file, answer, decide, merge</text>
+  <path class="edge" d="M115 70 V107" marker-end="url(#ah)"/>
+  <text class="s" x="125" y="93">labels, replies, merges</text>
+  
+  
+
+  <!-- GitHub -->
+  <rect class="group" x="20" y="110" width="190" height="220" rx="10"/>
+  <text class="h" x="115" y="136" text-anchor="middle">GitHub</text>
+  <rect class="box" x="32" y="152" width="166" height="32" rx="6"/><text class="t" x="115" y="173" text-anchor="middle">Issues and labels</text>
+  <rect class="box" x="32" y="194" width="166" height="32" rx="6"/><text class="t" x="115" y="215" text-anchor="middle">Comments</text>
+  <rect class="box" x="32" y="236" width="166" height="32" rx="6"/><text class="t" x="115" y="257" text-anchor="middle">Pull requests</text>
+  <rect class="box" x="32" y="278" width="166" height="32" rx="6"/><text class="t" x="115" y="299" text-anchor="middle">Commit statuses</text>
+
+  <!-- Bug Smasher -->
+  <rect class="group" x="285" y="110" width="190" height="220" rx="10"/>
+  <text class="h" x="380" y="136" text-anchor="middle">Bug Smasher</text>
+  <rect class="box" x="297" y="152" width="166" height="32" rx="6"/><text class="t" x="380" y="173" text-anchor="middle">Read-only HTTP API</text>
+  <rect class="box" x="297" y="194" width="166" height="32" rx="6"/><text class="t" x="380" y="215" text-anchor="middle">Orchestrator, every 60 s</text>
+  <rect class="box ok" x="297" y="236" width="166" height="32" rx="6"/><text class="t" x="380" y="257" text-anchor="middle">Verification in Docker</text>
+  <rect class="box" x="297" y="278" width="166" height="32" rx="6"/><text class="t" x="380" y="299" text-anchor="middle">Store: bugs.json</text>
+
+  <!-- Devin -->
+  <rect class="group" x="550" y="110" width="190" height="220" rx="10"/>
+  <text class="h" x="645" y="136" text-anchor="middle">Devin</text>
+  <rect class="box accent" x="562" y="152" width="166" height="32" rx="6"/><text class="t" x="645" y="173" text-anchor="middle">Sessions (API v3)</text>
+  <rect class="box accent" x="562" y="194" width="166" height="32" rx="6"/><text class="t" x="645" y="215" text-anchor="middle">Triage Playbook</text>
+  <rect class="box accent" x="562" y="236" width="166" height="32" rx="6"/><text class="t" x="645" y="257" text-anchor="middle">Devin Review</text>
+  <rect class="box accent" x="562" y="278" width="166" height="32" rx="6"/><text class="t" x="645" y="299" text-anchor="middle">Environment, Knowledge</text>
+
+  <!-- GitHub <-> Bug Smasher -->
+  <path class="edge" d="M212 200 H283" marker-end="url(#ah)"/>
+  <text class="s" x="247.5" y="192" text-anchor="middle">reads</text>
+  <path class="edge" d="M283 250 H212" marker-end="url(#ah)"/>
+  <text class="s" x="247.5" y="242" text-anchor="middle">writes</text>
+  <!-- Bug Smasher <-> Devin -->
+  <path class="edge accent" d="M477 200 H548" marker-end="url(#ah-accent)"/>
+  <text class="s" x="512.5" y="192" text-anchor="middle">sessions</text>
+  <path class="edge accent" d="M548 250 H477" marker-end="url(#ah-accent)"/>
+  <text class="s" x="512.5" y="242" text-anchor="middle">results</text>
+  <!-- Devin -> GitHub -->
+  <path class="edge accent" d="M645 330 V368 H115 V332" marker-end="url(#ah-accent)"/>
+  <text class="s" x="380" y="360" text-anchor="middle">Devin comments on issues and opens pull requests</text>
+</g>
+</svg>

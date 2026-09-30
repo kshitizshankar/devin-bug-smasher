@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 326" width="760" height="326" class="fig">
+<style>svg{
+    color-scheme: light;
+    --bg: #ffffff; --text: #1f2328; --muted: #59636e; --faint: #818b98; --rule: #e3e6ea;
+    --quote-bg: #f7f8fa; --link: #0b5cad; --code-bg: #f3f4f6;
+    --fig-group: #fbfcfd; --fig-box: #f4f6f8; --fig-stroke: #cfd5dc; --fig-muted: #6b7480;
+    --fig-accent: #3b5bdb; --fig-accent-soft: #e8edfd;
+    --fig-warn: #b26a00; --fig-warn-soft: #fff1d6;
+    --fig-ok: #1f7a4d; --fig-ok-soft: #e3f4ea;
+    --fig-bad: #b42318; --fig-bad-soft: #fde8e7;
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+    --grid: #e7e9ec; --axis: #c3c7cd; --good: #006300; --surface: #ffffff;
+  }
+@media (prefers-color-scheme: dark){svg{
+    color-scheme: dark;
+    --bg: #121417; --text: #e6e8eb; --muted: #a4acb6; --faint: #7d8591; --rule: #2b3037;
+    --quote-bg: #181b1f; --link: #7cb4f0; --code-bg: #1d2126;
+    --fig-group: #15181c; --fig-box: #1b1f24; --fig-stroke: #3a424c; --fig-muted: #9aa3ad;
+    --fig-accent: #8aa2ff; --fig-accent-soft: #1c2444;
+    --fig-warn: #f0b35a; --fig-warn-soft: #33260f;
+    --fig-ok: #5fcf8e; --fig-ok-soft: #12291c;
+    --fig-bad: #ff8a80; --fig-bad-soft: #3a1714;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --grid: #262b31; --axis: #3a414a; --good: #0ca30c; --surface: #121417;
+  }}
+.fig text { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text); }
+.fig .h { font-size: 15px; font-weight: 650; }
+.fig .t { font-size: 13px; }
+.fig .s { font-size: 12px; fill: var(--fig-muted); }
+.fig .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; fill: var(--fig-muted); }
+.fig .group { fill: var(--fig-group); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .box { fill: var(--fig-box); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .box.accent { fill: var(--fig-accent-soft); stroke: var(--fig-accent); }
+.fig .box.warn { fill: var(--fig-warn-soft); stroke: var(--fig-warn); }
+.fig .box.ok { fill: var(--fig-ok-soft); stroke: var(--fig-ok); }
+.fig .box.bad { fill: var(--fig-bad-soft); stroke: var(--fig-bad); }
+.fig .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; fill: var(--text); }
+.fig text.ok { fill: var(--fig-ok); font-weight: 600; }
+.fig .box.dashed { stroke-dasharray: 4 3; }
+.fig .edge { fill: none; stroke: var(--fig-muted); stroke-width: 1.5; }
+.fig .edge.accent { stroke: var(--fig-accent); }
+.fig .edge.warn { stroke: var(--fig-warn); stroke-dasharray: 5 4; }
+.fig .edge.dashed { stroke-dasharray: 5 4; }
+.fig .edge.dotted { stroke: var(--fig-accent); stroke-dasharray: 2 4; stroke-width: 1.5; }
+.fig .tick { fill: none; stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .big { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+.fig .strong { font-weight: 650; fill: var(--text); }
+.fig .s1 { fill: var(--series-1); }
+.fig .s2 { fill: var(--series-2); }
+.fig .s3 { fill: var(--series-3); }
+.fig .s4 { fill: var(--series-4); }
+.fig .ring { stroke: var(--surface); stroke-width: 2; }
+.fig .grid { stroke: var(--grid); stroke-width: 1; }
+.fig .axis { stroke: var(--axis); stroke-width: 1; }
+.fig .num { font-variant-numeric: tabular-nums; }
+.fig .hero { font-size: 56px; font-weight: 700; letter-spacing: -0.02em; fill: var(--text); }
+.fig .good { fill: var(--good); font-weight: 600; }
+.fig .spark { fill: none; stroke: var(--fig-muted); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.fig .spark-end { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
+.fig .dashed-line { stroke-dasharray: 4 4; }
+.fig .halo { paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+.fig .canvas { fill: var(--fig-group); stroke: var(--fig-stroke); }
+.fig .card { fill: var(--bg); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .strong-card { stroke: var(--fig-muted); stroke-width: 1.6; }
+.fig .cardfoot { fill: var(--fig-box); }
+.fig .tile { fill: var(--fig-box); }
+.fig .tile.accent { fill: var(--fig-accent-soft); }
+.fig .tile.ok { fill: var(--fig-ok-soft); }
+.fig .tile.warn { fill: var(--fig-warn-soft); }
+.fig .glyph { fill: none; stroke: var(--fig-muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fig .glyph.accent { stroke: var(--fig-accent); }
+.fig .glyph.ok { stroke: var(--fig-ok); }
+.fig .glyph.warn { stroke: var(--fig-warn); }
+.fig .glyphfill { fill: var(--fig-muted); }
+.fig .glyphfill.accent { fill: var(--fig-accent); }
+.fig .glyphfill.ok { fill: var(--fig-ok); }
+.fig .glyphfill.warn { fill: var(--fig-warn); }
+.ah { fill: var(--fig-muted); }
+.ah.accent { fill: var(--fig-accent); }
+.ah.warn { fill: var(--fig-warn); }</style>
+<defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah accent" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="ah-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah warn" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse">
+      <circle class="dotgrid" cx="2" cy="2" r="1"/>
+    </pattern>
+  </defs>
+<rect x="0" y="0" width="760.0" height="326.0" rx="12" style="fill:var(--bg)"/>
+<g class="fig">
+  <title id="f3t">Verification worked through an example: the new test must fail without the fix and pass with it</title>
+  <!-- The pull request -->
+  <rect class="box accent" x="20" y="12" width="720" height="62" rx="8"/>
+  <text class="h" x="40" y="38">Devin's pull request</text>
+  <text class="t" x="40" y="60">Fix: skip BigQuery's special partition IDs.   New tests: the latest partition is a real date (bug #1).</text>
+  <path class="edge" d="M190 74 V106" marker-end="url(#ah)"/>
+  <path class="edge" d="M570 74 V106" marker-end="url(#ah)"/>
+
+  <!-- Run 1: without the fix -->
+  <rect class="box" x="20" y="108" width="340" height="140" rx="8"/>
+  <text class="h" x="40" y="136">Run 1 · without the fix</text>
+  <text class="s" x="40" y="156">base commit, with the new test copied in</text>
+  <text class="code" x="40" y="190">3 of 3 new tests fail</text>
+  <rect class="box bad" x="40" y="204" width="104" height="28" rx="14"/>
+  <text class="t" x="92" y="223" text-anchor="middle">Test fails</text>
+  <text class="s ok" x="156" y="223">✓ the test sees the bug</text>
+
+  <!-- Run 2: with the fix -->
+  <rect class="box" x="400" y="108" width="340" height="140" rx="8"/>
+  <text class="h" x="420" y="136">Run 2 · with the fix</text>
+  <text class="s" x="420" y="156">the pull request's head commit</text>
+  <text class="code" x="420" y="190">3 of 3 new tests pass</text>
+  <rect class="box ok" x="420" y="204" width="104" height="28" rx="14"/>
+  <text class="t" x="472" y="223" text-anchor="middle">Test passes</text>
+  <text class="s ok" x="536" y="223">✓ the fix works</text>
+
+  <!-- Result -->
+  <path class="edge" d="M190 248 V280 Q190 290 200 290 H258" marker-end="url(#ah)"/>
+  <path class="edge" d="M570 248 V280 Q570 290 560 290 H502" marker-end="url(#ah)"/>
+  <rect class="box ok" x="260" y="268" width="240" height="46" rx="8"/>
+  <text class="h" x="380" y="287" text-anchor="middle">Verified</text>
+  <text class="s" x="380" y="305" text-anchor="middle">commit status on the pull request</text>
+</g>
+</svg>

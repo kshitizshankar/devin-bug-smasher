@@ -1,0 +1,162 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 640" width="1040" height="640" class="fig">
+<style>svg{
+    color-scheme: light;
+    --bg: #ffffff; --text: #1f2328; --muted: #59636e; --faint: #818b98; --rule: #e3e6ea;
+    --quote-bg: #f7f8fa; --link: #0b5cad; --code-bg: #f3f4f6;
+    --fig-group: #fbfcfd; --fig-box: #f4f6f8; --fig-stroke: #cfd5dc; --fig-muted: #6b7480;
+    --fig-accent: #3b5bdb; --fig-accent-soft: #e8edfd;
+    --fig-warn: #b26a00; --fig-warn-soft: #fff1d6;
+    --fig-ok: #1f7a4d; --fig-ok-soft: #e3f4ea;
+    --fig-bad: #b42318; --fig-bad-soft: #fde8e7;
+    --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100;
+    --grid: #e7e9ec; --axis: #c3c7cd; --good: #006300; --surface: #ffffff;
+  }
+@media (prefers-color-scheme: dark){svg{
+    color-scheme: dark;
+    --bg: #121417; --text: #e6e8eb; --muted: #a4acb6; --faint: #7d8591; --rule: #2b3037;
+    --quote-bg: #181b1f; --link: #7cb4f0; --code-bg: #1d2126;
+    --fig-group: #15181c; --fig-box: #1b1f24; --fig-stroke: #3a424c; --fig-muted: #9aa3ad;
+    --fig-accent: #8aa2ff; --fig-accent-soft: #1c2444;
+    --fig-warn: #f0b35a; --fig-warn-soft: #33260f;
+    --fig-ok: #5fcf8e; --fig-ok-soft: #12291c;
+    --fig-bad: #ff8a80; --fig-bad-soft: #3a1714;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500;
+    --grid: #262b31; --axis: #3a414a; --good: #0ca30c; --surface: #121417;
+  }}
+.fig text { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Helvetica, Arial, sans-serif; fill: var(--text); }
+.fig .h { font-size: 15px; font-weight: 650; }
+.fig .t { font-size: 13px; }
+.fig .s { font-size: 12px; fill: var(--fig-muted); }
+.fig .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11.5px; fill: var(--fig-muted); }
+.fig .group { fill: var(--fig-group); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .box { fill: var(--fig-box); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .box.accent { fill: var(--fig-accent-soft); stroke: var(--fig-accent); }
+.fig .box.warn { fill: var(--fig-warn-soft); stroke: var(--fig-warn); }
+.fig .box.ok { fill: var(--fig-ok-soft); stroke: var(--fig-ok); }
+.fig .box.bad { fill: var(--fig-bad-soft); stroke: var(--fig-bad); }
+.fig .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; fill: var(--text); }
+.fig text.ok { fill: var(--fig-ok); font-weight: 600; }
+.fig .box.dashed { stroke-dasharray: 4 3; }
+.fig .edge { fill: none; stroke: var(--fig-muted); stroke-width: 1.5; }
+.fig .edge.accent { stroke: var(--fig-accent); }
+.fig .edge.warn { stroke: var(--fig-warn); stroke-dasharray: 5 4; }
+.fig .edge.dashed { stroke-dasharray: 5 4; }
+.fig .edge.dotted { stroke: var(--fig-accent); stroke-dasharray: 2 4; stroke-width: 1.5; }
+.fig .tick { fill: none; stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .big { font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
+.fig .strong { font-weight: 650; fill: var(--text); }
+.fig .s1 { fill: var(--series-1); }
+.fig .s2 { fill: var(--series-2); }
+.fig .s3 { fill: var(--series-3); }
+.fig .s4 { fill: var(--series-4); }
+.fig .ring { stroke: var(--surface); stroke-width: 2; }
+.fig .grid { stroke: var(--grid); stroke-width: 1; }
+.fig .axis { stroke: var(--axis); stroke-width: 1; }
+.fig .num { font-variant-numeric: tabular-nums; }
+.fig .hero { font-size: 56px; font-weight: 700; letter-spacing: -0.02em; fill: var(--text); }
+.fig .good { fill: var(--good); font-weight: 600; }
+.fig .spark { fill: none; stroke: var(--fig-muted); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.fig .spark-end { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
+.fig .dashed-line { stroke-dasharray: 4 4; }
+.fig .halo { paint-order: stroke; stroke: var(--bg); stroke-width: 5px; stroke-linejoin: round; }
+.fig .canvas { fill: var(--fig-group); stroke: var(--fig-stroke); }
+.fig .card { fill: var(--bg); stroke: var(--fig-stroke); stroke-width: 1; }
+.fig .strong-card { stroke: var(--fig-muted); stroke-width: 1.6; }
+.fig .cardfoot { fill: var(--fig-box); }
+.fig .tile { fill: var(--fig-box); }
+.fig .tile.accent { fill: var(--fig-accent-soft); }
+.fig .tile.ok { fill: var(--fig-ok-soft); }
+.fig .tile.warn { fill: var(--fig-warn-soft); }
+.fig .glyph { fill: none; stroke: var(--fig-muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.fig .glyph.accent { stroke: var(--fig-accent); }
+.fig .glyph.ok { stroke: var(--fig-ok); }
+.fig .glyph.warn { stroke: var(--fig-warn); }
+.fig .glyphfill { fill: var(--fig-muted); }
+.fig .glyphfill.accent { fill: var(--fig-accent); }
+.fig .glyphfill.ok { fill: var(--fig-ok); }
+.fig .glyphfill.warn { fill: var(--fig-warn); }
+.ah { fill: var(--fig-muted); }
+.ah.accent { fill: var(--fig-accent); }
+.ah.warn { fill: var(--fig-warn); }</style>
+<defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="ah-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah accent" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <marker id="ah-warn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="ah warn" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+    <pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse">
+      <circle class="dotgrid" cx="2" cy="2" r="1"/>
+    </pattern>
+  </defs>
+<rect x="0" y="0" width="1040.0" height="640.0" rx="12" style="fill:var(--bg)"/>
+<g class="fig">
+<title id="f2t">The workflow: Backlog, Triage, Decision, Fix, Merge, Merged, with Devin at the centre</title>
+<rect class="canvas" x="0" y="0" width="1040" height="640" rx="14"/>
+<rect x="0" y="0" width="1040" height="640" rx="14" fill="url(#dots)"/>
+<path class="edge" d="M640 88 H800 Q820 88 820 108 V250" marker-end="url(#ah)"/>
+<text class="s halo" x="830" y="170" text-anchor="start">triage starts</text>
+<path class="edge" d="M820 354 V396" marker-end="url(#ah)"/>
+<path class="edge" d="M820 444 V528 Q820 548 800 548 H642" marker-end="url(#ah)"/>
+<path class="edge" d="M400 548 H240 Q220 548 220 528 V446" marker-end="url(#ah)"/>
+<path class="edge" d="M220 396 V356" marker-end="url(#ah)"/>
+<path class="edge warn" d="M700 282 C640 282 600 230 600 146" marker-end="url(#ah-warn)"/>
+<text class="s halo" x="592" y="214" text-anchor="end">needs an engineer</text>
+<path class="edge dashed" d="M450 146 V492" marker-end="url(#ah)"/>
+<text class="s halo" x="440" y="214" text-anchor="end">straight to a fix</text>
+<path class="edge" d="M844 420 H1000" marker-end="url(#ah)"/>
+<text class="s halo" x="922" y="411" text-anchor="middle">close</text>
+<path class="edge dotted" d="M566 302 H698"/>
+<path class="edge dotted" d="M520 404 V492"/>
+<circle class="card" cx="520" cy="302" r="46"/>
+<rect class="tile accent" x="498" y="280" width="44" height="44" rx="11"/>
+<polygon class="glyph accent" points="520,293 528,297.5 528,306.5 520,311 512,306.5 512,297.5"/><circle class="glyphfill accent" cx="520" cy="302" r="2.5"/>
+<text class="h" x="520" y="370" text-anchor="middle">Devin</text>
+<text class="s" x="520" y="389" text-anchor="middle">investigates, fixes</text>
+<polygon class="box warn" points="820,396 844,420 820,444 796,420"/>
+<text class="h" x="784" y="416" text-anchor="end">Decision</text>
+<text class="s" x="784" y="434" text-anchor="end">a person, or a rule</text>
+<polygon class="box warn" points="220,396 244,420 220,444 196,420"/>
+<text class="h" x="256" y="416">Merge</text>
+<text class="s" x="256" y="434">a person, or a rule</text>
+<rect class="card" x="400" y="40" width="240" height="96" rx="12"/>
+<path class="cardfoot" d="M400 108 H640 V124 Q640 136 628 136 H412 Q400 136 400 124 Z"/>
+<line class="tick" x1="400" y1="108" x2="640" y2="108"/>
+<rect class="tile muted" x="414" y="54" width="36" height="36" rx="9"/>
+<rect class="glyph muted" x="423" y="65" width="18" height="14" rx="2"/><path class="glyph muted" d="M423 73 H428 L430 76 H434 L436 73 H441"/>
+<text class="h" x="462" y="70">Backlog</text>
+<text class="s" x="462" y="88">waiting for a person</text>
+<circle class="glyphfill muted" cx="418" cy="122" r="3.5"/>
+<text class="m" x="428" y="126">no label · needs-engineer</text>
+<rect class="card" x="700" y="252" width="240" height="96" rx="12"/>
+<path class="cardfoot" d="M700 320 H940 V336 Q940 348 928 348 H712 Q700 348 700 336 Z"/>
+<line class="tick" x1="700" y1="320" x2="940" y2="320"/>
+<rect class="tile accent" x="714" y="266" width="36" height="36" rx="9"/>
+<circle class="glyph accent" cx="730" cy="282" r="6"/><path class="glyph accent" d="M734.5 286.5 L740 292"/>
+<text class="h" x="762" y="282">Triage</text>
+<text class="s" x="762" y="300">Devin investigates</text>
+<circle class="glyphfill accent" cx="718" cy="334" r="3.5"/>
+<text class="m" x="728" y="338">needs-triage</text>
+<rect class="card" x="400" y="494" width="240" height="96" rx="12"/>
+<path class="cardfoot" d="M400 562 H640 V578 Q640 590 628 590 H412 Q400 590 400 578 Z"/>
+<line class="tick" x1="400" y1="562" x2="640" y2="562"/>
+<rect class="tile accent" x="414" y="508" width="36" height="36" rx="9"/>
+<path class="glyph accent" d="M428 520 L423 526 L428 532 M436 520 L441 526 L436 532 M434 518 L430 534"/>
+<text class="h" x="462" y="524">Fix</text>
+<text class="s" x="462" y="542">Devin fixes, verification proves</text>
+<circle class="glyphfill accent" cx="418" cy="576" r="3.5"/>
+<text class="m" x="428" y="580">bug-smasher</text>
+<rect class="card" x="100" y="254" width="240" height="96" rx="12"/>
+<path class="cardfoot" d="M100 322 H340 V338 Q340 350 328 350 H112 Q100 350 100 338 Z"/>
+<line class="tick" x1="100" y1="322" x2="340" y2="322"/>
+<rect class="tile ok" x="114" y="268" width="36" height="36" rx="9"/>
+<rect class="glyph ok" x="124" y="278" width="16" height="16" rx="3"/><path class="glyph ok" d="M128 286 L131 289 L136 283"/>
+<text class="h" x="162" y="284">Merged</text>
+<text class="s" x="162" y="302">the verified commit</text>
+<circle class="glyphfill ok" cx="118" cy="336" r="3.5"/>
+<text class="s strong" x="128" y="340">checked again after the merge</text>
+</g>
+</svg>
