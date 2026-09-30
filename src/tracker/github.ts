@@ -710,7 +710,23 @@ export class GitHubTracker implements Tracker, RepositoryAdmin {
   async #readPullRequest(op: TrackerOperation, number: number): Promise<TrackerPullRequest> {
     this.#checkNumber(op, number);
     const response = await this.#send(op, 'GET', this.#repoPath(`pulls/${number}`));
-    return this.#pullRequest(op, this.#object(op, this.#json(op, response), 'pull request'));
+    const item = this.#object(op, this.#json(op, response), 'pull request');
+    const merged = item.merged === true || this.#optionalString(op, item, 'merged_at') !== null;
+    if (merged && this.#optionalString(op, item, 'merge_commit_sha') === null) {
+      // The pinned API version omits merge_commit_sha; the issue's "merged" event carries the merge commit.
+      return this.#pullRequest(op, { ...item, merge_commit_sha: await this.#mergeEventCommit(op, number) });
+    }
+    return this.#pullRequest(op, item);
+  }
+
+  async #mergeEventCommit(op: TrackerOperation, number: number): Promise<string | null> {
+    const { items } = await this.#paginate(op, this.#repoPath(`issues/${number}/events`));
+    let commit: string | null = null;
+    for (const raw of items) {
+      const event = this.#object(op, raw, 'issue event');
+      if (event.event === 'merged') commit = this.#optionalString(op, event, 'commit_id') ?? commit;
+    }
+    return commit;
   }
 
   async #paginate(

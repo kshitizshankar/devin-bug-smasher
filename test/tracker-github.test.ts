@@ -365,6 +365,30 @@ describe('GitHubTracker failures', () => {
       assert.equal(fake.requestsFor('getPullRequestDiff')[0]?.headers.accept, 'application/vnd.github.diff');
     });
   });
+
+  it('reads a merged PR in the pinned API version shape, which has no merge_commit_sha', async () => {
+    await withFake(async (fake, tracker) => {
+      const pr = fake.seedPullRequest({ title: 'fix', headSha: HEAD_1 });
+      const sha = fake.externalMerge(pr.number, 'maintainer');
+      const route = `/repos/${fake.repo.owner}/${fake.repo.name}/pulls/${pr.number}`;
+      const response = await fetch(`${fake.baseUrl}${route}`, { headers: { authorization: `Bearer ${TOKEN}` } });
+      const { merge_commit_sha: _dropped, ...payload } = (await response.json()) as Record<string, unknown>;
+      assert.equal(payload.merged, true);
+      fake.respondOnce((request) => request.route === `pulls/${pr.number}`, { status: 200, body: payload });
+      fake.respondOnce((request) => request.route === `issues/${pr.number}/events`, {
+        status: 200,
+        body: [
+          { id: 1, event: 'referenced', actor: { login: 'maintainer', id: 2, type: 'User' }, commit_id: HEAD_1, created_at: '2026-01-01T00:00:00Z' },
+          { id: 2, event: 'merged', actor: { login: 'maintainer', id: 2, type: 'User' }, commit_id: sha, created_at: '2026-01-01T00:00:01Z' },
+          { id: 3, event: 'closed', actor: { login: 'maintainer', id: 2, type: 'User' }, commit_id: null, created_at: '2026-01-01T00:00:01Z' },
+        ],
+      });
+      const merged = await tracker.getPullRequest(pr.number);
+      assert.equal(merged.state, 'merged');
+      assert.equal(merged.mergeCommitSha, sha);
+      assert.equal(merged.mergedBy?.login, 'maintainer');
+    });
+  });
 });
 
 describe('tracker helpers', () => {

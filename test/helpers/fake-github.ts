@@ -56,6 +56,7 @@ interface FakeEvent {
   event: string;
   actor: FakeUser;
   label?: { name: string };
+  commit_id?: string;
   created_at: string;
 }
 
@@ -144,8 +145,6 @@ const ROUTES: Record<FailurePoint, { method: string; pattern: RegExp; diff?: boo
   getBranch: { method: 'GET', pattern: /^branches\/[^/]+$/ },
   getDefaultBranch: { method: 'GET', pattern: /^\/repos\/[^/]+\/[^/]+$/ },
 };
-
-const OPEN_PR_TEST_MERGE_SHA = 'e'.repeat(40);
 
 export function failureResponse(failure: SimulatedFailure): FakeResponse {
   const statusFor: Partial<Record<TrackerErrorCode, number>> = {
@@ -524,7 +523,7 @@ export class FakeGitHub {
     if ((match = /^issues\/(\d+)\/events$/.exec(route))) {
       const issue = this.#issues.get(Number(match[1]));
       if (issue === undefined) return this.#error(404, 'Not Found');
-      return this.#page(url, issue.events.map((event) => ({ ...event, commit_id: null })));
+      return this.#page(url, issue.events.map((event) => ({ ...event, commit_id: event.commit_id ?? null })));
     }
     if ((match = /^issues\/(\d+)\/timeline$/.exec(route))) {
       const issue = this.#issues.get(Number(match[1]));
@@ -846,6 +845,7 @@ export class FakeGitHub {
     const at = this.#tick();
     const sha = createHash('sha1').update(`merge:${issue.number}:${pull.head_sha}`).digest('hex');
     Object.assign(pull, { merged_at: at, merged_by: actor, merge_commit_sha: sha });
+    issue.events.push({ id: this.#nextId++, event: 'merged', actor, commit_id: sha, created_at: at });
     Object.assign(issue, { state: 'closed', closed_at: at, updated_at: at });
     for (const target of this.#issues.values()) {
       if (target.references.includes(issue.number) && closesIssue(`${issue.title}\n${issue.body}`, this.repo, target.number)) {
@@ -915,7 +915,6 @@ export class FakeGitHub {
       merged,
       mergeable: merged ? null : pull.mergeBlock === null,
       mergeable_state: merged ? 'unknown' : pull.mergeBlock === null ? 'clean' : 'blocked',
-      merge_commit_sha: merged ? pull.merge_commit_sha : OPEN_PR_TEST_MERGE_SHA,
       merged_by: pull.merged_by,
       merged_at: pull.merged_at,
       closed_at: issue.closed_at,
