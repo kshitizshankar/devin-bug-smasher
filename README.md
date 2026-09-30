@@ -8,10 +8,29 @@ before the fix and pass after it. Features work the same way, with their own lab
 
 ## Where it has run
 
-- **On itself.** Devin built Bug Smasher. Later changes were started by Bug Smasher itself: someone labelled an
-  issue in this repository, and Devin opened the pull request. [Build dashboard](results/building-bug-smasher.html)
+- **On itself.** Devin built Bug Smasher, and Bug Smasher ran the last part of its own build (below).
+  [Build dashboard](results/building-bug-smasher.html)
 - **On Apache Superset.** Open upstream bugs, copied into the fork
   [kshitizshankar/superset](https://github.com/kshitizshankar/superset). [Superset dashboard](results/superset-run.html)
+
+## Bug Smasher built itself
+
+Devin wrote Bug Smasher from GitHub issues, and a person reviewed and merged every pull request. Once the workflow
+ran, the rest of the build went through it, on this repository: 9 of the 25 merged pull requests were started by a
+label. Three examples, each with its full trail on GitHub:
+
+- **Fix.** [#97](https://github.com/kshitizshankar/devin-bug-smasher/issues/97): a helper file listed as a test crashed verification. A person added
+  `devin:fix`. Five minutes later Devin opened [#98](https://github.com/kshitizshankar/devin-bug-smasher/pull/98) with a summary for the reviewer. Bug Smasher ran
+  Devin's new tests: 3 failed on the code before the fix and passed on the fix. Devin Review passed, and a person
+  merged it about 15 minutes after the label.
+- **Feature.** [#92](https://github.com/kshitizshankar/devin-bug-smasher/issues/92): Devin should post a "Ready for review" summary when a pull request is
+  finished. A person added `devin-builds-feature`. Devin built it in [#94](https://github.com/kshitizshankar/devin-bug-smasher/pull/94), proven the same way (3 of
+  13 tests failed before and passed after), and a person merged it 19 minutes after the label.
+- **Triage.** [#36](https://github.com/kshitizshankar/devin-bug-smasher/issues/36): a security finding from an earlier review. Six minutes after `devin:triage`,
+  Devin posted what it found and recommended a fix. It is waiting for a person to decide.
+
+The issue comments here show as kshitizshankar: until [#100](https://github.com/kshitizshankar/devin-bug-smasher/pull/100), Bug Smasher posted them with the
+repository owner's token. Devin now posts them from its own account, as on the Superset fork.
 
 ## How it works
 
