@@ -1,16 +1,21 @@
 # Bug Smasher
 
-Bug Smasher hands bugs to Devin from GitHub and proves the fixes. A person adds a label to an issue; Devin
-investigates and recommends a fix, an engineer or closing it; a person decides; Devin opens a pull request with a
-test; and Bug Smasher's own verifier proves the fix before anyone merges it.
+Bug Smasher hands bugs and features to Devin from GitHub and proves the fixes. A person adds a label to an issue;
+Devin investigates and recommends a fix, an engineer or closing it; a person decides; Devin opens a pull request
+with a test; and Bug Smasher's own verifier proves the fix before anyone merges it. Features take the same path
+with their own label: Devin builds them, and the pull request goes through the same checks.
 
-It has run live on [kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of apache/superset,
-on open upstream bugs ([results](results/superset-run.html)). Devin also wrote Bug Smasher itself; the later changes
-were dispatched by Bug Smasher on its own repository ([results](results/building-bug-smasher.html)).
+**Bug Smasher built itself.** Devin wrote it, and from 30 Sep it dispatched its own bugs and features on its own
+repository: a label on an issue started Devin, and the change came back as a checked pull request
+([results](results/building-bug-smasher.html)). It has also run live on
+[kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of apache/superset, on open upstream
+bugs ([results](results/superset-run.html)).
 
 ## How it works
 
-1. A person labels a GitHub issue: `needs-triage` to investigate it, `bug-smasher` to fix it (names are settings).
+1. A person labels a GitHub issue: the triage label to investigate it, the fix label to fix it, or the feature label
+   to build it. The names are settings (defaults `needs-triage`, `bug-smasher`, `devin-builds-feature`; the Superset
+   run used `devin:triage` and `devin:fix`).
 2. The service polls GitHub every `POLL_SECONDS` and starts one Devin session per bug, within `MAX_ACTIVE_SESSIONS`
    and a per-session ACU cap. It never starts a second fix while a pull request for the bug is open.
 3. Devin investigates in the target repository and posts its findings on the issue from its own account: what
