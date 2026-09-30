@@ -806,6 +806,8 @@ describe('orchestrator: verification contract', () => {
     assert.equal(record.stage, 'with-engineer', 'the recorded error is the third infrastructure failure');
     assert.equal(record.handoff?.reason, 'verification-error');
     assert.equal(verifier.calls.length, 3, 'no further verifier runs after the budget is spent');
+    const applied = h.lines(['effect-applied']).filter((line) => line.includes('set-commit-status'));
+    assert.equal(applied.length, 1, 'the verification status is not reapplied ahead of the handoff effects');
   });
 
   it('refuses results from a non-live verifier when live results are required', async (t) => {

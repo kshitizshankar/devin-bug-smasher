@@ -1382,15 +1382,19 @@ export class Orchestrator {
     }
     await this.#commit(issue, record, result, `verification-${attempt.result}`, { first: [verificationStatus(attempt)], ops });
     if (result.ok && attempt.result === 'error' && HANDOFF_STAGES.includes(result.record.stage)) {
-      const stalled = workflowOf(result.record).verifierUnavailable;
+      // Re-read the stored record: its workflow has the drained outbox, while `result.record` still holds
+      // the just-applied status operation and would requeue it ahead of the handoff effects.
+      const fresh = this.#store.get(record.key) ?? result.record;
+      const stalled = workflowOf(fresh).verifierUnavailable;
       const unavailable = stalled?.headSha === fix.headSha ? stalled.count : 0;
-      if (unavailable + countSessionAttempts(result.record, 'error') >= this.#model.maxVerificationErrors) {
-        const handoff = this.#event(result.record, {
+      const errors = countSessionAttempts(fresh, 'error');
+      if (unavailable + errors >= this.#model.maxVerificationErrors) {
+        const handoff = this.#event(fresh, {
           type: 'handoff-requested',
           reason: 'verification-error',
-          detail: `The verifier could not produce a result for ${fix.headSha} after ${unavailable + countSessionAttempts(result.record, 'error')} infrastructure failures: ${attempt.reason}`,
+          detail: `The verifier could not produce a result for ${fix.headSha} after ${unavailable + errors} infrastructure failures: ${attempt.reason}`,
         });
-        await this.#commit(issue, result.record, handoff, 'verification-error');
+        await this.#commit(issue, fresh, handoff, 'verification-error');
       }
     }
   }
