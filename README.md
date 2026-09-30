@@ -69,6 +69,10 @@ docker compose run --rm bug-smasher npm run setup                # creates the l
 docker compose up --build -d
 ```
 
+Setup needs the project's Devin environment blueprint (how Devin installs and tests it) at `setup/blueprint.yaml`,
+or passed with `--blueprint FILE`. If the repository's environment is already set up in the Devin app, skip setup
+and create the labels on GitHub yourself.
+
 The label names come from `.env`. The defaults are `needs-triage`, `bug-smasher` and `devin-builds-feature`; the
 Superset run used `devin:triage` and `devin:fix`. Setup creates them on the repository, and Devin's comments use
 the same names.
