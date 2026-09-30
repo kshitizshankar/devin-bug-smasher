@@ -174,8 +174,9 @@ function workflowSvg(W, rows, fill) {
     + `<path class="wf-edge dashed" d="M450 146 V492" marker-end="url(#wf-ah)"/>${lab('straight', 440, 214, 'end')}`
     + `<path class="wf-edge" d="M844 420 H1000" marker-end="url(#wf-ah)"/>${lab('close', 922, 411, 'middle')}`
     + `<path class="wf-edge dotted" d="M566 302 H698"/><path class="wf-edge dotted" d="M520 404 V492"/>`
-    + `<circle class="wf-cardbg" cx="520" cy="302" r="46"/><rect class="wf-tile accent" x="498" y="280" width="44" height="44" rx="11"/>`
-    + `<g class="wf-g accent"><polygon class="wf-glyph" points="520,293 528,297.5 528,306.5 520,311 512,306.5 512,297.5"/></g><circle class="wf-glyphfill" cx="520" cy="302" r="2.5"/>`
+    + `<circle class="wf-cardbg" cx="520" cy="302" r="46"/>`
+    // Devin's mark, from devin.ai/favicon.svg (a 425-unit square), scaled to sit in the centre of the circle.
+    + `<path class="wf-devinmark" transform="translate(494.4 276.4) scale(0.12)" d="M70 159.333V91.3471C70 88.3592 71.594 85.5983 74.1816 84.1044L133.043 50.1205C135.631 48.6265 138.819 48.6265 141.407 50.1205L200.269 84.1044C202.856 85.5983 204.45 88.3592 204.45 91.3471V126.068C204.708 137.606 210.806 148.734 221.531 154.926C232.256 161.117 244.942 160.834 255.063 155.289L285.132 137.929C287.719 136.435 290.907 136.435 293.495 137.929L352.357 171.913C354.944 173.406 356.538 176.167 356.538 179.155V247.123C356.538 250.111 354.944 252.872 352.357 254.366L293.495 288.35C290.907 289.844 287.719 289.844 285.132 288.35L255.306 271.13C245.146 265.456 232.344 265.117 221.534 271.358C210.809 277.55 204.711 288.678 204.453 300.215V334.926C204.453 337.914 202.859 340.675 200.271 342.169L141.41 376.153C138.822 377.647 135.634 377.647 133.046 376.153L74.1845 342.169C71.5969 340.675 70.0028 337.914 70.0028 334.926V266.959C70.0029 263.971 71.5969 261.21 74.1845 259.716L133.046 225.732C135.634 224.238 138.822 224.238 141.41 225.732L171.547 243.132C181.656 248.638 194.306 248.906 205.005 242.729C215.815 236.488 221.922 225.231 222.088 213.595C221.83 202.057 215.732 189.737 205.008 183.545C194.283 177.353 181.597 177.636 171.476 183.181L141.269 200.72C138.67 202.229 135.461 202.228 132.864 200.716L74.1576 166.562C71.5835 165.065 70 162.311 70 159.333Z"/>`
     + `<text class="wf-h" x="520" y="370" text-anchor="middle">${esc(fill(W.devin ?? 'Devin'))}</text><text class="wf-s" x="520" y="389" text-anchor="middle">${esc(fill(W.devinSub ?? ''))}</text>`
     + gate('decision', 820, 420, 'left') + gate('merge', 220, 420, 'right')
     + card('backlog', 400, 40, 'muted') + card('triage', 700, 252, 'accent') + card('fix', 400, 494, 'accent') + card('merged', 100, 254, 'ok')
@@ -230,7 +231,7 @@ code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink2)}
 .wf-canvas{fill:var(--wf-canvas);stroke:var(--wf-stroke)}.wf-dotgrid{fill:var(--wf-dotc)}
 .wf-cardbg{fill:var(--wf-bg);stroke:var(--wf-stroke)}.wf-foot{fill:var(--wf-box)}.wf-tick{stroke:var(--wf-stroke)}
 .wf-tile{fill:var(--wf-box)}.wf-tile.accent{fill:var(--wf-accent-soft)}.wf-tile.ok{fill:var(--wf-ok-soft)}
-.wf-glyph{fill:none;stroke:var(--wf-muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.wf-g.accent .wf-glyph{stroke:var(--wf-accent)}.wf-g.ok .wf-glyph{stroke:var(--wf-ok)}.wf-glyphfill{fill:var(--wf-accent)}
+.wf-glyph{fill:none;stroke:var(--wf-muted);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.wf-g.accent .wf-glyph{stroke:var(--wf-accent)}.wf-g.ok .wf-glyph{stroke:var(--wf-ok)}.wf-devinmark{fill:var(--wf-text)}
 .wf-dot{fill:var(--wf-muted)}.wf-dot.accent{fill:var(--wf-accent)}.wf-dot.ok{fill:var(--wf-ok)}
 .wf-h{font-size:15px;font-weight:650;fill:var(--wf-text)}.wf-s{font-size:12px;fill:var(--wf-muted)}.wf-m{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--wf-muted)}
 .wf-c{font-weight:700;fill:var(--wf-text)}.wf-halo{paint-order:stroke;stroke:var(--wf-canvas);stroke-width:5px;stroke-linejoin:round}
