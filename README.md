@@ -1,12 +1,21 @@
 # Bug Smasher
 
-Bug Smasher will investigate reported bugs with Devin, ask people for missing context or decisions, verify
-proposed fixes, and track pull requests through merge.
+Bug Smasher hands bugs to Devin from GitHub and proves the fixes. A person adds a label to an issue; the
+service starts a Devin session that investigates the bug and posts its findings with a recommendation: fix it,
+hand it to an engineer, or close it. When a person approves a fix, Devin opens a pull request with a test, and
+Bug Smasher's own verifier runs that test in the project's test image: it must fail on the code before the fix
+and pass on the fix. People make every decision and every merge on GitHub; the service tracks each bug from
+label to merge and reports what happened.
 
-**This repository is currently an unfinished scaffold.** It contains a small Node.js service that serves a
-placeholder React frontend, a health endpoint and a read-only dashboard API, the workflow orchestrator (which
-polls GitHub and drives Devin sessions only when live GitHub and Devin settings are complete), an offline
-replay, Docker packaging, plus build, typecheck, test and CI tooling.
+It has run live on [kshitizshankar/superset](https://github.com/kshitizshankar/superset), a fork of
+apache/superset, on open upstream bugs ([results](results/superset-run.html)). Devin also wrote Bug Smasher
+itself; the later changes were dispatched by Bug Smasher on its own repository
+([results](results/building-bug-smasher.html)).
+
+The repository contains the Node.js service (orchestrator, GitHub and Devin adapters, verifier, decision and
+merge policies, metrics and a read-only API), an offline replay that runs without credentials, Docker
+packaging, and build, typecheck, test and CI tooling. The web dashboard is still a placeholder: see
+[Not yet implemented](#not-yet-implemented) and [Known limitations](#known-limitations).
 
 ## Quick start without credentials
 
