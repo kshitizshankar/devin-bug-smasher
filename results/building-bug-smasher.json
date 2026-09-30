@@ -23,7 +23,8 @@
     "costPerPr": "$5.71",
     "deferred": 35,
     "spendReadAt": "30 Sep 2026",
-    "issuesFiled": 80
+    "issuesFiled": 80,
+    "openIssues": 49
   },
   "rows": [
     {
@@ -578,8 +579,8 @@
     }
   ],
   "page": {
-    "eyebrow": "Bug Smasher · results",
-    "title": "Building Bug Smasher",
+    "eyebrow": "Building Bug Smasher",
+    "title": "Bug Smasher dashboard",
     "subtitle": "Every pull request Devin wrote and a person merged in [{repo}]({repoUrl}), since {since}. From {selfBuiltFrom}, Bug Smasher dispatched its own work. Times are Berlin.",
     "tiles": [
       {
@@ -675,30 +676,45 @@
         ]
       }
     ],
-    "funnel": [
-      {
-        "label": "Issues filed",
-        "value": "{issuesFiled}",
-        "small": "issues",
-        "note": "{deferred} of them deferred findings"
+    "workflow": {
+      "devin": "Devin",
+      "more": "+{n}",
+      "nodes": {
+        "backlog": {
+          "title": "Backlog",
+          "sub": "Open issues",
+          "value": "{openIssues}",
+          "note": "{deferred} of them deferred findings"
+        },
+        "triage": {
+          "title": "Triage",
+          "sub": "Devin investigates"
+        },
+        "decision": {
+          "title": "Decision",
+          "sub": "A person decides"
+        },
+        "fix": {
+          "title": "Fix",
+          "sub": "Devin builds, CI checks"
+        },
+        "merge": {
+          "title": "Merge",
+          "sub": "A person merges"
+        },
+        "merged": {
+          "title": "Merged",
+          "sub": "Pull requests",
+          "value": "{prs}",
+          "note": "Every one written by Devin"
+        }
       },
-      {
-        "label": "Given to Devin",
-        "value": "{prs}",
-        "small": "of {issuesFiled}"
-      },
-      {
-        "label": "Passed CI",
-        "value": "{ciPassed}",
-        "small": "of {prs}"
-      },
-      {
-        "label": "Merged",
-        "value": "{prs}",
-        "small": "of {prs}",
-        "note": "{reviewed} passed Devin Review"
+      "edges": {
+        "straight": "{prs} straight to a fix",
+        "proven": "{ciPassed} passed CI",
+        "merged": "{prs} merged"
       }
-    ],
+    },
     "table": {
       "title": "Every merged pull request",
       "caption": "In merge order. Links open the pull request on GitHub."
@@ -756,9 +772,9 @@
         "title": "Metrics",
         "caption": "How the build went, from GitHub and Devin usage."
       },
-      "results": {
-        "title": "Results",
-        "caption": "How the build's issues moved from filed to merged, then every merged pull request, how long it took and what it cost."
+      "workflow": {
+        "title": "Behind the scenes",
+        "caption": "How the build's issues moved through the same workflow. Features skip triage and go straight to a fix; a person merged every pull request."
       }
     }
   }

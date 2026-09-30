@@ -1,5 +1,5 @@
 {
-  "frozenAt": "2026-09-30T13:27:14.720Z",
+  "frozenAt": "2026-09-30T13:33:31.756Z",
   "figures": {
     "name": "Superset",
     "repo": "kshitizshankar/superset",
@@ -19,6 +19,8 @@
     "handedOff": 1,
     "merged": 4,
     "fixStarted": 4,
+    "straightToFix": 0,
+    "closed": 0,
     "fixReadyMedian": "18 min",
     "fixReadyFastest": "13 min",
     "fixReadySlowest": "63 min",
@@ -56,7 +58,9 @@
       "firstPass": true,
       "earlierCost": 0.62,
       "at": "2026-09-30T03:40:14.291Z",
-      "fixStarted": true
+      "fixStarted": true,
+      "straightToFix": false,
+      "node": "merged"
     },
     {
       "label": "#2",
@@ -82,7 +86,9 @@
       "firstPass": true,
       "earlierCost": 0.86,
       "at": "2026-09-30T03:40:14.612Z",
-      "fixStarted": true
+      "fixStarted": true,
+      "straightToFix": false,
+      "node": "merged"
     },
     {
       "label": "#3",
@@ -108,7 +114,9 @@
       "firstPass": true,
       "earlierCost": 0.66,
       "at": "2026-09-30T03:40:14.982Z",
-      "fixStarted": true
+      "fixStarted": true,
+      "straightToFix": false,
+      "node": "merged"
     },
     {
       "label": "#4",
@@ -134,7 +142,9 @@
       "firstPass": false,
       "earlierCost": 0.94,
       "at": "2026-09-30T03:40:15.263Z",
-      "fixStarted": true
+      "fixStarted": true,
+      "straightToFix": false,
+      "node": "merged"
     },
     {
       "label": "#5",
@@ -158,12 +168,14 @@
       "firstPass": null,
       "earlierCost": 1.17,
       "at": "2026-09-30T03:40:15.638Z",
-      "fixStarted": false
+      "fixStarted": false,
+      "straightToFix": false,
+      "node": "backlog"
     }
   ],
   "page": {
-    "eyebrow": "Bug Smasher · results",
-    "title": "Bugs on {name}",
+    "eyebrow": "{name}",
+    "title": "Bug Smasher dashboard",
     "subtitle": "Every bug labelled for Bug Smasher in [{repo}]({repoUrl}), a fork of {upstream} at {baseCommit}, since {since}. Times are Berlin.",
     "tiles": [
       {
@@ -259,38 +271,45 @@
         ]
       }
     ],
-    "funnel": [
-      {
-        "label": "Labelled",
-        "value": "{bugs}",
-        "small": "bugs",
-        "note": "A person adds the label"
+    "workflow": {
+      "devin": "Devin",
+      "more": "+{n}",
+      "nodes": {
+        "backlog": {
+          "title": "Backlog",
+          "sub": "Waiting for a person or an engineer"
+        },
+        "triage": {
+          "title": "Triage",
+          "sub": "Devin investigates"
+        },
+        "decision": {
+          "title": "Decision",
+          "sub": "A person decides"
+        },
+        "fix": {
+          "title": "Fix",
+          "sub": "Devin fixes, the verifier proves"
+        },
+        "merge": {
+          "title": "Merge",
+          "sub": "A person merges"
+        },
+        "merged": {
+          "title": "Merged",
+          "sub": "Proven again after the merge"
+        }
       },
-      {
-        "label": "Investigated",
-        "value": "{triaged}",
-        "small": "of {bugs}",
-        "note": "{handedOff} handed to an engineer"
-      },
-      {
-        "label": "Sent to fix",
-        "value": "{fixStarted}",
-        "small": "of {bugs}",
-        "note": "A person decides"
-      },
-      {
-        "label": "Proven",
-        "value": "{proven}",
-        "small": "of {fixStarted}",
-        "note": "Test fails before, passes after"
-      },
-      {
-        "label": "Merged",
-        "value": "{merged}",
-        "small": "of {proven}",
-        "note": "A person merges"
+      "edges": {
+        "labelled": "{bugs} labelled",
+        "toFix": "{fixStarted} sent to fix",
+        "close": "{closed} closed",
+        "engineer": "{handedOff} to an engineer",
+        "straight": "{straightToFix} straight to a fix",
+        "proven": "{proven} proven",
+        "merged": "{merged} merged"
       }
-    ],
+    },
     "table": {
       "title": "Every bug",
       "caption": "One row per bug. Links open the issue and the pull request on GitHub."
@@ -358,9 +377,9 @@
         "title": "Metrics",
         "caption": "Is it working? Measured from Bug Smasher's own records."
       },
-      "results": {
-        "title": "Results",
-        "caption": "How far every bug got, then the evidence behind the numbers: every bug, its pull request and its proof."
+      "workflow": {
+        "title": "Behind the scenes",
+        "caption": "Where every bug is in the workflow now, and how many took each path. Devin investigates and fixes; a person decides and merges."
       }
     }
   }

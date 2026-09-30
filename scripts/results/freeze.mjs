@@ -18,6 +18,11 @@ const usd = n => (n == null ? null : '$' + n.toFixed(2));
 const dur = m => (m == null || !Number.isFinite(m) ? null : m >= 90 ? `${(m / 60).toFixed(1)} h` : `${m} min`);
 const counts = reason => { const m = /fail on base \w+ \((\d+) of (\d+) test/.exec(reason || ''); return m ? { failed: +m[1], total: +m[2] } : null; };
 const day = t => (t ? new Date(t).toLocaleDateString('en-GB', { timeZone: 'Europe/Berlin', day: 'numeric', month: 'short', year: 'numeric' }).replace('Sept', 'Sep') : null);
+// Where a bug sits in the workflow diagram (docs/architecture drawing 3), by its stage in the store.
+const NODE = {
+  queued: 'triage', triaging: 'triage', triaged: 'decision', fixing: 'fix', verifying: 'fix',
+  'ready-to-merge': 'merge', merged: 'merged', 'with-engineer': 'backlog', closed: 'closed',
+};
 const fetchJson = async url => { try { return await (await fetch(url, { signal: AbortSignal.timeout(120000) })).json(); } catch { return null; } };
 
 export async function freeze(runFile) {
@@ -61,6 +66,8 @@ export async function freeze(runFile) {
       earlierCost: inv.slice(1).reduce((a, s) => a + s.cost, 0),
       at: q ?? null,
       fixStarted: r.stageHistory.some(h => h.stage === 'fixing'),
+      straightToFix: r.stageHistory.some(h => h.stage === 'fixing') && !r.stageHistory.some(h => h.stage === 'triaged'),
+      node: NODE[r.stage] ?? r.stage,
     };
   }).sort((a, b) => Number(a.label.slice(1)) - Number(b.label.slice(1)));
 
@@ -86,6 +93,8 @@ export async function freeze(runFile) {
     handedOff: rows.filter(r => r.outcome === 'engineer').length,
     merged: rows.filter(r => r.outcome === 'merged').length,
     fixStarted: rows.filter(r => r.fixStarted).length,
+    straightToFix: rows.filter(r => r.straightToFix).length,
+    closed: rows.filter(r => r.node === 'closed').length,
     fixReadyMedian: dur(median(provenTimes)),
     fixReadyFastest: provenTimes.length ? dur(Math.min(...provenTimes)) : null,
     fixReadySlowest: provenTimes.length ? dur(Math.max(...provenTimes)) : null,

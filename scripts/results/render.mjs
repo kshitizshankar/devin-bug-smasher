@@ -104,6 +104,55 @@ function bars(items, { unit = '', fmt = v => v.toFixed(2), refLine = null, refLa
   return svg + '</svg>';
 }
 
+// The workflow diagram (docs/architecture drawing 3) with live numbers: each stage shows how many items are in it
+// and which ones; each arrow shows how many took that path. Words come from the run file's `workflow` block; a
+// stage's `value` overrides the count of rows whose `node` is that stage (for pages whose rows are not the items).
+function workflowSvg(W, rows, fill) {
+  const N = W.nodes, E = W.edges || {};
+  const here = k => rows.filter(r => r.node === k);
+  const count = k => (N[k]?.value != null ? fill(N[k].value) : String(here(k).length));
+  const edge = k => (E[k] ? esc(fill(E[k])) : '');
+  const chips = (k, x, y, maxW) => {
+    let out = '', cx = x;
+    const items = here(k);
+    for (let i = 0; i < items.length; i++) {
+      const r = items[i], w = 12 + r.label.length * 7.4;
+      if (cx + w > x + maxW) { out += `<text class="wf-more" x="${cx}" y="${y + 14}">${esc(fill(W.more ?? '').replace('{n}', items.length - i))}</text>`; break; }
+      out += `<a href="${esc(r.url)}"><g class="wf-chip" ${tip(`${r.label} ${r.title}`)}><rect x="${cx}" y="${y}" width="${w}" height="20" rx="4"/><text x="${cx + 6}" y="${y + 14}">${esc(r.label)}</text></g></a>`;
+      cx += w + 5;
+    }
+    return out;
+  };
+  const busy = k => Number(count(k)) > 0;
+  const box = (k, x, y) => `<g class="wf-node ${k}${busy(k) ? ' busy' : ''}"><rect x="${x}" y="${y}" width="250" height="104" rx="8"/>`
+    + `<text class="wf-t" x="${x + 16}" y="${y + 28}">${esc(fill(N[k].title))}</text><text class="wf-s" x="${x + 16}" y="${y + 46}">${esc(fill(N[k].sub))}</text>`
+    + `<text class="wf-n" x="${x + 234}" y="${y + 36}" text-anchor="end">${esc(count(k))}</text>`
+    + (N[k].note ? `<text class="wf-s" x="${x + 16}" y="${y + 80}">${esc(fill(N[k].note))}</text>` : chips(k, x + 16, y + 64, 218)) + '</g>';
+  const diamond = (k, cx, cy, side) => {
+    const tx = side === 'left' ? cx - 38 : cx + 38, anchor = side === 'left' ? 'end' : 'start';
+    const n = count(k), chipX = side === 'left' ? cx - 38 - 170 : cx + 38;
+    return `<g class="wf-node gate ${k}${busy(k) ? ' busy' : ''}"><path d="M${cx},${cy - 24} L${cx + 24},${cy} L${cx},${cy + 24} L${cx - 24},${cy} Z"/>`
+      + `<text class="wf-t" x="${tx}" y="${cy - 4}" text-anchor="${anchor}">${esc(fill(N[k].title))} <tspan class="wf-g">${esc(n)}</tspan></text>`
+      + `<text class="wf-s" x="${tx}" y="${cy + 14}" text-anchor="${anchor}">${esc(fill(N[k].sub))}</text>`
+      + chips(k, chipX, cy + 24, 170) + '</g>';
+  };
+  const label = (k, x, y, anchor = 'start') => (edge(k) ? `<text class="wf-e" x="${x}" y="${y}" text-anchor="${anchor}">${edge(k)}</text>` : '');
+  return `<svg viewBox="0 0 1040 520" role="img" class="wf-svg"><defs><marker id="wf-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="wf-head"/></marker></defs>`
+    + `<path class="wf-line" d="M645,76 H846 Q860,76 860,90 V174" marker-end="url(#wf-arrow)"/>${label('labelled', 870, 132)}`
+    + `<path class="wf-line" d="M860,280 V324" marker-end="url(#wf-arrow)"/>`
+    + `<path class="wf-line" d="M860,374 V430 Q860,444 846,444 H647" marker-end="url(#wf-arrow)"/>${label('toFix', 870, 412)}`
+    + `<path class="wf-line" d="M884,350 H1010" marker-end="url(#wf-arrow)"/>${label('close', 947, 340, 'middle')}`
+    + `<path class="wf-line alt" d="M735,226 C660,226 604,196 604,130" marker-end="url(#wf-arrow)"/>${label('engineer', 676, 184, 'middle')}`
+    + `<path class="wf-line dash" d="M440,128 V390" marker-end="url(#wf-arrow)"/>${label('straight', 430, 262, 'end')}`
+    + `<path class="wf-line" d="M395,444 H194 Q180,444 180,430 V376" marker-end="url(#wf-arrow)"/>${label('proven', 288, 436, 'middle')}`
+    + `<path class="wf-line" d="M180,326 V282" marker-end="url(#wf-arrow)"/>${label('merged', 192, 310)}`
+    + `<path class="wf-link" d="M560,258 H733"/><path class="wf-link" d="M520,298 V390"/>`
+    + `<g class="wf-devin"><circle cx="520" cy="258" r="40"/><text x="520" y="263" text-anchor="middle">${esc(fill(W.devin ?? 'Devin'))}</text></g>`
+    + box('backlog', 395, 24) + box('triage', 735, 176) + box('fix', 395, 392) + box('merged', 55, 176)
+    + diamond('decision', 860, 350, 'left') + diamond('merge', 180, 350, 'right')
+    + '</svg>';
+}
+
 export function renderRun(dataFile) {
   const { frozenAt, figures: F, rows, page: P } = JSON.parse(fs.readFileSync(dataFile, 'utf8'));
   const fill = t => String(t ?? '').replace(/\{(\w+)\}/g, (_, k) => (F[k] ?? '—'));
@@ -111,10 +160,8 @@ export function renderRun(dataFile) {
   const word = (group, key) => P.words?.[group]?.[key] ?? key ?? '—';
 
   const sec = k => P.sections?.[k] ? `<div class="sechead"><h3>${md(P.sections[k].title)}</h3>${P.sections[k].caption ? `<div class="cap">${md(P.sections[k].caption)}</div>` : ''}</div>` : '';
-  const tile = t => `<div class="card tile${t.hero ? ' hero' : ''}"><div class="label">${md(t.label)}</div><div class="value">${esc(fill(t.value))}${t.small ? `<small> ${esc(fill(t.small))}</small>` : ''}</div>${t.note ? `<div class="note">${md(t.note)}</div>` : ''}${t.subs ? `<dl class="subs">${t.subs.map(x => `<div><dt>${md(x.label)}</dt><dd>${esc(fill(x.value))}</dd></div>`).join('')}</dl>` : ''}</div>`;
-  const tiles = P.tiles.map(tile).join('');
-  // Funnel: how many items reached each stage, drawn as the same cards as the metrics. A page without it has none.
-  const funnel = P.funnel?.length ? `<section class="tiles" style="grid-template-columns:repeat(${P.funnel.length},1fr)">${P.funnel.map(tile).join('')}</section>` : '';
+  const tiles = P.tiles.map((t, i) => `<div class="card tile${t.hero ? ' hero' : ''}"><div class="label">${md(t.label)}</div><div class="value">${esc(fill(t.value))}${t.small ? `<small> ${esc(fill(t.small))}</small>` : ''}</div>${t.note ? `<div class="note">${md(t.note)}</div>` : ''}${t.subs ? `<dl class="subs">${t.subs.map(x => `<div><dt>${md(x.label)}</dt><dd>${esc(fill(x.value))}</dd></div>`).join('')}</dl>` : ''}</div>`).join('');
+  const workflow = P.workflow ? `<section class="card wf">${workflowSvg(P.workflow, rows, fill)}</section>` : '';
   const C = P.columns;
   // A column whose heading is null in the run file is left out.
   const COLS = [
@@ -148,12 +195,23 @@ export function renderRun(dataFile) {
 .rrow{display:grid;grid-template-columns:${COLS.map(([, w]) => w).join(' ')};gap:12px;align-items:center;padding:9px 2px;border-top:1px solid var(--line);font-size:13px}.rrow a{color:var(--ink);text-decoration:none}.rrow a:hover{text-decoration:underline}.rrow.rhead{border-top:0;color:var(--muted);font-size:11.5px;padding-top:2px}
 .learn{padding:9px 0;border-top:1px solid var(--line)}.learn:first-child{border-top:0}.learn b{font-weight:600;font-size:13.5px}.learn p{margin:3px 0 0;color:var(--ink2);font-size:13px}.learn a{color:var(--s1)}
 code{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink2)}
+.wf{margin-bottom:14px;padding:18px 20px}.wf-svg text{font-family:inherit}
+.wf-node>rect,.wf-node>path{fill:var(--card);stroke:var(--line);stroke-width:1.5}.wf-node.busy>rect{stroke:var(--s1);stroke-width:2}
+.wf-node.gate>path{fill:#fff1d6;stroke:#e0a100}[data-theme=dark] .wf-node.gate>path{fill:#3a2c0c;stroke:#b98600}.wf-node.gate.busy>path{stroke-width:2.5}
+.wf-node.merged.busy>rect{stroke:var(--good)}
+.wf-t{font-size:15px;font-weight:600;fill:var(--ink)}.wf-s{font-size:12px;fill:var(--muted)}.wf-n{font-size:30px;font-weight:300;fill:var(--ink)}.wf-g{font-weight:300;fill:var(--ink2)}
+.wf-line{fill:none;stroke:var(--muted);stroke-width:1.5}.wf-line.dash{stroke-dasharray:5 5}.wf-line.alt{stroke:var(--s2);stroke-dasharray:6 5}.wf-head{fill:var(--muted)}
+.wf-link{fill:none;stroke:var(--s1);stroke-width:1.5;stroke-dasharray:2 4;opacity:.7}
+.wf-e{font-size:12.5px;fill:var(--ink2);font-weight:500;paint-order:stroke;stroke:var(--card);stroke-width:5px;stroke-linejoin:round}
+.wf-devin circle{fill:var(--chip);stroke:var(--s1);stroke-width:1.5}.wf-devin text{font-size:14px;font-weight:600;fill:var(--s1)}
+.wf-chip rect{fill:var(--chip);stroke:var(--line)}.wf-chip text{font-size:11.5px;font-weight:600;fill:var(--s1)}.wf-chip:hover rect{stroke:var(--s1)}.wf-more{font-size:11.5px;fill:var(--muted)}
 </style>
 <div class="wrap">
 <header><div><div class="eyebrow">${md(P.eyebrow)}</div><h1>${md(P.title)}</h1><div class="sub">${md(P.subtitle)}</div></div>
 <div class="right"><div id="theme-switch" role="group" aria-label="Theme"></div><div class="pill">${esc(P.words?.recorded ?? 'Recorded')} <b>${dmhm(frozenAt)}</b></div></div></header>
 ${sec('metrics')}<section class="tiles">${tiles}</section>
-${sec('results')}${funnel}<section class="card"><h2>${md(P.table.title)}</h2><div class="cap">${md(P.table.caption)}</div>${head}${rowsHtml}</section>
+${sec('workflow')}${workflow}
+${sec('results')}<section class="card"><h2>${md(P.table.title)}</h2><div class="cap">${md(P.table.caption)}</div>${head}${rowsHtml}</section>
 <div class="grid2">
 <section class="card"><h2>${md(P.charts.time.title)}</h2><div class="cap">${md(P.charts.time.caption)}</div>${timeChart}</section>
 <section class="card"><h2>${md(P.charts.cost.title)}</h2><div class="cap">${md(P.charts.cost.caption)}</div>${costChart}</section>
