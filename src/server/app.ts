@@ -14,7 +14,6 @@ export interface AppOptions {
 export interface HealthResponse {
   status: 'ok';
   service: 'bug-smasher';
-  stage: 'scaffold';
 }
 
 const CONTENT_TYPES: Record<string, string> = {
@@ -108,7 +107,7 @@ export function createApp(options: AppOptions): Server {
   const staticRoot = resolve(options.staticDir);
   const dashboard = options.dashboard;
   const routes: Record<string, () => unknown> = {
-    '/api/health': (): HealthResponse => ({ status: 'ok', service: 'bug-smasher', stage: 'scaffold' }),
+    '/api/health': (): HealthResponse => ({ status: 'ok', service: 'bug-smasher' }),
     ...(dashboard === undefined
       ? {}
       : {

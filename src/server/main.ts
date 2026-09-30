@@ -41,7 +41,7 @@ const server = createApp({
 server.listen(port, host, () => {
   const address = server.address() as AddressInfo;
   const displayHost = address.family === 'IPv6' ? `[${address.address}]` : address.address;
-  console.log(`Bug Smasher scaffold listening on http://${displayHost}:${address.port}`);
+  console.log(`Bug Smasher listening on http://${displayHost}:${address.port}`);
 });
 
 async function startReplay(): Promise<null> {

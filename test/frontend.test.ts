@@ -39,7 +39,7 @@ describe('built frontend assets', () => {
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type') ?? '', /^text\/html/);
     assert.equal(html, await readFile(builtIndex, 'utf8'));
-    assert.match(html, /<title>Bug Smasher \(scaffold\)<\/title>/);
+    assert.match(html, /<title>Bug Smasher<\/title>/);
     assert.match(html, /<div id="root"><\/div>/);
   });
 

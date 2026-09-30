@@ -58,13 +58,14 @@ export function App() {
         <Bug aria-hidden size={32} />
         <h1>Bug Smasher</h1>
       </header>
-      <section className="notice" aria-labelledby="scaffold-heading">
-        <h2 id="scaffold-heading">
-          <Construction aria-hidden size={20} /> Unfinished scaffold
+      <section className="notice" aria-labelledby="notice-heading">
+        <h2 id="notice-heading">
+          <Construction aria-hidden size={20} /> No web dashboard yet
         </h2>
         <p>
-          This is a placeholder for the Bug Smasher project foundation. Bug investigation, triage, repair,
-          verification, integrations, the dashboard and persistence are not implemented yet.
+          Bug Smasher works in GitHub: a person adds a label, Devin investigates and fixes, and a person decides
+          and merges there. The service's figures are at <code>/api/overview</code> and <code>/api/metrics</code>,
+          and the dashboard pages are in the repository's <code>results/</code> folder.
         </p>
       </section>
       <HealthIndicator state={health} />

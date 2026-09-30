@@ -20,7 +20,7 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 neither `GITHUB_TOKEN` nor `DEVIN_API_KEY` is set: the same `Orchestrator` with `InMemoryTracker`,
 `OfflineDevin` behind `DevinClient`, `RecordedVerifier`, a separate replay store and simulated time
 ([`docs/REPLAY.md`](REPLAY.md)). Otherwise it starts polling only when `liveSettingsProblems(settings)` is
-empty; if not, it logs why and serves the scaffold as before. Live wiring: `BugStore.open()` (`data/bugs.json`), `GitHubTracker`,
+empty; if not, it logs why and serves the page and API without polling. Live wiring: `BugStore.open()` (`data/bugs.json`), `GitHubTracker`,
 `DevinClient.fromSettings`, `Prompts.load()`, `requireLiveResults: true` (stub verifiers/policies are
 refused), `verifierFromSettings` when `verifierSettingsProblems` is empty (otherwise the unavailable
 verifier, with the reason logged), and the unavailable policy until M1.6 provides one.
@@ -242,7 +242,8 @@ nothing.
 ## Actors
 
 - GitHub label decisions: `github:<login>` at the label event time.
-- Interface actions (`performAction`): `interface:bug-smasher` — never an invented person.
+- Interface actions (`performAction`): `interface:bug-smasher` — never an invented person. No HTTP route calls it yet:
+  the API is read-only and people act on GitHub.
 - Policies: `policy:<rule>`.
 
 ## Trace events

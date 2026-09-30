@@ -18,7 +18,7 @@ describe('service health', () => {
 
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type') ?? '', /^application\/json/);
-    assert.deepEqual(await response.json(), { status: 'ok', service: 'bug-smasher', stage: 'scaffold' });
+    assert.deepEqual(await response.json(), { status: 'ok', service: 'bug-smasher' });
   });
 
   it('rejects non-GET requests to the health endpoint', async () => {

@@ -31,7 +31,7 @@ async function assertHealthy(service: RunningService): Promise<void> {
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   }).catch((error: unknown) => failWithServiceState(service, 'Health request', error));
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { status: 'ok', service: 'bug-smasher', stage: 'scaffold' });
+  assert.deepEqual(await response.json(), { status: 'ok', service: 'bug-smasher' });
 }
 
 describe('static asset read failures', () => {

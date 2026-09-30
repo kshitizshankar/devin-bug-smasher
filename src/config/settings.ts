@@ -232,7 +232,7 @@ class Reader {
 
 /**
  * Reads settings from the environment into a typed object. Credentials are optional here so that the
- * scaffold, CI and pure model tests run without them; use `assertLiveSettings` before live provider use.
+ * server, CI and pure model tests run without them; use `assertLiveSettings` before live provider use.
  * Throws `SettingsError` listing every invalid value.
  */
 export function loadSettings(env: Env = process.env): Settings {

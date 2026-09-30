@@ -5,7 +5,7 @@ goes through GitHub labels and comments, as the workflow requires.
 
 | Endpoint            | Returns                                                                                       |
 | ------------------- | --------------------------------------------------------------------------------------------- |
-| `GET /api/health`   | `{"status":"ok","service":"bug-smasher","stage":"scaffold"}`                                  |
+| `GET /api/health`   | `{"status":"ok","service":"bug-smasher"}`                                  |
 | `GET /api/overview` | Headline key figures, counts per overview group, status and person gate, and compact issue records (merged included) |
 | `GET /api/metrics`  | The shared `MetricsReport` from `calculateMetrics`, unchanged: every figure with its window, numerator, denominator, samples, source and note |
 | `GET /api/settings` | `effectiveSettings`: the effective configuration with `GITHUB_TOKEN` and `DEVIN_API_KEY` reduced to `tokenConfigured` / `apiKeyConfigured` |

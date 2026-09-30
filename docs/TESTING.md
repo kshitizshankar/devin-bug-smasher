@@ -68,12 +68,12 @@ If `dist/web/index.html` is missing, `test/frontend.test.ts` fails with a messag
    npm start
    ```
 
-   The service logs `Bug Smasher scaffold listening on http://127.0.0.1:8080`.
+   The service logs `Bug Smasher listening on http://127.0.0.1:8080`.
 
 2. Open <http://127.0.0.1:8080/> in a browser and confirm:
-   - The page title is **Bug Smasher (scaffold)** and the heading reads **Bug Smasher**.
-   - An **Unfinished scaffold** notice explains that workflows, integrations, verification, the dashboard
-     and persistence are not implemented.
+   - The page title and the heading read **Bug Smasher**.
+   - A **No web dashboard yet** notice says Bug Smasher works in GitHub and points to `/api/overview`,
+     `/api/metrics` and the dashboard pages in `results/`.
    - The status line reads **Service health endpoint responded: ok**. This is fetched live from
      `/api/health`; if the service is unreachable it shows **Service health endpoint unavailable** instead.
    - The browser devtools console shows no errors.

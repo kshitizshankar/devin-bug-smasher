@@ -51,8 +51,8 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
    passed as an HTTP header through the environment, never stored or logged). Failure → `error`.
 3. **Check the diff** (merge base → head). Every violation fails verification with its own reason, and
    nothing runs. Flags never fail verification: they are recorded in `evidence.flags`, listed in the
-   verification summary and commit status (`[flagged]`), and posted in one comment for the person deciding
-   the merge:
+   verification summary and commit status (`[flagged]`), and sent as one message to the bug's Devin session,
+   which removes or explains them on the pull request (the service posts no comments):
 
    | Check | Fails on |
    | --- | --- |
@@ -129,9 +129,9 @@ is the PR's previous rebased commit, so tests added earlier in the PR look uncha
 | V3: fails on head → `fail` | `test/verify.test.ts` › V3 |
 | V4: each diff violation fails on its own reason, nothing runs | `test/verify.test.ts` › V4 › rejects … (8 cases) |
 | Added suppressions (`# noqa: S608`, `# pylint: disable=…`, `# type: ignore[…]`) pass and are flagged with their file and count; removed or pre-existing suppressions are not flagged; configuration changes and deleted test files still fail | `test/verify.test.ts` › added suppression comments are flagged for a person… (8 tests) |
-| A flagged suppression waits for a person under `MERGE=person`; the flag comment names the file and count | `test/orchestrator-verification.test.ts` › passes a fix with an added suppression… |
+| A flagged suppression waits for a person under `MERGE=person`; the flag message to Devin names the file and count | `test/orchestrator-verification.test.ts` › passes a fix with an added suppression… |
 | Rule refuses and Automatic merges an added-suppression flag | `test/orchestrator-policies.test.ts` › Rule refuses an added-suppression flag…, Automatic merges an added-suppression flag… |
-| V4: deletion-only is a flag, not a failure; flag comment | `test/verify.test.ts` › V4 flags…; `test/orchestrator-verification.test.ts` › comments the deletion-only flag… |
+| V4: deletion-only is a flag, not a failure; flag message to Devin | `test/verify.test.ts` › V4 flags…; `test/orchestrator-verification.test.ts` › comments the deletion-only flag… |
 | V5: setup failure, missing module, timeout, crashed test file, crashed runner, missing/unreadable/linked results, unfetchable commits → `error` | `test/verify.test.ts` › V5 (7 tests) |
 | Base test copy never writes through a link in the base tree, and keeps the head's file mode | `test/verify.test.ts` › V5 › replaces a link in the base tree…, gives the copied test on base the mode… |
 | Reordering `package.json` scripts is not a rule change | `test/verify.test.ts` › accepts reordered package.json scripts… |

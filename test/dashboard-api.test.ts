@@ -425,7 +425,7 @@ describe('dashboard API: running service', () => {
     try {
       assert.match(service.baseUrl, /^http:\/\/127\.0\.0\.1:\d+$/);
       const health = await getJson<unknown>(service.baseUrl, '/api/health');
-      assert.deepEqual(health.body, { status: 'ok', service: 'bug-smasher', stage: 'scaffold' });
+      assert.deepEqual(health.body, { status: 'ok', service: 'bug-smasher' });
       const overview = await getJson<OverviewResponse>(service.baseUrl, '/api/overview');
       assert.equal(overview.status, 200);
       assert.equal(overview.body.refresh.state, 'unavailable');
