@@ -7,6 +7,9 @@ decides. For a fix, Devin opens a pull request with a test, and Bug Smasher runs
 before the fix and pass after it. Features skip the investigation: their own label sends them straight to Devin to
 build, and they are checked the same way.
 
+**The pitch:** [slides](https://kshitizshankar.github.io/devin-bug-smasher/web/public/deck.html) (the container
+also serves them at http://127.0.0.1:8080/deck.html).
+
 ## The problem
 
 Most of a bug's cost comes before anyone writes a fix: someone has to reproduce it, trace it to a cause and decide
@@ -106,6 +109,7 @@ review findings), Devin Review, and Devin's GitHub integration for branches, pul
 docker compose up --build -d                              # starts Bug Smasher on http://127.0.0.1:8080
 docker compose exec bug-smasher npm run replay -- all     # plays the offline replay
 curl http://127.0.0.1:8080/api/overview                   # eight replayed bugs, marked "simulated": true
+open http://127.0.0.1:8080/deck.html                       # the pitch slides
 ```
 
 Without GitHub or Devin keys, Bug Smasher serves an offline replay: its real workflow code, driven by eight
@@ -229,7 +233,7 @@ prompts/           what Bug Smasher sends Devin
 replay/            the replay's eight scenarios
 results/           dashboard pages and their data
 scripts/results/   npm run results: record a run and render its page
-web/               the web page (a placeholder)
+web/               the web page (a placeholder) and the pitch slides (web/public/deck.html)
 docs/              architecture and metric definitions
 ```
 

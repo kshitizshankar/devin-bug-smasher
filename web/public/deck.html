@@ -1,0 +1,395 @@
+<!doctype html><html lang="en" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bug Smasher · pitch</title><style>
+:root{--bg:#ffffff;--page:#f3f5f9;--ink:#0b1f3a;--ink2:#34465f;--muted:#6b7a90;--line:#dde3ec;--soft:#f5f7fb;--accent:#4b3ae0;--accent-soft:#eeecfd;--ok:#12824a;--ok-soft:#e6f5ed;--warn:#a55d00;--warn-soft:#fff3df;color-scheme:light}
+[data-theme=dark]{--bg:#0d1b2e;--page:#07111f;--ink:#eef3fa;--ink2:#c3cfdf;--muted:#8fa2bb;--line:#233a57;--soft:#122640;--accent:#8f84ff;--accent-soft:#1f2a55;--ok:#46c486;--ok-soft:#10301f;--warn:#f0b35a;--warn-soft:#33260f;color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--page);color:var(--ink);font-family:"SF Pro Text",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+.stage{position:fixed;left:50%;top:50%;width:1280px;height:720px;background:var(--bg);box-shadow:0 10px 40px rgba(10,25,50,.12)}
+.slide{position:absolute;inset:0;display:none}.slide.on{display:block}
+.inner{position:absolute;inset:34px 56px 44px}
+.tracker{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+h2{font-size:27px;line-height:1.24;font-weight:600;letter-spacing:-.3px;margin:8px 0 0;max-width:1150px;color:var(--ink)}
+.rule{height:2px;background:var(--ink);opacity:.85;margin:14px 0 20px;width:100%}
+.foot{position:absolute;left:56px;right:56px;bottom:14px;display:flex;justify-content:space-between;gap:24px;font-size:11.5px;color:var(--muted)}
+.foot .src{max-width:1000px}
+h4{margin:0;font-size:15px;font-weight:650;color:var(--ink)}
+p{margin:0}
+code{white-space:nowrap;font:.88em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:4px}
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px}.cols2{display:grid;grid-template-columns:1fr 1fr;gap:30px}
+.fact{border-top:3px solid var(--accent);padding-top:14px}.fact b{display:block;font-size:54px;font-weight:300;letter-spacing:-1.5px;line-height:1}.fact h4{margin:8px 0 8px;font-size:17px}.fact p{font-size:15px;line-height:1.5;color:var(--ink2)}
+.sowhat{margin-top:26px;background:var(--soft);border-left:4px solid var(--accent);padding:14px 18px;font-size:17px;line-height:1.45;color:var(--ink)}.sowhat span{display:block;font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-bottom:4px}
+.swim{display:flex;flex-direction:column;gap:6px}
+.lane{display:grid;grid-template-columns:118px repeat(6,1fr);gap:6px}
+.lane.head .step{font-size:12.5px;font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.06em;padding:4px 8px;border-bottom:2px solid var(--ink)}
+.who{font-size:14px;font-weight:700;display:flex;align-items:center;padding:0 10px;border-radius:6px}.who.person{background:var(--warn-soft);color:var(--warn)}.who.devin{background:var(--accent-soft);color:var(--accent)}.who.bug{background:var(--soft);color:var(--ink)}
+.cell{min-height:62px;font-size:12.5px;line-height:1.35;color:var(--ink2);padding:8px 9px;border-radius:6px;border:1px dashed var(--line)}.cell.on{border:1px solid var(--line);background:var(--bg);color:var(--ink);box-shadow:0 1px 2px rgba(10,25,50,.05)}
+.cols3.small{margin-top:18px;gap:18px}.choice{background:var(--soft);border-radius:8px;padding:12px 14px}.choice h4{font-size:14.5px;margin-bottom:4px}.choice p{font-size:13.5px;line-height:1.45;color:var(--ink2)}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:12px 16px}.kpi h4{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em}.kpi b{display:block;font-size:40px;font-weight:300;letter-spacing:-1px;margin:4px 0}.kpi p{font-size:13px;color:var(--ink2);line-height:1.4}.kpi strong{color:var(--ink)}
+table{width:100%;border-collapse:collapse;font-size:13.5px}th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:650;border-bottom:1.5px solid var(--ink);padding:6px 8px}
+td{padding:7px 8px;border-bottom:1px solid var(--line);color:var(--ink)}td.num{font-variant-numeric:tabular-nums;white-space:nowrap}td.ok{color:var(--ok);font-weight:600}td.warn{color:var(--warn);font-weight:600}
+.minis{display:grid;grid-template-columns:1fr 1fr;gap:14px 20px}.minis div{border-top:2px solid var(--accent);padding-top:8px}.minis b{display:block;font-size:34px;font-weight:300;letter-spacing:-1px}.minis span{font-size:13.5px;color:var(--ink2);line-height:1.4}
+.trails{display:flex;flex-direction:column;gap:14px}.trail{border:1px solid var(--line);border-radius:8px;padding:14px 16px}.trail h4{margin-bottom:6px}.trail p{font-size:14px;line-height:1.5;color:var(--ink2)}
+.caps th{text-align:center}.caps th:first-child{text-align:left}.caps td{text-align:center;padding:9px 6px}.caps td:first-child{text-align:left;font-size:14px}
+.caps th:last-child,.caps td:last-child{background:var(--accent-soft)}
+.hb{display:inline-block;width:16px;height:16px;border-radius:50%;border:2px solid var(--accent);vertical-align:middle}.hb.f{background:var(--accent)}.hb.h{background:linear-gradient(90deg,var(--accent) 50%,transparent 50%)}.hb.e{border-color:var(--muted)}
+.legend{font-size:12px;color:var(--muted);margin-top:10px}.legend .hb{width:12px;height:12px;margin:0 3px 0 8px}
+.controls h4{font-size:16px;margin-bottom:8px}.controls ul{margin:0;padding-left:18px}.controls li{font-size:14.5px;line-height:1.45;color:var(--ink2);margin:0 0 9px}
+.econ{background:var(--soft);border-radius:10px;padding:18px 20px}.econ h4{font-size:16px;margin-bottom:12px}.econ em{font-style:normal;font-weight:500;color:var(--muted);font-size:13px}
+.line{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line)}.line b{font-size:30px;font-weight:300;letter-spacing:-.8px}.line span{font-size:14.5px;line-height:1.45;color:var(--ink2)}
+.phases{display:flex;flex-direction:column;gap:12px}.phase{border-left:4px solid var(--accent);background:var(--bg);border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0 8px 8px 0;padding:12px 16px}.phase h4{margin-bottom:4px}.phase p{font-size:14px;line-height:1.45;color:var(--ink2)}
+.cover-slide .inner{inset:0}
+.cover{position:absolute;inset:0;padding:70px 72px;background:linear-gradient(135deg,#0b1f3a 0%,#1c1e54 60%,#4b3ae0 140%);color:#fff}
+.cover .kicker{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#b9b9f9;font-weight:600}
+.cover h1{font-size:92px;font-weight:300;letter-spacing:-3px;margin:60px 0 6px}
+.cover .sub{font-size:30px;font-weight:400;line-height:1.3;max-width:900px}.cover .meta{font-size:18px;color:#c9cdf5;margin-top:14px}
+.strip{position:absolute;left:72px;right:72px;bottom:64px;display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:1px solid rgba(255,255,255,.25)}
+.strip div{padding:18px 18px 0 0}.strip b{display:block;font-size:40px;font-weight:300;letter-spacing:-1px}.strip span{font-size:14px;color:#c9cdf5}
+.cover-slide .foot{color:#9aa3d6}
+.chrome{position:fixed;left:14px;right:14px;bottom:8px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted);z-index:6}.chrome.hide{display:none}
+#theme-switch{display:flex;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:2px;font:600 11px -apple-system,sans-serif}
+#theme-switch button{border:0;background:none;padding:3px 8px;border-radius:4px;cursor:pointer;color:var(--ink2)}#theme-switch button[aria-pressed=true]{background:var(--accent);color:#fff}
+
+.cols4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.cols4.small{margin-top:18px}
+table.buy{font-size:13.5px}table.buy th{font-size:11.5px}table.buy td{vertical-align:top;padding:9px 10px;line-height:1.4}
+table.buy td.need{font-weight:650;width:190px;color:var(--ink)}table.buy td.diy{color:var(--muted);width:36%}table.buy td.devin{color:var(--ink);background:var(--accent-soft)}
+table.buy th:last-child{background:var(--accent-soft);color:var(--accent)}
+.buy + .sowhat{margin-top:16px;font-size:15.5px}
+.timeline{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr;align-items:stretch}
+.phase2{border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:8px;padding:12px 16px;display:flex;flex-direction:column;gap:6px}
+.phase2 .when{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}.phase2 p{font-size:13.5px;line-height:1.45;color:var(--ink2);flex:1}
+.phase2 .exit{font-size:13px;background:var(--soft);border-radius:6px;padding:7px 10px;color:var(--ink)}
+.arrow{display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--muted)}
+.next{margin-top:18px;gap:22px}.box{background:var(--soft);border-radius:8px;padding:12px 16px}.box h4{margin-bottom:6px}.box ul{margin:0;padding-left:18px}.box li{font-size:13.5px;line-height:1.5;color:var(--ink2)}
+.stage{top:calc(50% - 14px)}
+
+.crisp .inner{display:flex;flex-direction:column}
+.crisp h2{font-size:34px;line-height:1.18;letter-spacing:-.6px;max-width:1120px}
+.crisp .body{flex:1;display:flex;flex-direction:column;justify-content:center;padding-bottom:18px}
+.takeaway{margin-top:34px;font-size:20px;font-weight:600;color:var(--ink);border-left:5px solid var(--accent);padding:6px 0 6px 18px}
+.probgrid{display:grid;grid-template-columns:1fr 280px;gap:40px;align-items:center}
+.tl{position:relative;height:270px}
+.tl .axis{position:absolute;left:30px;top:135px;height:5px;background:var(--line);border-radius:3px}
+.tl .axis-fill{position:absolute;left:30px;top:135px;height:5px;background:linear-gradient(90deg,var(--accent),#ea2261);border-radius:3px}
+.tl .dot0{position:absolute;left:21px;top:127px;width:22px;height:22px;border-radius:50%;background:var(--ink)}
+.tl .lab0{position:absolute;left:0;top:162px;font-size:15px;font-weight:650;color:var(--ink)}
+.mk{position:absolute;transform:translateX(-50%);text-align:center;width:200px}
+.mk i{position:absolute;left:50%;width:2px;background:var(--ink2);transform:translateX(-50%)}
+.mk.up{top:14px}.mk.up i{top:92px;height:32px}.mk.down{top:150px}.mk.down i{top:-8px;height:22px}
+.mk b{display:block;font-size:42px;font-weight:300;letter-spacing:-1.2px;color:var(--ink)}.mk.down b{margin-top:16px}
+.mk span{display:block;font-size:15px;color:var(--ink2);line-height:1.3}
+.side{display:flex;flex-direction:column;gap:28px;border-left:1px solid var(--line);padding-left:30px}
+.bigstat b{display:block;font-size:76px;font-weight:200;letter-spacing:-3px;color:var(--accent);line-height:1}.bigstat span{font-size:16px;color:var(--ink2);line-height:1.35}
+.bigstat.small b{font-size:52px;color:var(--ink)}
+.flow{display:grid;grid-template-columns:1fr 24px 1fr 24px 1fr 24px 1fr 24px 1fr 24px 1fr;align-items:stretch}
+.node{border-radius:14px;padding:20px 16px;border:2px solid transparent;display:flex;flex-direction:column;gap:10px;min-height:210px}
+.node .n{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#fff}
+.node h4{font-size:22px}.node p{font-size:16px;line-height:1.35;color:var(--ink2)}
+.node.person{background:var(--warn-soft)}.node.person .n{background:var(--warn)}
+.node.devin{background:var(--accent-soft)}.node.devin .n{background:var(--accent)}
+.node.bs{background:var(--bg);border-color:var(--ink)}.node.bs .n{background:var(--ink)}
+.node.hi{box-shadow:0 14px 30px rgba(11,31,58,.2);transform:translateY(-8px)}
+.chev{display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted)}
+.legend2{display:flex;gap:26px;margin-top:26px;font-size:15px;color:var(--ink2)}.legend2 .k::before{content:"";display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:7px;vertical-align:-1px}
+.k.person::before{background:var(--warn)}.k.devin::before{background:var(--accent)}.k.bs::before{background:var(--ink)}
+.pairs{display:grid;grid-template-columns:1fr 1fr;gap:56px}
+.pair h4{font-size:15px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:16px}
+.barrow{display:grid;grid-template-columns:130px 1fr;align-items:center;gap:12px;margin-bottom:12px}
+.barrow .who{font-size:15px;color:var(--ink2);font-weight:600}
+.bartrack{position:relative;height:44px;display:flex;align-items:center}
+.bar{height:44px;border-radius:0 8px 8px 0;display:flex;align-items:center}.bar.us{background:var(--accent)}.bar.them{background:#cfd6e1;padding-left:16px}[data-theme=dark] .bar.them{background:#2c4260}
+.v{font-size:30px;font-weight:400}.v.us{color:var(--accent);margin-left:14px}.v.them{color:var(--ink)}
+.basis{margin-left:142px;font-size:13.5px;color:var(--muted)}
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
+.chip2{background:var(--soft);border-radius:12px;padding:18px 22px;display:flex;align-items:center;gap:16px}.chip2 b{font-size:44px;font-weight:300;letter-spacing:-1px;color:var(--ink);white-space:nowrap}.chip2 span{font-size:15.5px;color:var(--ink2);line-height:1.35}
+.builtgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.hero2{display:flex;align-items:center;gap:18px}.hero2 b{font-size:110px;font-weight:200;letter-spacing:-5px;color:var(--accent);line-height:1}.hero2 span{font-size:18px;line-height:1.35;color:var(--ink2)}
+.hero2.alt b{color:var(--ink)}.hero2.ghost b{color:var(--ok);font-size:80px;letter-spacing:-3px}
+.striplabel{margin-top:46px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.strip2{display:grid;grid-template-columns:1fr 22px 1fr 22px 1fr 22px 1.25fr 22px 1.25fr;margin-top:12px;align-items:stretch}
+.strip2 .s{background:var(--soft);border-radius:12px;padding:16px;font-size:16px;line-height:1.35;color:var(--ink);display:flex;align-items:center;justify-content:center;text-align:center;min-height:88px}
+.strip2 .s:last-child{background:var(--ok-soft)}.strip2 .s:last-child b{color:var(--ok)}
+.stack{display:flex;flex-direction:column;gap:14px}
+.layer{border-radius:14px;padding:22px 28px;display:grid;grid-template-columns:240px 1fr;align-items:center;gap:24px}
+.lname{font-size:26px;font-weight:650}.lname em{display:block;font-style:normal;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:4px;opacity:.75}
+.ldesc{font-size:19px;line-height:1.4}
+.layer.top{background:var(--ink);color:#fff}[data-theme=dark] .layer.top{background:#1c3355}
+.layer.mid{background:var(--accent-soft);border:2px solid var(--accent);padding:26px 28px}.layer.mid .lname{color:var(--accent)}
+.lchips{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.lchips span{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:13px 14px;font-size:16px;font-weight:600;color:var(--ink);text-align:center}
+.layer.base{background:var(--soft);color:var(--ink2);border:1.5px dashed var(--muted)}
+.chevs{display:grid;grid-template-columns:repeat(3,1fr)}
+.cv{position:relative;background:var(--soft);padding:26px 50px 26px 44px;clip-path:polygon(0 0,calc(100% - 30px) 0,100% 50%,calc(100% - 30px) 100%,0 100%,30px 50%);min-height:250px;display:flex;flex-direction:column;gap:10px}
+.cv:first-child{clip-path:polygon(0 0,calc(100% - 30px) 0,100% 50%,calc(100% - 30px) 100%,0 100%);padding-left:28px}
+.cv:nth-child(2){background:var(--accent-soft)}.cv:nth-child(3){background:var(--ok-soft)}
+.cv .when{font-size:14px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}.cv h4{font-size:26px}.cv p{font-size:16px;color:var(--ink2);line-height:1.4}
+.cv .gate{margin-top:auto;font-size:15.5px;font-weight:650;color:var(--ink);line-height:1.35}
+.cover .sub{font-size:36px;line-height:1.25}
+
+.badge{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px;font-weight:700;flex:none}
+.tl.wide{height:230px;margin:0 auto}
+.blockers{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:6px}
+.blk{border:1px solid var(--line);border-top:4px solid #ea2261;border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}.blk h4{font-size:19px}.blk p{font-size:15px;line-height:1.45;color:var(--ink2)}
+.flow.compact .node{min-height:150px;padding:16px 14px;gap:8px;position:relative}.flow.compact .node h4{font-size:20px}.flow.compact .node p{font-size:14.5px}
+.flow.compact .node .badge{position:absolute;top:-11px;right:-8px;box-shadow:0 0 0 3px var(--bg)}
+.answers{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:30px}
+.ans{display:flex;gap:12px;align-items:flex-start;background:var(--soft);border-radius:10px;padding:16px 18px}.ans h4{font-size:17px;margin-bottom:4px}.ans p{font-size:14.5px;line-height:1.45;color:var(--ink2)}
+.resgrid{display:grid;grid-template-columns:230px 1fr;gap:26px;align-items:start}
+.sel{background:var(--soft);border-radius:10px;padding:16px 18px}.sel h4{font-size:15px;margin-bottom:6px}.sel p{font-size:14.5px;line-height:1.5;color:var(--ink2)}
+table.res{font-size:14px}table.res td{padding:8px 8px}table.res td.ok{color:var(--ok);font-weight:650;white-space:nowrap}table.res td.warn{color:var(--warn);font-weight:650;white-space:nowrap}td.muted2{color:var(--muted);white-space:nowrap}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:1px}.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:22px}
+.m{display:grid;grid-template-columns:26px auto 1fr;gap:12px;align-items:center;background:var(--soft);border-radius:10px;padding:14px 18px}.m b{font-size:38px;font-weight:300;letter-spacing:-1px;color:var(--ink);white-space:nowrap}.m span{font-size:14px;line-height:1.4;color:var(--ink2)}
+.buildbar{display:flex;gap:4px;height:120px}
+.seg{border-radius:10px;padding:18px 22px;display:flex;flex-direction:column;justify-content:center;gap:4px}.seg b{font-size:30px;font-weight:400}.seg span{font-size:16px}
+.seg.a{background:var(--accent-soft);color:var(--ink)}.seg.b{background:var(--accent);color:#fff}
+.bbaxis{position:relative;display:flex;justify-content:space-between;font-size:14px;color:var(--muted);margin-top:8px;height:22px}.bbaxis .mid{position:absolute;transform:translateX(-50%);color:var(--accent);font-weight:650}
+.bstats{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:30px}.bstats div{border-top:3px solid var(--accent);padding-top:10px}.bstats b{display:block;font-size:42px;font-weight:300;letter-spacing:-1px}.bstats span{font-size:15px;color:var(--ink2);line-height:1.35}
+.whygrid{display:grid;grid-template-columns:330px 1fr;gap:34px;align-items:stretch}
+.took{background:var(--soft);border-radius:12px;padding:18px 22px}.took h4{font-size:16px;margin-bottom:10px}.took ol{margin:0;padding-left:22px}.took li{font-size:16px;line-height:1.7;color:var(--ink)}
+.tooknote{margin-top:12px;font-size:14.5px;font-weight:650;color:var(--accent)}
+.versus{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.vcol{border-radius:12px;padding:18px 22px;display:flex;flex-direction:column}.vcol h4{font-size:17px;margin-bottom:10px}.vcol ul{margin:0;padding-left:20px;flex:1}.vcol li{font-size:16px;line-height:1.75}
+.vcol.diy{border:1.5px dashed var(--muted);color:var(--ink2)}.vcol.dv{background:var(--accent-soft);border:2px solid var(--accent)}.vcol.dv h4{color:var(--accent)}
+.vfoot{margin-top:12px;font-size:14.5px;font-weight:650;line-height:1.35}.vcol.diy .vfoot{color:var(--muted)}.vcol.dv .vfoot{color:var(--ink)}
+
+.m .badge{color:#fff;font-size:13px;line-height:1}
+.tl.wide{height:250px;margin-bottom:10px}
+
+.strip2g{position:absolute;left:72px;right:72px;bottom:58px;display:grid;grid-template-columns:4fr 3fr;gap:40px}
+.grp{border-top:1px solid rgba(255,255,255,.3);padding-top:14px}
+.glabel{font-size:12.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#b9b9f9;margin-bottom:10px}
+.gstats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.gstats.g3{grid-template-columns:repeat(3,1fr)}
+.gstats b{display:block;font-size:38px;font-weight:300;letter-spacing:-1px}.gstats span{font-size:13.5px;color:#c9cdf5;line-height:1.3}
+
+.ctable{position:absolute;left:72px;right:72px;bottom:48px;display:grid;grid-template-columns:170px repeat(5,1fr);column-gap:18px;row-gap:0}
+.ctable .ch{font-size:11.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#b9b9f9;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.3)}
+.ctable .rl{font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.14);line-height:1.35}
+.ctable > div:not(.ch):not(.rl){padding:12px 0;border-bottom:1px solid rgba(255,255,255,.14)}
+.ctable b{display:block;font-size:34px;font-weight:300;letter-spacing:-1px;color:#fff;line-height:1.1}.ctable span{font-size:13px;color:#c9cdf5}
+.cover h1{margin-top:44px}
+
+.ctable{grid-template-columns:150px repeat(6,1fr);column-gap:16px}.ctable b{font-size:30px}
+
+.ctable{grid-template-columns:170px repeat(5,1fr);column-gap:18px}.ctable b{font-size:34px}
+
+.journey{display:grid;grid-template-columns:repeat(8,1fr);gap:10px}
+.jcol{display:flex;flex-direction:column;gap:6px}
+.jwho{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;text-align:center;padding:4px 0;border-radius:5px}
+.jwho.person{background:var(--warn-soft);color:var(--warn)}.jwho.devin{background:var(--accent-soft);color:var(--accent)}.jwho.bs{background:var(--soft);color:var(--ink)}
+.jnode{position:relative;border-radius:10px;padding:12px 11px;min-height:150px;display:flex;flex-direction:column;gap:5px;border:2px solid transparent}
+.jnode.person{background:var(--warn-soft)}.jnode.devin{background:var(--accent-soft)}.jnode.bs{background:var(--bg);border-color:var(--ink)}
+.jnode.hi{box-shadow:0 10px 24px rgba(11,31,58,.18)}
+.jnode .badge{position:absolute;top:-10px;right:-7px;width:22px;height:22px;font-size:12px;box-shadow:0 0 0 3px var(--bg)}
+.jn{font-size:12px;font-weight:700;color:var(--muted)}.jnode h4{font-size:17px}.jnode p{font-size:13px;line-height:1.35;color:var(--ink2)}
+.jgh{border:1px dashed var(--line);border-radius:8px;padding:7px 8px;font-size:12px;line-height:1.35;color:var(--ink);min-height:62px;background:var(--bg)}
+.jgh span{display:block;font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+.jgh code{font-size:11px}
+.loops{display:block;margin-top:-212px;margin-bottom:150px;overflow:visible;pointer-events:none}
+.lp{fill:none;stroke:#ea2261;stroke-width:2}.lp.alt{stroke:var(--accent)}.lhead{fill:var(--ink2)}
+.lt{font-size:12.5px;font-weight:650;fill:var(--ink)}
+.jfoot{display:flex;gap:22px;align-items:center;flex-wrap:wrap;font-size:13.5px;color:var(--ink2);margin-top:16px}
+.jfoot .k::before{content:"";display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.jnote{margin-left:auto;font-weight:650;color:var(--ink)}
+
+.loops{margin-top:2px;margin-bottom:0;overflow:visible}.lt.red{fill:#c21b50}.lt.blue{fill:var(--accent)}
+
+.flowmap{display:block;width:100%;height:auto;--fc:#fbfcfd;--fb:#fff;--fs:#cfd5dc;--fx:#f4f6f8;--fm:#6b7480;--ft:#1f2328;--fa:#533afd;--fas:#eeebff;--fw:#b26a00;--fws:#fff1d6;--fo:#1f7a4d;--fos:#e3f4ea;--fd:#dde2e8}
+[data-theme=dark] .flowmap{--fc:#0a1d31;--fb:#0d2238;--fs:#2a4563;--fx:#12304d;--fm:#8ea3bd;--ft:#eef2f8;--fa:#8b80ff;--fas:#1f2a55;--fw:#f0b35a;--fws:#33260f;--fo:#5fcf8e;--fos:#12291c;--fd:#18324d}
+.flowmap text{font-family:inherit}
+.flowmap .canvas{fill:var(--fc);stroke:var(--fs)}.flowmap .dotg{fill:var(--fd)}
+.flowmap .cardbg{fill:var(--fb);stroke:var(--fs)}.flowmap .foot{fill:var(--fx)}.flowmap .tick{stroke:var(--fs)}
+.flowmap .tile{fill:var(--fx)}.flowmap .c.accent .tile{fill:var(--fas)}.flowmap .c.warm .tile{fill:var(--fws)}.flowmap .c.ok .tile{fill:var(--fos)}.flowmap .c.ink .tile{fill:var(--fx)}
+.flowmap .g{fill:none;stroke:var(--fm);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.flowmap .c.accent .g{stroke:var(--fa)}.flowmap .c.warm .g{stroke:var(--fw)}.flowmap .c.ok .g{stroke:var(--fo)}.flowmap .c.ink .g{stroke:var(--ft)}
+.flowmap .c.ink .cardbg{stroke:var(--ft);stroke-width:1.6}
+.flowmap .fdot{fill:var(--fm)}.flowmap .c.accent .fdot{fill:var(--fa)}.flowmap .c.warm .fdot{fill:var(--fw)}.flowmap .c.ok .fdot{fill:var(--fo)}
+.flowmap .h{font-size:15.5px;font-weight:650;fill:var(--ft)}.flowmap .s{font-size:12.5px;fill:var(--fm)}.flowmap .m{font:11.5px ui-monospace,SFMono-Regular,Menlo,monospace;fill:var(--ft)}
+.flowmap .halo{paint-order:stroke;stroke:var(--fc);stroke-width:5px;stroke-linejoin:round}
+.flowmap .e{fill:none;stroke:var(--fm);stroke-width:1.6}.flowmap .e.warn{stroke:var(--fw);stroke-dasharray:5 4}.flowmap .e.dot{stroke:var(--fa);stroke-dasharray:2 4}
+.flowmap .e.loop{stroke:#e0245e;stroke-width:1.8}.flowmap .e.loop2{stroke:var(--fa);stroke-width:1.8}
+.flowmap .ahp{fill:var(--fm)}.flowmap .ahp.warn{fill:var(--fw)}.flowmap .ahp.red{fill:#e0245e}.flowmap .ahp.blue{fill:var(--fa)}
+.flowmap .gate{fill:var(--fws);stroke:var(--fw)}
+.flowmap .loopt{fill:#c21b50;font-weight:650}.flowmap .loopt2{fill:var(--fa);font-weight:650}
+.flowmap .code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.flowmap .mark{fill:var(--ft)}
+.mapnote{margin-top:14px;font-size:14.5px;color:var(--ink2);line-height:1.5}.mapnote b{color:var(--ink)}
+
+.flowmap .grp{fill:none;stroke:var(--fs);stroke-width:1.5;stroke-dasharray:6 5}.flowmap .grp.dv{fill:var(--fas);fill-opacity:.35;stroke:var(--fa)}
+.flowmap .gt{font-size:11.5px;font-weight:700;letter-spacing:.12em;fill:var(--fm)}.flowmap .gt.dvt{fill:var(--fa)}
+.flowmap .c.muted .tile{fill:var(--fx)}
+.flowmap .fchip{fill:var(--fb);stroke:var(--fs)}.flowmap .fh{font-size:13.5px;font-weight:650;fill:var(--ft)}.flowmap .fs{font-size:11.5px;fill:var(--fm)}
+.flowmap .e.dash{stroke-dasharray:5 4}
+.flowmap .num{fill:var(--ft)}.flowmap .numt{font-size:11px;font-weight:700;fill:var(--fb)}
+.steps2{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:13.5px;color:var(--ink2)}
+.steps2 i{font-style:normal;display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--ink);color:var(--bg);font-size:11px;font-weight:700;align-items:center;justify-content:center;margin-right:6px}
+
+.flowmap .c.neutral .tile{fill:var(--fx)}.flowmap .c.neutral .g{stroke:var(--ft)}
+
+.flowmap{width:86%;margin:0 auto}
+.flowmap .e{stroke-width:1.3}.flowmap .e.loop,.flowmap .e.loop2{stroke-width:1.5}.flowmap .e.dot{stroke-width:1.3}
+.flowmap .cardbg{stroke-width:1}.flowmap .gate{stroke-width:1.2}
+.mapnote{text-align:center}
+
+/* problem slide */
+.tlwrap{display:flex;justify-content:center}
+.tl2{position:relative;height:190px}
+.tl2 .track{position:absolute;left:20px;right:20px;top:150px;height:6px;border-radius:3px;background:var(--line)}
+.tl2 .fill{position:absolute;left:20px;top:150px;height:6px;border-radius:3px;background:linear-gradient(90deg,var(--accent),#f96bee 60%,#ea2261)}
+.tl2 .tick{position:absolute;top:150px;transform:translateX(-50%);text-align:center}
+.tl2 .tick i{display:block;width:1px;height:14px;background:var(--muted);margin:0 auto}
+.tl2 .tick span{display:block;font-size:12.5px;color:var(--muted);margin-top:4px;white-space:nowrap}
+.mk2{position:absolute;transform:translateX(-50%);text-align:center;white-space:nowrap}
+.mk2 b{display:block;font-size:36px;font-weight:300;letter-spacing:-1px;color:var(--ink);line-height:1}
+.mk2 span{display:block;font-size:13.5px;color:var(--ink2);margin-top:3px}
+.mk2 i{display:block;width:2px;background:var(--ink);margin:6px auto 0;opacity:.6}
+.blockers2{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:34px}
+.blk2{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:18px 20px 16px;box-shadow:0 15px 35px rgba(50,50,93,.08),0 3px 6px rgba(0,0,0,.04)}
+.blk2 .badge{position:absolute;top:16px;right:16px}
+.blk2 b{display:block;font-size:40px;font-weight:300;letter-spacing:-1px;color:#e0245e;line-height:1.05}
+.blk2 h4{font-size:18px;margin:6px 0 6px}.blk2 p{font-size:14.5px;line-height:1.45;color:var(--ink2)}
+
+/* dashboard skin: same palette, gradient bar, shadows and type as the Bug Smasher dashboard */
+:root{--bg:#ffffff;--page:#f6f9fc;--ink:#061b31;--ink2:#273951;--muted:#64748d;--line:#e5edf5;--soft:#f6f9fc;--accent:#533afd;--accent-soft:#efedff;--ok:#108c3d;--ok-soft:#e7f6ec;--warn:#b26a00;--warn-soft:#fff3df}
+[data-theme=dark]{--bg:#0d2238;--page:#061729;--ink:#f0f5fb;--ink2:#c5d1e0;--muted:#8ea3bd;--line:#1d3a58;--soft:#12304d;--accent:#8b80ff;--accent-soft:#1f2a55;--ok:#3fbf85;--ok-soft:#10301f;--warn:#f0b35a;--warn-soft:#33260f}
+html,body{font-family:"sohne-var","SF Pro Display",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-feature-settings:"ss01"}
+.stage{box-shadow:0 15px 35px rgba(50,50,93,.10),0 3px 6px rgba(0,0,0,.05);border-radius:4px;overflow:hidden}
+.stage::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#533afd,#f96bee 55%,#ea2261);z-index:3}
+.tracker{letter-spacing:.16em}
+.crisp h2{font-weight:500;letter-spacing:-.7px}
+.rule{height:1px;opacity:1;background:var(--line)}
+.cover{background:linear-gradient(135deg,#061b31 0%,#1c1e54 58%,#533afd 145%)}
+.kpi,.stat,.blk,.chip2,.m,.ans,.sel,.choice,.box,.econ,.trail,.phase,.phase2,.cv{box-shadow:0 15px 35px rgba(50,50,93,.06),0 3px 6px rgba(0,0,0,.03)}
+
+.mk2.lft{transform:translateX(calc(-100% + 1px));text-align:right}.mk2.lft i{margin:6px 0 0 auto}
+.mk2.rgt{transform:translateX(-1px);text-align:left}.mk2.rgt i{margin:6px auto 0 0}
+.mk2.lft b,.mk2.rgt b{padding:0 8px}.mk2.lft span,.mk2.rgt span{padding:0 8px}
+
+.pbars{display:block;width:100%;max-width:1000px;height:auto;margin:0 auto}
+.pbars .grid{stroke:var(--line);stroke-width:1}
+.pbars .axis{fill:var(--muted);font-size:13px}
+.pbars .rowlabel{fill:var(--ink2);font-size:16px}
+.pbars .bar.p{fill:var(--accent)}.pbars .bar.r{fill:#e0245e}
+.pbars .val{font-size:22px;font-weight:400;fill:var(--ink);letter-spacing:-.3px}.pbars .val.r{fill:#e0245e;font-weight:500}
+
+.tline{display:block;width:100%;max-width:1000px;height:auto;margin:0 auto}
+.tline .trk{fill:var(--line)}
+.tline .tk{stroke:var(--muted);stroke-width:1}.tline .tkl{fill:var(--muted);font-size:13px}
+.tline .dash{stroke:var(--ink2);stroke-width:1.3;stroke-dasharray:2 4;stroke-linecap:round}
+.tline .mv{fill:var(--ink);font-size:36px;font-weight:300;letter-spacing:-1px}
+.tline .mc{fill:var(--ink2);font-size:14px}
+
+.journey2{display:block;width:100%;height:auto}
+.journey2 .jtrack{fill:var(--line);opacity:.75}
+.journey2 .jtk{fill:var(--muted);font-size:13px}.journey2 .jtl{stroke:var(--muted);stroke-width:1}
+.journey2 .jdash{stroke:var(--ink2);stroke-width:1.3;stroke-dasharray:2 4;stroke-linecap:round}
+.journey2 .jv{fill:var(--ink);font-size:34px;font-weight:300;letter-spacing:-1px}.journey2 .jv.first{font-size:22px;font-weight:500;letter-spacing:-.3px}
+.journey2 .jc{fill:var(--ink2);font-size:14px}
+
+.tlcards{display:block;width:100%;height:auto}
+.tlcards .tctrack{fill:var(--line)}
+.tlcards .tctk{fill:var(--muted);font-size:12.5px}
+.tlcards .tcstem{stroke-width:1.5;stroke-dasharray:2 3;stroke-linecap:round}
+.tlcards .tcbg{fill:var(--bg);stroke:var(--line);filter:drop-shadow(0 8px 16px rgba(50,50,93,.10)) drop-shadow(0 2px 3px rgba(0,0,0,.05))}
+.tlcards .tcv{fill:var(--ink);font-size:26px;font-weight:300;letter-spacing:-.8px}.tlcards .tcv.first{font-size:19px;font-weight:600;letter-spacing:-.2px}
+.tlcards .tcc{fill:var(--ink2);font-size:13px}
+.tlcards{overflow:visible}
+
+.tlcards .tctl{stroke:var(--muted);stroke-width:1.2}.tlcards .tctk{fill:var(--muted);font-size:12.5px;font-weight:500}
+
+.flowmap{width:74%}
+.howlegend{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:14px;margin-top:12px}
+.hl{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:11px 14px;box-shadow:0 10px 24px rgba(50,50,93,.06)}
+.hl h4{font-size:13.5px;margin-bottom:7px;display:flex;align-items:center;gap:7px}
+.hdot{width:10px;height:10px;border-radius:3px;display:inline-block}.hdot.dv{background:var(--accent)}.hdot.pb{background:#b9b0ff}.hdot.bs{background:var(--ink)}
+.hchips{display:flex;flex-wrap:wrap;gap:5px}.hchips span{font-size:12px;background:var(--accent-soft);color:var(--accent);border-radius:5px;padding:3px 7px;font-weight:600}
+.hl ul{margin:0;padding-left:16px}.hl li{font-size:12.5px;line-height:1.45;color:var(--ink2);margin:0 0 2px}.hl li b{color:var(--ink)}
+
+/* merged solution slide (3+4) */
+.merged .body{justify-content:flex-start;padding-bottom:0}
+.m34{display:grid;grid-template-columns:1fr 292px;gap:16px;align-items:stretch}
+.answers.v{grid-template-columns:1fr;gap:10px;margin-top:0}
+.answers.v .ans{padding:11px 14px;gap:10px;align-items:flex-start}
+.answers.v .ans h4{font-size:15px;margin-bottom:3px}
+.answers.v .ans p{font-size:12.5px;line-height:1.4}
+.answers.v .badge{position:static;width:24px;height:24px;font-size:12px}
+.merged .howlegend{margin-top:12px}
+.flowmap .bdg circle{fill:var(--ink);stroke:var(--bg);stroke-width:3}
+.flowmap .bdg text{fill:var(--bg);font-size:15px;font-weight:700;text-anchor:middle;dominant-baseline:central}
+.merged .flowmap{width:100%;margin:0}
+.merged .mapcol{display:flex;align-items:center}
+.answers.v .badge{background:var(--ink);color:var(--bg)}
+</style></head><body><div class="stage" id="stage"><section class="slide cover-slide"><div class="inner"><div class="cover">
+  <div class="kicker">Kshitiz Shankar · 30 September 2026</div>
+  <h1>Bug Smasher</h1>
+  <p class="sub">Autonomous bug remediation on Devin,<br>with every fix proven before it merges</p>
+  <div class="ctable">
+    <div class="ch"></div><div class="ch">Work done</div><div class="ch">Median time</div><div class="ch">Before merge</div><div class="ch">Devin cost</div><div class="ch">Total cost</div>
+    <div class="rl">Live on<br>Apache Superset</div>
+    <div><b>5</b><span>real open bugs</span></div><div><b>7 min</b><span>to investigate a bug</span></div><div><b>4 / 4</b><span>fixes proven</span></div><div><b>$4.47</b><span>per proven fix</span></div><div><b>$17.89</b><span>across 11 sessions</span></div>
+    <div class="rl">Building<br>Bug Smasher</div>
+    <div><b>25</b><span>pull requests by Devin</span></div><div><b>26 min</b><span>dispatch to merge</span></div><div><b>25 / 25</b><span>passed CI</span></div><div><b>$5.71</b><span>per pull request</span></div><div><b>$137.12</b><span>across 24 costed PRs</span></div>
+  </div>
+</div></div><div class="foot"><span></span><span class="pg"></span></div></section>
+<section class="slide crisp"><div class="inner"><div class="tracker">The problem</div><h2>Superset’s bugs stall on investigation, not coding: 70 hours to a first look, and 78 bugs set aside for AI still wait</h2><div class="rule"></div><div class="body">
+<div class="tlwrap"><svg class="tlcards" viewBox="0 0 1168 292" width="1168" height="292" role="img"><defs><linearGradient id="tgc" x1="0" x2="1"><stop offset="0" stop-color="#533afd"/><stop offset=".6" stop-color="#f96bee"/><stop offset="1" stop-color="#ea2261"/></linearGradient></defs><rect class="tctrack" x="16" y="141.0" width="1136" height="10" rx="5.0"/><rect x="16" y="141.0" width="1049" height="10" rx="5.0" fill="url(#tgc)"/><line class="tctl" x1="104.6" x2="104.6" y1="132.0" y2="140.0"/><text class="tctk" x="104.6" y="127.0" text-anchor="middle">1 day</text><line class="tctl" x1="265.7" x2="265.7" y1="132.0" y2="140.0"/><text class="tctk" x="265.7" y="127.0" text-anchor="middle">3 days</text><line class="tctl" x1="588.0" x2="588.0" y1="132.0" y2="140.0"/><text class="tctk" x="588.0" y="127.0" text-anchor="middle">1 week</text><line class="tctl" x1="1152.0" x2="1152.0" y1="132.0" y2="140.0"/><text class="tctk" x="1158.0" y="127.0" text-anchor="end">2 weeks</text><line class="tcstem" x1="24.0" x2="24.0" y1="96" y2="139.0" stroke="#533afd"/><circle cx="24.0" cy="146" r="7" fill="#fff" stroke="#533afd" stroke-width="3"/><g class="tccard"><rect x="16.0" y="18" width="236" height="78" rx="12" class="tcbg"/><rect x="30.0" y="37" width="40" height="40" rx="10" fill="#efedff"/><ellipse cx="50" cy="59" rx="4.2" ry="5.6" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="50" cy="51.8" r="2.2" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M50 55.5 V64" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M46.0 56.0 L42.5 53.5" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M46.0 59.5 L42.5 59.5" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M46.0 62.5 L42.5 64.5" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M54.0 56.0 L57.5 53.5" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M54.0 59.5 L57.5 59.5" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M54.0 62.5 L57.5 64.5" fill="none" stroke="#533afd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text class="tcv first" x="82.0" y="56">New bug filed</text><text class="tcc" x="82.0" y="76">someone reports it</text></g><line class="tcstem" x1="259.0" x2="259.0" y1="153.0" y2="204" stroke="#6d4dfb"/><circle cx="259.0" cy="146" r="7" fill="#fff" stroke="#6d4dfb" stroke-width="3"/><g class="tccard"><rect x="241.0" y="204" width="236" height="78" rx="12" class="tcbg"/><rect x="255.0" y="223" width="40" height="40" rx="10" fill="#efedff"/><path d="M268.5 237 H275.5 L282.0 243 L275.5 249 H268.5 Z" fill="none" stroke="#6d4dfb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="271.7" cy="240.2" r="1.3" fill="#6d4dfb"/><text class="tcv" x="307.0" y="242">70 h</text><text class="tcc" x="307.0" y="262">first maintainer label</text></g><line class="tcstem" x1="349.6" x2="349.6" y1="96" y2="139.0" stroke="#9b4df0"/><circle cx="349.6" cy="146" r="7" fill="#fff" stroke="#9b4df0" stroke-width="3"/><g class="tccard"><rect x="331.6" y="18" width="236" height="78" rx="12" class="tcbg"/><rect x="345.6" y="37" width="40" height="40" rx="10" fill="#f5ecff"/><path d="M358.6428571428571 51 H372.6428571428571 V60.5 H366.6428571428571 L362.1428571428571 64.5 V60.5 H358.6428571428571 Z" fill="none" stroke="#9b4df0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><text class="tcv" x="397.6" y="56">97 h</text><text class="tcc" x="397.6" y="76">first maintainer reply</text></g><line class="tcstem" x1="1064.7" x2="1064.7" y1="153.0" y2="204" stroke="#e0245e"/><circle cx="1064.7" cy="146" r="7" fill="#fff" stroke="#e0245e" stroke-width="3"/><g class="tccard"><rect x="846.7" y="204" width="236" height="78" rx="12" class="tcbg"/><rect x="860.7" y="223" width="40" height="40" rx="10" fill="#fde8ef"/><path d="M874.7142857142858 243.5 L878.7142857142858 247.5 L887.2142857142858 238" fill="none" stroke="#e0245e" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><text class="tcv" x="912.7" y="242">12.9 days</text><text class="tcc" x="912.7" y="262">AI-candidate bug closed</text></g></svg></div>
+<div class="blockers2">
+  <div class="blk2"><span class="badge">1</span><b>64%</b><h4>Investigation is manual</h4><p>of 1,032 yearly issues come from first-time contributors. A maintainer must reproduce and diagnose each one.</p></div>
+  <div class="blk2"><span class="badge">2</span><b>No proof</b><h4>AI output isn’t trusted</h4><p>An agent saying “fixed” is a claim. Someone still has to check every change.</p></div>
+  <div class="blk2"><span class="badge">3</span><b>78</b><h4>AI work stays in the queue</h4><p>bugs tagged <code>ai-candidate</code> today. Nothing picks them up on its own.</p></div>
+</div></div></div><div class="foot"><span class="src">Source: apache/superset issues, 12 months to 28 Sep 2026 (medians); open ai-candidate count, 30 Sep 2026.</span><span class="pg">2</span></div></section>
+<section class="slide crisp merged"><div class="inner"><div class="tracker">The solution</div><h2>Bug Smasher turns that queue into a pipeline: Devin investigates and fixes, Bug Smasher tests, a human decides</h2><div class="rule"></div><div class="body"><div class="m34"><div class="mapcol"><svg class="flowmap" viewBox="0 0 1168 430" width="1168" height="430"><defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path class="ahp" d="M0,0 L10,5 L0,10 z"/></marker><marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path class="ahp warn" d="M0,0 L10,5 L0,10 z"/></marker><marker id="ahl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path class="ahp red" d="M0,0 L10,5 L0,10 z"/></marker><marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path class="ahp blue" d="M0,0 L10,5 L0,10 z"/></marker><pattern id="dots" width="18" height="18" patternUnits="userSpaceOnUse"><circle class="dotg" cx="2" cy="2" r="1"/></pattern></defs><rect class="canvas" x="0" y="0" width="1168" height="430" rx="14"/><rect x="0" y="0" width="1168" height="430" rx="14" fill="url(#dots)"/><path class="e" d="M252 76 H304" marker-end="url(#ah)"/><path class="e" d="M538 76 H612" marker-end="url(#ah)"/><text class="s halo " x="576" y="68" text-anchor="middle">findings</text><path class="e" d="M666 76 H758" marker-end="url(#ah)"/><text class="s halo code" x="713" y="68" text-anchor="middle">devin:fix</text><path class="e warn" d="M640 102 V154" marker-end="url(#ahw)"/><text class="s halo " x="610" y="174" text-anchor="middle">needs-engineer → an engineer · or close</text><path class="e" d="M932 122 V306" marker-end="url(#ah)"/><text class="s halo " x="942" y="219" text-anchor="start">pull request</text><path class="e" d="M760 354 H684" marker-end="url(#ah)"/><text class="s halo " x="721" y="346" text-anchor="middle">passes</text><path class="e" d="M450 354 H378" marker-end="url(#ah)"/><text class="s halo " x="413" y="346" text-anchor="middle">clean</text><path class="e" d="M324 354 H254" marker-end="url(#ah)"/><text class="s halo " x="288" y="346" text-anchor="middle">merged</text><path class="e loop" d="M992 338 C1064 338 1064 92 995 92" marker-end="url(#ahl)"/><text class="s loopt" x="1068" y="199">fails:</text><text class="s loopt" x="1068" y="215">back to</text><text class="s loopt" x="1068" y="231">Devin, once</text><path class="e loop2" d="M596 306 C596 238 804 248 804 125" marker-end="url(#ahr)"/><text class="s loopt2" x="582" y="282" text-anchor="end">Review findings: back to Devin</text><text class="s" x="582" y="297" text-anchor="end">up to 2 rounds · new commits re-tested</text><path class="e dot" d="M422 122 V186"/><path class="e dot" d="M450 214 H872 V122"/><circle class="cardbg" cx="422" cy="214" r="28"/><path class="mark" transform="translate(405 197) scale(0.08)" d="M70 159.333V91.3471C70 88.3592 71.594 85.5983 74.1816 84.1044L133.043 50.1205C135.631 48.6265 138.819 48.6265 141.407 50.1205L200.269 84.1044C202.856 85.5983 204.45 88.3592 204.45 91.3471V126.068C204.708 137.606 210.806 148.734 221.531 154.926C232.256 161.117 244.942 160.834 255.063 155.289L285.132 137.929C287.719 136.435 290.907 136.435 293.495 137.929L352.357 171.913C354.944 173.406 356.538 176.167 356.538 179.155V247.123C356.538 250.111 354.944 252.872 352.357 254.366L293.495 288.35C290.907 289.844 287.719 289.844 285.132 288.35L255.306 271.13C245.146 265.456 232.344 265.117 221.534 271.358C210.809 277.55 204.711 288.678 204.453 300.215V334.926C204.453 337.914 202.859 340.675 200.271 342.169L141.41 376.153C138.822 377.647 135.634 377.647 133.046 376.153L74.1845 342.169C71.5969 340.675 70.0028 337.914 70.0028 334.926V266.959C70.0029 263.971 71.5969 261.21 74.1845 259.716L133.046 225.732C135.634 224.238 138.822 224.238 141.41 225.732L171.547 243.132C181.656 248.638 194.306 248.906 205.005 242.729C215.815 236.488 221.922 225.231 222.088 213.595C221.83 202.057 215.732 189.737 205.008 183.545C194.283 177.353 181.597 177.636 171.476 183.181L141.269 200.72C138.67 202.229 135.461 202.228 132.864 200.716L74.1576 166.562C71.5835 165.065 70 162.311 70 159.333Z"/><text class="h" x="384" y="211" text-anchor="end">Devin</text><text class="s" x="384" y="227" text-anchor="end">one session per bug</text><g class="c warm"><rect class="cardbg" x="20" y="30" width="232" height="92" rx="12"/><path class="foot" d="M20 94 H252 V110 Q252 122 240 122 H32 Q20 122 20 110 Z"/><line class="tick" x1="20" y1="94" x2="252" y2="94"/><rect class="tile" x="34" y="44" width="36" height="36" rx="9"/><rect class="g" x="43" y="55" width="18" height="14" rx="2"/><path class="g" d="M43 63 H48 L50 66 H54 L56 63 H61"/><text class="h" x="82" y="60">New bug</text><text class="s" x="82" y="78">A person tags it</text><circle class="fdot" cx="38" cy="108" r="3.5"/><text class="m" x="48" y="112">devin:triage label</text></g><g class="c accent"><rect class="cardbg" x="306" y="30" width="232" height="92" rx="12"/><path class="foot" d="M306 94 H538 V110 Q538 122 526 122 H318 Q306 122 306 110 Z"/><line class="tick" x1="306" y1="94" x2="538" y2="94"/><rect class="tile" x="320" y="44" width="36" height="36" rx="9"/><circle class="g" cx="336" cy="60" r="6"/><path class="g" d="M340.5 64.5 L346 70"/><text class="h" x="368" y="60">Investigate</text><text class="s" x="368" y="78">Reproduce · cause · test</text><circle class="fdot" cx="324" cy="108" r="3.5"/><text class="m" x="334" y="112">picking-up + findings comments</text></g><polygon class="gate" points="640,50 666,76 640,102 614,76"/><text class="h" x="640" y="38" text-anchor="middle">Decide <tspan class="s">· a person</tspan></text><g class="c accent"><rect class="cardbg" x="760" y="30" width="232" height="92" rx="12"/><path class="foot" d="M760 94 H992 V110 Q992 122 980 122 H772 Q760 122 760 110 Z"/><line class="tick" x1="760" y1="94" x2="992" y2="94"/><rect class="tile" x="774" y="44" width="36" height="36" rx="9"/><path class="g" d="M788 56 L783 62 L788 68 M796 56 L801 62 L796 68 M794 54 L790 70"/><text class="h" x="822" y="60">Fix</text><text class="s" x="822" y="78">Same session; opens a PR</text><circle class="fdot" cx="778" cy="108" r="3.5"/><text class="m" x="788" y="112">pull request · ready: pending</text></g><g class="c neutral"><rect class="cardbg" x="760" y="308" width="232" height="92" rx="12"/><path class="foot" d="M760 372 H992 V388 Q992 400 980 400 H772 Q760 400 760 388 Z"/><line class="tick" x1="760" y1="372" x2="992" y2="372"/><rect class="tile" x="774" y="322" width="36" height="36" rx="9"/><path class="g" d="M792 330 L800 333 V340 C800 345 796 348 792 350 C788 348 784 345 784 340 V333 Z"/><path class="g" d="M788.5 340 L791 342.5 L795.5 337.5"/><text class="h" x="822" y="338">Test</text><text class="s" x="822" y="356">Fails before, passes after</text><circle class="fdot" cx="778" cy="386" r="3.5"/><text class="m" x="788" y="390">verification status</text></g><g class="c accent"><rect class="cardbg" x="450" y="308" width="232" height="92" rx="12"/><path class="foot" d="M450 372 H682 V388 Q682 400 670 400 H462 Q450 400 450 388 Z"/><line class="tick" x1="450" y1="372" x2="682" y2="372"/><rect class="tile" x="464" y="322" width="36" height="36" rx="9"/><path class="g" d="M472 340 C476 333 488 333 492 340 C488 347 476 347 472 340 Z"/><circle class="g" cx="482" cy="340" r="3"/><text class="h" x="512" y="338">Review</text><text class="s" x="512" y="356">Devin Review of the PR</text><circle class="fdot" cx="468" cy="386" r="3.5"/><text class="m" x="478" y="390">Ready for review · ready: done</text></g><polygon class="gate" points="350,328 376,354 350,380 324,354"/><text class="h" x="350" y="402" text-anchor="middle">Merge <tspan class="s">· a person</tspan></text><g class="c ok"><rect class="cardbg" x="20" y="308" width="232" height="92" rx="12"/><path class="foot" d="M20 372 H252 V388 Q252 400 240 400 H32 Q20 400 20 388 Z"/><line class="tick" x1="20" y1="372" x2="252" y2="372"/><rect class="tile" x="34" y="322" width="36" height="36" rx="9"/><rect class="g" x="44" y="332" width="16" height="16" rx="3"/><path class="g" d="M48 340 L51 343 L56 337"/><text class="h" x="82" y="338">Merged</text><text class="s" x="82" y="356">Re-checked after merge</text><circle class="fdot" cx="38" cy="386" r="3.5"/><text class="m" x="48" y="390">post-merge check</text></g></svg></div><div class="answers v">
+  <div class="ans"><span class="badge">1</span><div><h4>Investigation in minutes</h4><p>Every labelled bug gets its own Devin session, which reproduces it, finds the cause and writes a test that fails today</p></div></div>
+  <div class="ans"><span class="badge">2</span><div><h4>Proof, not a claim</h4><p>Bug Smasher reruns Devin’s test in the project’s own test image. No pass, no merge</p></div></div>
+  <div class="ans"><span class="badge">3</span><div><h4>Runs in the team’s GitHub</h4><p>A label starts it. A human decides and merges. Nothing new to learn</p></div></div>
+</div></div>
+<div class="howlegend">
+  <div class="hl dv"><h4><span class="hdot dv"></span>Devin features used</h4><div class="hchips"><span>Sessions API · one per bug</span><span>Structured output</span><span>A machine per session</span><span>GitHub integration</span><span>Devin Review</span><span>ACU cap per session</span></div></div>
+  <div class="hl pb"><h4><span class="hdot pb"></span>Playbooks we wrote</h4><ul><li><b>Triage:</b> reproduce, find the cause, propose a test that fails today</li><li><b>Repair:</b> failing test first, then the fix; keep every test</li><li><b>Feature:</b> one test per acceptance criterion</li></ul></div>
+  <div class="hl bs"><h4><span class="hdot bs"></span>Bug Smasher’s verifier</h4><ul><li>Runs Devin’s test in the project’s image, network off</li><li><b>Must fail on the old code and pass on the fix</b></li><li>Refuses weakened tests; flags silenced checks</li><li>Tests again after the merge</li></ul></div>
+</div></div></div><div class="foot"><span class="src">Order as implemented: the test runs first; Devin Review is requested once it passes. Every step leaves a trace on GitHub. Source: Bug Smasher code (src/orchestrator), README and docs/ARCHITECTURE.md.</span><span class="pg">3</span></div></section>
+<section class="slide crisp"><div class="inner"><div class="tracker">First results</div><h2>On five real Superset bugs, investigation took minutes and every fix Devin shipped was proven</h2><div class="rule"></div><div class="body"><div class="resgrid">
+  <div class="sel"><h4>How we chose them</h4><p>Five open upstream bugs, picked from 146 to test every path: three clear fixes, one vague report, one that needs a person.</p></div>
+  <table class="res"><thead><tr><th>Bug</th><th></th><th>Type</th><th>Outcome</th><th>What happened</th><th>Label to result</th></tr></thead><tbody><tr><td class="num">#1</td><td><b>BigQuery builds invalid SQL</b></td><td class="muted2">Clear fix</td><td class="ok"><span class="dot ok"></span>Fixed and proven</td><td>3 of 3 tests fail before, pass after</td><td class="num">13 min</td></tr><tr><td class="num">#2</td><td><b>Dashboard “Last modified” not updated</b></td><td class="muted2">Clear fix</td><td class="ok"><span class="dot ok"></span>Fixed and proven</td><td>Suppression caught, removed, proven again</td><td class="num">19 min</td></tr><tr><td class="num">#3</td><td><b>Reports ignore “force refresh”</b></td><td class="muted2">Clear fix</td><td class="ok"><span class="dot ok"></span>Fixed and proven</td><td>Suppression caught, removed, proven again</td><td class="num">17 min</td></tr><tr><td class="num">#4</td><td><b>ClickHouse GROUP BY ALL</b></td><td class="muted2">Vague report</td><td class="ok"><span class="dot ok"></span>Fixed and proven</td><td>Proven on the second attempt</td><td class="num">63 min</td></tr><tr><td class="num">#5</td><td><b>Deleting a user fails</b></td><td class="muted2">Needs a person</td><td class="warn"><span class="dot warn"></span>Sent to an engineer</td><td>Needs schema decisions across 60+ tables</td><td class="num">9 min</td></tr></tbody></table>
+</div>
+<div class="three">
+  <div class="m"><span class="badge">1</span><b>7 min</b><span>median investigation<br>Superset today: 70 h to a first label</span></div>
+  <div class="m"><span class="badge">2</span><b>4 / 4</b><span>fixes proven before merge<br>2 shortcuts caught</span></div>
+  <div class="m"><span class="badge">3</span><b>$4.47</b><span>Devin usage per proven fix<br>2 human decisions per bug</span></div>
+</div></div></div><div class="foot"><span class="src">Copied into kshitizshankar/superset and run on 30 Sep 2026. Proven = Devin’s new test fails on the old code and passes on the fix, run by Bug Smasher. Cost from Devin’s usage page ($17.89, 11 sessions).</span><span class="pg">4</span></div></section>
+<section class="slide crisp"><div class="inner"><div class="tracker">Beyond bugs</div><h2>The same pipeline builds features: Devin wrote Bug Smasher itself in 25 pull requests over 12 hours</h2><div class="rule"></div><div class="body"><div class="buildbar">
+  <div class="seg a" style="flex:16"><b>16 pull requests</b><span>dispatched through the Devin API</span></div>
+  <div class="seg b" style="flex:9"><b>9 pull requests</b><span>Bug Smasher assigned its own work</span></div>
+</div>
+<div class="bbaxis"><span>29 Sep, 17:20</span><span class="mid" style="left:64%">02:23 · Bug Smasher takes over</span><span>30 Sep, 05:37</span></div>
+<div class="bstats">
+  <div><b>25</b><span>pull requests, all written by Devin</span></div>
+  <div><b>100%</b><span>reviewed and merged by a person</span></div>
+  <div><b>25 / 25</b><span>passed CI at merge</span></div>
+  <div><b>24 / 25</b><span>passed Devin Review</span></div>
+</div>
+<div class="takeaway">One pipeline for the whole backlog: bugs, features and chores, with the same testing and the same two decisions</div></div></div><div class="foot"><span class="src">Source: kshitizshankar/devin-bug-smasher merged pull requests (first 29 Sep 15:20 UTC, last 30 Sep 03:37 UTC; Berlin times shown).</span><span class="pg">5</span></div></section>
+<section class="slide crisp"><div class="inner"><div class="tracker">Why Devin</div><h2>Devin makes this practical: it supplies the agent’s machine, tools and memory, so a team builds only the workflow</h2><div class="rule"></div><div class="body"><div class="whygrid">
+  <div class="took"><h4>What fixing bug #1 took</h4><ol><li>Work in a full Superset checkout</li><li>Run its test suite</li><li>Reproduce the failure</li><li>Trace the cause in the code</li><li>Write a test that fails today</li><li>Fix it and open a pull request</li><li>Summarise it for the reviewer</li></ol><p class="tooknote">A real machine, many steps, and memory across hours</p></div>
+  <div class="versus">
+    <div class="vcol diy"><h4>On a model API, you build and run</h4><ul><li>A sandboxed machine per bug</li><li>The multi-step agent loop</li><li>Sessions that wait for people</li><li>A GitHub identity for the agent</li><li>Review and spend controls</li></ul><div class="vfoot">A platform project before the first bug is fixed</div></div>
+    <div class="vcol dv"><h4>With Devin, it is provided</h4><ul><li>A machine per session, repo set up</li><li>Autonomous, multi-step sessions</li><li>Sessions that sleep and resume</li><li>Its own GitHub account</li><li>Devin Review, ACU caps</li></ul><div class="vfoot">Bug Smasher is one small service, built in 12 hours of merges</div></div>
+  </div>
+</div></div></div><div class="foot"><span class="src">Source: bug #1’s Devin session and investigation comment; Bug Smasher’s Devin API client (src/devin).</span><span class="pg">6</span></div></section>
+<section class="slide crisp"><div class="inner"><div class="tracker">When</div><h2>Next: prove it on one queue in five weeks, then extend it across the backlog</h2><div class="rule"></div><div class="body"><div class="chevs"><div class="cv"><div class="when">Week 1</div><h4>Onboard</h4><p>Connect the repository and test image · replay 5 known fixes</p><div class="gate">Exit: known fixes proven</div></div><div class="cv"><div class="when">Weeks 2–5</div><h4>Pilot one queue</h4><p>The team labels, decides and merges · cost and outcomes weekly</p><div class="gate">Go: ≥ 75% proven first time · 0 reverts</div></div><div class="cv"><div class="when">Week 6+</div><h4>Extend</h4><p>More queues and repositories · features too · autonomy by bug class</p><div class="gate">Decided on the record, not estimates</div></div></div>
+<div class="takeaway">Built next: a Devin Automation as the trigger · Slack, Linear and Jira intake · a live dashboard</div></div></div><div class="foot"><span class="src">Thresholds to agree with the team. At the Superset run’s rate ($3.58 per bug, n = 5), today’s 78 AI-candidate bugs ≈ $280 of Devin usage.</span><span class="pg">7</span></div></section></div><div class="chrome" id="chrome"><span id="count"></span><span>← → to move · H hides this bar</span><div id="theme-switch" role="group" aria-label="Theme"></div></div><script>
+(function(){
+  var slides=[].slice.call(document.querySelectorAll('.slide')),i=Math.min(Math.max(parseInt((location.hash||'#1').slice(1),10)-1||0,0),slides.length-1);
+  var stage=document.getElementById('stage'),count=document.getElementById('count'),chrome=document.getElementById('chrome');
+  function fit(){var s=Math.min(innerWidth/1280,(innerHeight-44)/720);stage.style.transform='translate(-50%,-50%) scale('+s+')'}
+  function show(n){i=Math.min(Math.max(n,0),slides.length-1);slides.forEach(function(s,k){s.classList.toggle('on',k===i)});count.textContent=(i+1)+' / '+slides.length;history.replaceState(null,'','#'+(i+1))}
+  addEventListener('resize',fit);fit();show(i);
+  addEventListener('keydown',function(e){
+    if(['ArrowRight','PageDown',' '].indexOf(e.key)>=0){e.preventDefault();show(i+1)}
+    else if(['ArrowLeft','PageUp'].indexOf(e.key)>=0){e.preventDefault();show(i-1)}
+    else if(e.key==='h'||e.key==='H'){chrome.classList.toggle('hide')}
+    else if(e.key==='Home'){show(0)}else if(e.key==='End'){show(slides.length-1)}
+  });
+  var K='bug-smasher-deck-theme',d=document.documentElement,mq=matchMedia('(prefers-color-scheme: dark)'),sw=document.getElementById('theme-switch');
+  function apply(c){d.setAttribute('data-theme',c==='auto'?(mq.matches?'dark':'light'):c);[].forEach.call(sw.children,function(b){b.setAttribute('aria-pressed',b.dataset.c===c)})}
+  ['auto','light','dark'].forEach(function(v){var b=document.createElement('button');b.type='button';b.dataset.c=v;b.textContent=v[0].toUpperCase()+v.slice(1);b.onclick=function(){localStorage.setItem(K,v);apply(v)};sw.appendChild(b)});
+  apply(localStorage.getItem(K)||'light');mq.addEventListener('change',function(){if((localStorage.getItem(K)||'light')==='auto')apply('auto')});
+})();
+</script></body></html>
