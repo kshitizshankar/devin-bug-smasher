@@ -61,6 +61,8 @@ import {
   questionComment,
   reviewBlockerComment,
   sessionStartedComment,
+  sessionWaitingComment,
+  sessionWaitingSummary,
   thankYouComment,
   triageComment,
   triagePullRequestNotice,
@@ -130,6 +132,7 @@ export type TraceType =
   | 'reply-relayed'
   | 'comment-ignored'
   | 'question-posted'
+  | 'session-waiting'
   | 'verifier-unavailable'
   | 'policy-unavailable'
   | 'policy-waiting'
@@ -207,6 +210,23 @@ export function consumesCapacity(record: BugRecord): boolean {
   if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) return false;
   if (!WORKING_STAGES.includes(record.stage)) return false;
   return record.workflow?.workQuestion?.sessionId !== session.id;
+}
+
+/**
+ * Whether the session stopped to wait for a person without a structured question. Only the provider's
+ * status is read, never chat text. A wait last updated before the record entered its stage predates the
+ * message that started this stage (a relayed reply or an approval), so it is not a new stop.
+ */
+function waitingWithoutQuestion(record: BugRecord, session: DevinSession, signal: StructuredSignal | null): boolean {
+  if (session.activity.kind !== 'waiting') return false;
+  if (signal?.type === 'needs-input' || signal?.type === 'blocked') return false;
+  const entered = record.stageHistory.at(-1)?.at;
+  return entered === undefined || Date.parse(session.updatedAt) > Date.parse(entered);
+}
+
+/** Stable per stop: re-reading the same stopped session yields the same id; a later stop gets a new one. */
+function waitingQuestionId(session: DevinSession): string {
+  return `w-${hash(`${session.id}\n${session.updatedAt}`)}`;
 }
 
 function commentKey(raw: string): string {
@@ -1159,6 +1179,17 @@ export class Orchestrator {
           return (await this.#commit(issue, record, result, event.type, { ops })) === 'applied';
         }
         this.#noteIgnoredOutput(record, session);
+        if (waitingWithoutQuestion(record, session, signal)) {
+          const question = { id: waitingQuestionId(session), summary: sessionWaitingSummary(session.url) };
+          const result = this.#event(record, { type: 'question-asked', question });
+          if (result.ok && result.changed) {
+            this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: question.id, phase: 'triage' });
+            const ops: WorkflowOperation[] = [
+              { type: 'post-comment', key: commentKey(`question:${question.id}`), body: sessionWaitingComment(session.url) },
+            ];
+            return (await this.#commit(issue, record, result, 'session-waiting', { ops })) === 'applied';
+          }
+        }
       }
     } else if (record.stage === 'fixing') {
       if (signal?.type === 'pr-opened') {
@@ -1184,6 +1215,24 @@ export class Orchestrator {
         }
       } else {
         this.#noteIgnoredOutput(record, session);
+        const id = waitingQuestionId(session);
+        const notice = `work-question:${id}`;
+        if (
+          waitingWithoutQuestion(record, session, signal) &&
+          workflow.workQuestion?.sessionId !== session.id &&
+          !workflow.notices.includes(notice)
+        ) {
+          await this.#persistWorkflow(
+            record,
+            (state) => {
+              state.notices.push(notice);
+              state.workQuestion = { id, sessionId: session.id, summary: sessionWaitingSummary(session.url), askedAt: this.#nowIso() };
+            },
+            [{ type: 'post-comment', key: commentKey(`question:${id}`), body: sessionWaitingComment(session.url) }],
+          );
+          this.#emit(record.key, 'session-waiting', { sessionId: session.id, questionId: id, phase: 'fix' });
+          return true;
+        }
       }
     }
     return this.#applyStatus(issue, record, session);

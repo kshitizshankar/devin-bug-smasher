@@ -40,6 +40,22 @@ export function questionComment(question: string): string {
   ].join('\n');
 }
 
+/** Question text recorded for a session that stopped and waits without a structured question. */
+export function sessionWaitingSummary(sessionUrl: string): string {
+  return `Devin stopped and is waiting without recording a question; open the session to see what it needs: ${sessionUrl}`;
+}
+
+/** Notice for a session that stopped and waits without a structured question. Never quotes chat text. */
+export function sessionWaitingComment(sessionUrl: string): string {
+  return [
+    '**Devin has stopped and is waiting**',
+    '',
+    `The Devin session is waiting for a person but did not record a question for the service. Open the session to see what it needs: ${sessionUrl}`,
+    '',
+    'Reply with a comment on this issue. Your comment is passed to the same Devin session exactly as written.',
+  ].join('\n');
+}
+
 /** One concise investigation summary. The recommendation stays a recommendation; a person decides. */
 export function triageComment(findings: TriageFindings, labels: LabelSettings): string {
   return [
