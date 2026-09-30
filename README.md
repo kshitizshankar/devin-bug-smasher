@@ -8,111 +8,115 @@ before the fix and pass after it. Features work the same way, with their own lab
 
 ## Where it has run
 
-- **On itself.** Devin built Bug Smasher. Later changes to it were started by Bug Smasher: an issue on this
-  repository was labelled, and Devin opened the pull request. [Build results](results/building-bug-smasher.html)
+- **On itself.** Devin built Bug Smasher. Later changes were started by Bug Smasher itself: someone labelled an
+  issue in this repository, and Devin opened the pull request. [Build results](results/building-bug-smasher.html)
 - **On Apache Superset.** Open upstream bugs, copied into the fork
   [kshitizshankar/superset](https://github.com/kshitizshankar/superset). [Superset results](results/superset-run.html)
 
 ## How it works
 
-1. A person labels a GitHub issue: the triage label to investigate it, the fix label to fix it, or the feature label
-   to build it. The names are settings (defaults `needs-triage`, `bug-smasher`, `devin-builds-feature`; the Superset
-   run used `devin:triage` and `devin:fix`).
-2. The service polls GitHub every `POLL_SECONDS` and starts one Devin session per bug, within `MAX_ACTIVE_SESSIONS`
-   and a per-session ACU cap. It never starts a second fix while a pull request for the bug is open.
-3. Devin investigates in the target repository and posts its findings on the issue from its own account: what
-   happens, the suspected cause, a regression test and a recommendation.
-4. A person decides on GitHub: the fix label continues in the same session, `needs-engineer` hands the bug off,
-   closing the issue ends it.
-5. Devin opens a pull request with the fix and the test. The verifier runs that test in the target's own test image
-   with the network off: it must **fail on the base commit and pass on the pull request**. Added lint or type-check
-   suppressions are flagged for review. The result is the `bug-smasher/verification` commit status; a failed proof
-   goes back to Devin once, then to an engineer.
-6. A person merges. The verifier proves the fix again on the merge commit.
-7. Every step is stored per bug in `data/bugs.json`. `GET /api/metrics` computes the figures
-   ([definitions](docs/METRICS.md)) and `npm run results` turns a run into a page.
+1. **A person labels an issue.** One label asks Devin to investigate, one to fix, one to build a feature.
+2. **Bug Smasher starts a Devin session.** It checks GitHub every minute and runs one session per bug, with a limit
+   on how many run at once and how much each may spend. It never starts a second fix for a bug that already has an
+   open pull request.
+3. **Devin investigates.** It reproduces the bug in the repository and posts its findings on the issue: what
+   happens, the likely cause, a test that shows the bug, and its recommendation.
+4. **A person decides on GitHub.** The fix label sends the bug back to Devin, in the same session, to fix.
+   `needs-engineer` hands it to a person. Closing the issue ends it.
+5. **Devin opens a pull request, and Bug Smasher checks it.** Bug Smasher runs Devin's test in the project's own
+   test image, with the network off. The test must fail on the code before the fix and pass on the pull request. A
+   fix that silences a lint or type check is flagged for review. The result appears on the pull request as the
+   `bug-smasher/verification` status. A fix that fails the check goes back to Devin once, then to an engineer.
+6. **A person merges.** Bug Smasher runs the check again on the merged code.
+7. **Everything is recorded.** Each bug's history is kept in `data/bugs.json`. `GET /api/metrics` reports the
+   figures ([definitions](docs/METRICS.md)), and `npm run results` turns a run into a results page.
 
 ## Quick start
 
-### Without credentials
+### Try it without credentials
 
 ```sh
-docker compose up --build -d                              # the service on http://127.0.0.1:8080
-docker compose exec bug-smasher npm run replay -- all     # play the offline replay
-curl http://127.0.0.1:8080/api/overview                   # eight replayed bugs, clearly marked simulated
+docker compose up --build -d                              # starts Bug Smasher on http://127.0.0.1:8080
+docker compose exec bug-smasher npm run replay -- all     # plays the offline replay
+curl http://127.0.0.1:8080/api/overview                   # eight replayed bugs, marked as simulated
 ```
 
-With no GitHub or Devin credentials the service runs the offline replay: the real orchestrator against stand-in
-GitHub and Devin, with its own store.
+Without GitHub or Devin keys, Bug Smasher runs an offline replay: its real workflow, driven by recorded GitHub
+and Devin events, with its own data.
 
-### Live
+### Run it on a repository
+
+Copy the example settings and fill them in:
 
 ```sh
 cp .env.example .env
 ```
 
-Set the target and the keys in `.env`:
-
 ```env
 GITHUB_REPO=owner/repo
-GITHUB_TOKEN=...        # reads issues and pull requests; writes labels and commit statuses on the target
+GITHUB_TOKEN=...        # can read issues and pull requests, and write labels and commit statuses
 DEVIN_API_KEY=...
 DEVIN_ORG_ID=org-...
-VERIFY_IMAGE=apache/superset:master-dev                                            # the target's test image
-CHECK_COMMAND=python -m pytest -q -p no:cacheprovider --junitxml={results} {files}  # its test runner
+VERIFY_IMAGE=apache/superset:master-dev                                            # the project's test image
+CHECK_COMMAND=python -m pytest -q -p no:cacheprovider --junitxml={results} {files}  # how it runs the tests
 ```
 
+Then prepare the repository and start Bug Smasher:
+
 ```sh
+docker compose run --rm bug-smasher npm run setup -- --dry-run   # lists every change setup would make
+docker compose run --rm bug-smasher npm run setup                # creates the labels and an issue form, configures Devin
 docker compose up --build -d
 ```
 
-The label names in `.env` are the only ones the service reads. `npm run setup` creates them on the target with
-descriptions, adds an issue form that names them, and configures Devin's side (`npm run setup -- --dry-run` lists
-every change first); Devin's comments name the same labels.
+The label names come from `.env`. The defaults are `needs-triage`, `bug-smasher` and `devin-builds-feature`; the
+Superset run used `devin:triage` and `devin:fix`. Setup creates them on the repository, and Devin's comments use
+the same names.
 
-Devin needs its GitHub integration on the target repository so it can push branches and open pull requests. To
-work on a fork, `npm run mirror -- owner/repo#N` copies an upstream issue with links and mentions neutralised.
+Devin needs its GitHub integration on the repository so it can push branches and open pull requests. To work on
+a fork, `docker compose run --rm bug-smasher npm run mirror -- owner/repo#N` copies an upstream issue without
+its links and @mentions.
 
-## Architecture decisions
+## Design decisions
 
-**Devin does the engineering; the service routes and checks.** Investigation, reproduction, the fix and its test
-are Devin's, in one session that carries the findings into the fix. The service decides nothing on its own by
-default (`DECISION=person`, `MERGE=person`); Rule and Automatic policies exist for teams that want them.
+**Devin does the engineering. Bug Smasher routes the work and checks it.** Devin investigates, reproduces, fixes
+and writes the test, in one session, so its findings carry into the fix. By default Bug Smasher makes no decisions
+on its own: people decide what to fix and what to merge. Teams can let clear cases through automatically with the
+decision and merge policies.
 
-**The proof is ours, not Devin's.** The verifier runs only the configured `CHECK_COMMAND`, on test paths it has
-validated, in sibling containers of the target's image started through the host's Docker socket, with the network
-cut before the tests. A fix counts as proven only when the same test fails before it and passes after it.
+**The check belongs to Bug Smasher, not Devin.** Bug Smasher runs only the test command it was configured with, on
+test files it has validated, in a fresh container of the project's test image, with the network off while the
+tests run. A fix counts as proven only when the same test fails before it and passes after it.
 
-**People act on GitHub only.** Labels, comments and merges are the whole interface. Devin writes every comment
-from its own account; the service writes labels and commit statuses (`bug-smasher/ready`,
-`bug-smasher/verification`). One personal token is enough: the service recognises its own label changes by
-recording them, so a person's labels count even on the same account.
+**People work in GitHub.** Labels, comments and merges are the whole interface. Devin writes every comment, from
+its own account. Bug Smasher only sets labels and commit statuses. One personal GitHub token is enough.
 
-**Polling, a JSON store, one process.** Polling needs no public endpoint; the store makes restarts safe and keeps
-the history each figure is computed from. The cost is GitHub API volume (see Known limitations).
+**Simple to run.** Bug Smasher is one process that checks GitHub every minute and keeps its data in a JSON file.
+It needs no public address, and a restart loses nothing. The trade-off is GitHub API usage (see Known
+limitations).
 
-**Cost from Devin's usage history.** Devin's API reports no ACUs on this plan, so spend is read from the usage
-page into `DEVIN_SPEND_USD` with the time it was read, and every figure says where it came from.
+**Cost from Devin's usage page.** Devin's API does not report usage on this plan, so spend is read from Devin's
+usage page and entered as `DEVIN_SPEND_USD`, with the time it was read.
 
 ## Project structure
 
 ```
 src/
-├── server/        HTTP service: health, read-only dashboard API, static web
-├── orchestrator/  the workflow: polling, sessions, decisions, verification, merges
-├── model/         the bug model and its stage transitions
-├── tracker/       GitHub adapter (and an in-memory tracker for tests and replay)
-├── devin/         Devin API client
-├── verify/        the verifier: workspaces, sibling containers, proofs, diff checks
-├── metrics/       every figure the API and the results pages show
-├── store/         the bug store (data/bugs.json)
-├── operator/      CLI: setup, mirror, report, verify-check
+├── server/        HTTP service: health check, read-only API, web page
+├── orchestrator/  the workflow: polling, Devin sessions, decisions, checks, merges
+├── model/         a bug and the stages it moves through
+├── tracker/       GitHub, plus an in-memory version for tests and the replay
+├── devin/         the Devin API client
+├── verify/        the check: test containers, before-and-after runs, flags
+├── metrics/       every figure in the API and on the results pages
+├── store/         the bug records (data/bugs.json)
+├── operator/      commands: setup, mirror, report, verify-check
 ├── replay/        the offline replay
-└── config/        settings from the environment
-prompts/           what the service sends Devin: requests and Playbooks
-results/           live results pages and their data
-scripts/results/   npm run results: capture a run and render its page
-web/               the dashboard frontend (a placeholder)
+└── config/        settings, read from the environment
+prompts/           what Bug Smasher sends Devin
+results/           results pages and their data
+scripts/results/   npm run results: record a run and render its page
+web/               the web dashboard (a placeholder)
 docs/              reference for each part
 ```
 
@@ -125,13 +129,16 @@ npm run typecheck
 npm run build && npm start
 ```
 
-Node 22. CI runs the typecheck and a build-and-smoke test on every pull request.
+Requires Node 22. CI runs the typecheck and a build-and-smoke test on every pull request.
 
 ## Known limitations
 
-- The web dashboard is a placeholder; the read-only API and the results pages carry the figures.
-- Findings deferred rather than fixed are open issues labelled
+- The web dashboard is a placeholder. The API and the results pages show the figures.
+- Issues found in review and not yet fixed are open and labelled
   [`deferred`](https://github.com/kshitizshankar/devin-bug-smasher/issues?q=is%3Aissue+is%3Aopen+label%3Adeferred).
-  The ones that matter most in a live run: polling cost against GitHub's API limit (#104), comments on a fork
-  linking upstream issues (#103), a renamed test counted as removed (#102), writable test-container mounts (#27)
-  and the Docker socket mounted by default (#72).
+  The ones that matter most in a live run:
+  - polling uses a lot of the GitHub API allowance (#104)
+  - on a fork, Devin's comments link to upstream issues (#103)
+  - a renamed test counts as a removed one (#102)
+  - test containers can write to their host folders (#27)
+  - the Docker socket is mounted by default (#72)
