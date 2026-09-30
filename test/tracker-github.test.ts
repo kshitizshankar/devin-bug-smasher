@@ -32,6 +32,16 @@ trackerContract('GitHubTracker (fake GitHub REST)', async () => {
 });
 
 describe('GitHubTracker requests', () => {
+  it('reads the login of the token owner from GET /user', async () => {
+    await withFake(async (fake, tracker) => {
+      fake.respondOnce((request) => request.method === 'GET' && request.path === '/user', {
+        status: 200,
+        body: { login: 'octo-maintainer', id: 7, type: 'User' },
+      });
+      assert.equal(await tracker.getAuthenticatedLogin(), 'octo-maintainer');
+    });
+  });
+
   it('sends the REST headers and follows Link pagination to the last page', async () => {
     await withFake(
       async (fake, tracker) => {

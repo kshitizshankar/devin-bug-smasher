@@ -330,7 +330,7 @@ export interface RepositoryAdmin {
   listAllIssues(): Promise<TrackerIssue[]>;
 }
 
-export type TrackerOperation = Exclude<keyof Tracker, 'repo'> | Exclude<keyof RepositoryAdmin, 'repo'>;
+export type TrackerOperation = Exclude<keyof Tracker, 'repo'> | Exclude<keyof RepositoryAdmin, 'repo'> | 'getAuthenticatedLogin';
 
 export type TrackerErrorCode =
   | 'unauthorized'

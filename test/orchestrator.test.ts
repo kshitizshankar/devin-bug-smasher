@@ -846,6 +846,21 @@ describe('orchestrator: interface actions', () => {
     assert.equal(refused.status, 'refused');
   });
 
+  it('starts an investigation from the interface for an open issue that is not tracked yet', async (t) => {
+    const h = await setup(t);
+    const issue = h.tracker.seedIssue({ title: 'Legend overlaps axis', body: 'Resize to 400px' });
+    const outcome = await h.orchestrator.performAction(issue.key, { name: 'triage' });
+    assert.equal(outcome.status, 'applied', JSON.stringify(outcome));
+    const record = h.record(issue.key);
+    assert.equal(record.stage, 'queued');
+    assert.equal(record.route, 'triage');
+    assert.equal(record.decisions.at(-1)?.actor, 'interface:bug-smasher');
+    assert.deepEqual((await h.tracker.getIssue(issue.number)).labels, ['needs-triage']);
+    await h.cycle(2);
+    assert.equal(h.record(issue.key).stage, 'triaging');
+    assert.equal(h.createRequests().length, 1);
+  });
+
   it('keeps a repair started from the interface when its label move is retried', async (t) => {
     const h = await setup(t);
     const issue = await triaged(h);

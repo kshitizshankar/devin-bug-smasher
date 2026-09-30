@@ -110,6 +110,14 @@ export function existingPullRequestComment(prNumber: number, prUrl: string, engi
   ].join('\n');
 }
 
+export function mergeRefusedComment(prNumber: number, headSha: string, reason: string): string {
+  return [
+    `**Merge refused:** GitHub did not merge pull request #${prNumber} at \`${headSha.slice(0, 12)}\`.`,
+    '',
+    `Reason: ${reason}`,
+  ].join('\n');
+}
+
 export function policyDecisionComment(action: 'fix' | 'engineer', rule: string, reasons: readonly string[]): string {
   const verb = action === 'fix' ? 'started the fix' : 'handed the issue to an engineer';
   return [`**Decision policy \`${rule}\` ${verb}.**`, '', bullets(reasons)].join('\n');
