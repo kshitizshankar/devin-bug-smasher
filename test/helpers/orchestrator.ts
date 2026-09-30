@@ -12,6 +12,7 @@ import type { PlaybookIds } from '../../src/orchestrator/playbooks.ts';
 import { Prompts } from '../../src/orchestrator/prompts.ts';
 import { BugStore } from '../../src/store/bug-store.ts';
 import { InMemoryTracker } from '../../src/tracker/memory.ts';
+import type { Actor } from '../../src/tracker/types.ts';
 import { API_KEY, COMPLETE_TRIAGE, ORG_ID } from './devin.ts';
 
 export { COMPLETE_TRIAGE };
@@ -24,6 +25,8 @@ export interface HarnessOptions {
   maxReviewRepairs?: number;
   requireLiveResults?: boolean;
   playbookIds?: PlaybookIds;
+  /** Account the service's GitHub token belongs to; a user login simulates the operator's own token. */
+  actor?: Actor;
 }
 
 /**
@@ -51,7 +54,7 @@ export class Harness {
     const clock = (): Date => new Date((this.#time += 1000));
     this.clock = clock;
     this.settings = loadSettings({ GITHUB_REPO: 'acme/widgets', ...options.env });
-    this.tracker = new InMemoryTracker({ now: () => clock().toISOString() });
+    this.tracker = new InMemoryTracker({ now: () => clock().toISOString(), ...(options.actor === undefined ? {} : { actor: options.actor }) });
     this.offline = new OfflineDevin({ apiKey: API_KEY, orgId: ORG_ID, now: clock });
     let attempt = 0;
     this.client = new DevinClient({
@@ -74,7 +77,7 @@ export class Harness {
   static async create(options: HarnessOptions = {}): Promise<Harness> {
     const harness = new Harness(options);
     harness.#dir = await mkdtemp(join(tmpdir(), 'bug-smasher-orchestrator-'));
-    harness.prompts = await Prompts.load();
+    harness.prompts = await Prompts.load(undefined, harness.settings.labels);
     harness.store = await BugStore.open(join(harness.#dir, 'bugs-0.json'));
     harness.orchestrator = harness.#newOrchestrator();
     return harness;

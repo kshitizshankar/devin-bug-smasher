@@ -4,7 +4,7 @@ import { DevinClient } from '../devin/client.ts';
 import { DevinSetupClient } from '../devin/setup.ts';
 import { Orchestrator } from '../orchestrator/orchestrator.ts';
 import { PLAYBOOK_ROUTES, syncedPlaybookIds, type PlaybookIds } from '../orchestrator/playbooks.ts';
-import { Prompts } from '../orchestrator/prompts.ts';
+import { DEFAULT_PROMPTS_DIR, Prompts } from '../orchestrator/prompts.ts';
 import { BugStore } from '../store/bug-store.ts';
 import { GitHubTracker } from '../tracker/github.ts';
 import { Dashboard, type DashboardApi } from '../dashboard/dashboard.ts';
@@ -75,8 +75,7 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
   const store = await BugStore.open();
   const tracker = new GitHubTracker({ repo, token: settings.github.token as string });
   const devin = DevinClient.fromSettings(settings);
-  const prompts = await Prompts.load();
-  const serviceLogins = await tokenLogins(tracker);
+  const prompts = await Prompts.load(DEFAULT_PROMPTS_DIR, settings.labels);
   const playbookIds = await routePlaybookIds(settings, `${repo.owner}/${repo.name}`, prompts);
   const orchestrator: Orchestrator = new Orchestrator({
     store,
@@ -85,7 +84,6 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
     settings,
     prompts,
     playbookIds,
-    serviceLogins,
     ...(verifier === null ? {} : { verifier, reproducer: verifier }),
     requireLiveResults: true,
     trace: (event) => {
@@ -99,16 +97,6 @@ async function startOrchestrator(settings: Settings): Promise<Orchestrator | nul
   orchestrator.start();
   console.log(`Workflow polling ${repo.owner}/${repo.name} every ${settings.pollSeconds} s`);
   return orchestrator;
-}
-
-/** The token owner's login, so its own label changes are not read as a person's decisions. */
-async function tokenLogins(tracker: GitHubTracker): Promise<string[]> {
-  try {
-    return [await tracker.getAuthenticatedLogin()];
-  } catch (error) {
-    console.error(`The GitHub token's login could not be read: ${error instanceof Error ? error.message : String(error)}`);
-    return [];
-  }
 }
 
 /** Synced route Playbooks to attach by id; on a lookup failure every route falls back to its inlined text. */

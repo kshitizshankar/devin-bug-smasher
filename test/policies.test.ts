@@ -223,6 +223,7 @@ function ready(flags: DiffFinding[] = []): BugRecord {
     outbox: [],
     relayedCommentIds: [],
     handledEventIds: [],
+    ownLabelChanges: [],
     workQuestion: null,
     notices: [],
     ready: { headSha: HEAD_A, state: 'success', detail: 'Devin is done working on this pull request', at: '2026-01-01T00:00:00.000Z' },

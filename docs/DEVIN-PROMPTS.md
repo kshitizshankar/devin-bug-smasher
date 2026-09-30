@@ -20,6 +20,14 @@ and its repository rules from `AGENTS.md`. Each kind of guidance has one home:
 | Feature | `feature.md` | The acceptance criteria verbatim and people's comments |
 | Replies | `reply-relay.md` | A person's comment, unchanged |
 | Verification retry | `verification-retry.md` | Why independent verification failed |
+| Verification flags | `verification-flags.md` | The findings the verifier flagged on a passing head |
+| Review blocker | `review-blocker.md` | Why remaining Devin Review findings could not go back as work |
+| Merge refused | `merge-refused.md` | Why GitHub refused a merge the policy decided |
+
+The last three are messages to the bug's session, which acts on them and says so on the pull request.
+Devin writes every comment itself: each route prompt tells it to post its picking-up comment (once per
+session), its findings and questions on the issue and the Ready for review comment on its pull request,
+from its own GitHub account. The service posts no comments anywhere.
 
 The other open bugs for the duplicate check are every open issue in the repository, labelled or not, other
 than feature requests and the bug being triaged, most recent first, at most 20 (`MAX_OTHER_OPEN_BUGS`). The

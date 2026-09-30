@@ -136,7 +136,7 @@ current session reported `ended` (which is final), changes nothing.
 
 Effects (`Effect`), to be applied in order by an adapter: `add-label`, `remove-label` (a no-op when the
 label is absent), `close-issue`, `stop-session` (emitted once per session; recorded as `stopRequestedAt`),
-`continue-session { sessionId, route }` (instruct a live session to continue with new work), `post-comment`, `merge-pr { prNumber, expectedHeadSha }`. The `merge` action records a `requested` decision and emits
+`continue-session { sessionId, route }` (instruct a live session to continue with new work), `merge-pr { prNumber, expectedHeadSha }`. The `merge` action records a `requested` decision and emits
 `merge-pr`; the record only becomes `merged` on a later `pr-merged { mergeCommitSha }` event, which is
 also accepted after `issue-closed` (GitHub may close the issue before reporting the merge).
 

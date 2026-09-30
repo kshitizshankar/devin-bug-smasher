@@ -46,7 +46,6 @@ export type Effect =
   | { type: 'close-issue' }
   | { type: 'stop-session'; sessionId: string }
   | { type: 'continue-session'; sessionId: string; route: WorkRoute }
-  | { type: 'post-comment'; body: string }
   | { type: 'merge-pr'; prNumber: number; expectedHeadSha: string };
 
 export interface ModelError {
@@ -690,7 +689,7 @@ export function applyAction(
       question.answeredAt = now;
       if (outstandingQuestion(record) === null) moveTo(record, 'triaging', now);
       record.decisions.push({ action: 'reply', outcome: 'applied', actor: request.actor, at: now, context: question.id });
-      return done(record, now, [{ type: 'post-comment', body: answer }]);
+      return done(record, now, []);
     }
 
     case 'merge': {

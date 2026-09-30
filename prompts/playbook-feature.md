@@ -34,6 +34,11 @@ people and any decision context. The criteria are the specification.
 
 ## Specifications
 
+- You post every comment yourself from your own GitHub account: the picking-up comment the session prompt
+  describes (once per session, checked against the thread first), a question on the issue when its answer
+  blocks progress, and the Ready for review comment below. The service posts no comments.
+- When the service messages you about a failed verification, remaining Devin Review findings or a refused
+  merge, act on it and say so on the pull request.
 - Every acceptance criterion is implemented and has a test; nothing beyond the criteria is added.
 - The full test suite passes, and every existing test is kept.
 - Exactly one pull request exists for the feature, and it says `Closes #<issue number>`.

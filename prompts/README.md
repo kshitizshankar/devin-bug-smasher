@@ -8,7 +8,7 @@ attached, is described in [`docs/DEVIN-PROMPTS.md`](../docs/DEVIN-PROMPTS.md).
 
 | File | Sent when |
 | --- | --- |
-| `playbook-triage.md` | Procedure for every bug investigation; synced by setup as the triage Playbook. |
+| `playbook-triage.md` | Procedure for every bug investigation; synced by setup as the triage Playbook. `{{fixLabel}}`/`{{engineerLabel}}` are rendered with the configured label names. |
 | `playbook-repair.md` | Procedure for every repair; synced by setup as the repair Playbook. |
 | `playbook-feature.md` | Procedure for every feature; synced by setup as the feature Playbook. |
 | `playbook-attached.md` | In a session prompt whose route Playbook is attached by id. |
@@ -19,6 +19,9 @@ attached, is described in [`docs/DEVIN-PROMPTS.md`](../docs/DEVIN-PROMPTS.md).
 | `repair-new.md` | A new repair session is created (direct `bug-smasher` label, or approval after the investigation session ended). |
 | `repair-continue.md` | Repair is approved while the investigation session is still live; sent to that same session. |
 | `verification-retry.md` | Independent verification failed and one retry is allowed; sent to the same session for the same PR branch. |
+| `verification-flags.md` | Verification passed but flagged things to look at; sent to the same session, which answers on the pull request. |
+| `review-blocker.md` | Devin Review findings could not be sent back for repair while the session is live; sent to that session, which says so on the pull request. |
+| `merge-refused.md` | GitHub refused the merge while the session is live; sent to that session, which answers on the pull request. |
 | `reply-relay.md` | A person comments on the issue while a session is live; the comment is relayed unchanged. |
 | `post-merge-ack.md` | The fix PR was merged while the session is live; sent before the session is stopped. |
 | `feature.md` | A `devin-builds-feature` issue is implemented from its acceptance criteria. |

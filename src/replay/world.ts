@@ -138,7 +138,7 @@ export class ReplayWorld {
   }
 
   static async create(recording: Recording, settings: Settings, store: BugStore): Promise<ReplayWorld> {
-    return new ReplayWorld(recording, settings, store, await Prompts.load());
+    return new ReplayWorld(recording, settings, store, await Prompts.load(undefined, settings.labels));
   }
 
   /** The simulated time, without advancing the clock. */

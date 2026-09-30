@@ -41,6 +41,20 @@ Replay: InMemoryTracker + OfflineDevin + RecordedVerifier ─> same Orchestrator
 
 People act only on GitHub (labels, comments, merges); the dashboard and API never write.
 
+## Who posts what
+
+- **Devin writes every comment**, from its own GitHub account and in its own voice: the picking-up
+  comment on the issue (once per session, with its session link), the triage findings, its questions,
+  and the Ready for review comment on its pull request.
+- **The service posts no comments.** It adds and removes labels, publishes commit statuses
+  (`bug-smasher/ready`, `bug-smasher/verification`) and keeps the dashboard. Anything Devin needs to
+  know — verification flags, review blockers, a refused merge — goes to its session as a message.
+
+One personal GitHub token is all an operator needs: no second account or GitHub App. A person's labels
+and replies still count as theirs even when the token belongs to them — the service tells its own label
+changes apart by what it did, not by the account, and a comment by Devin's bot account is never relayed
+back to Devin.
+
 ## Verification
 
 Fixes are verified independently in Docker against exact base and head commits; see

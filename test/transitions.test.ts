@@ -67,7 +67,7 @@ describe('investigation, questions and replies', () => {
     expectError(act(waiting, facts([LABEL.triage]), { name: 'reply', actor: 'ana', answer: '  ' }), 'missing-answer');
     const replied = expectOk(act(waiting, facts([LABEL.triage]), { name: 'reply', actor: 'ana', answer: 'Firefox' }));
     assert.equal(replied.record.stage, 'triaging');
-    assert.deepEqual(replied.effects, [{ type: 'post-comment', body: 'Firefox' }]);
+    assert.deepEqual(replied.effects, [], 'the answer is recorded; the service posts no comment');
     assert.equal(replied.record.decisions.at(-1)?.actor, 'ana');
   });
 
@@ -765,6 +765,7 @@ describe('existing pull request handoff', () => {
       outbox: [{ type: 'send-message', sessionId: '', marker: 'm', message: 'x' }],
       relayedCommentIds: [],
       handledEventIds: [],
+      ownLabelChanges: [],
       workQuestion: null,
       notices: [],
     };

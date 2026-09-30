@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_LABELS, type LabelSettings } from '../config/settings.ts';
 import type { TriageFindings } from '../model/types.ts';
 import { codeBlock } from './comments.ts';
 
@@ -18,6 +19,9 @@ export const PROMPT_NAMES = [
   'repair-new',
   'repair-continue',
   'verification-retry',
+  'verification-flags',
+  'review-blocker',
+  'merge-refused',
   'reply-relay',
   'post-merge-ack',
   'feature',
@@ -42,6 +46,8 @@ export interface IssueContext {
   issueUrl: string;
   title: string;
   body: string;
+  /** Login of the person who opened the issue, when known. */
+  author: string | null;
 }
 
 /** A person's comment passed to Devin unchanged. */
@@ -153,16 +159,18 @@ export interface InvestigationPromptOptions extends SessionPromptOptions {
 /** Repository-owned prompt templates from `prompts/`. */
 export class Prompts {
   readonly #templates: ReadonlyMap<PromptName, string>;
+  readonly #labels: LabelSettings;
 
-  private constructor(templates: ReadonlyMap<PromptName, string>) {
+  private constructor(templates: ReadonlyMap<PromptName, string>, labels: LabelSettings) {
     this.#templates = templates;
+    this.#labels = labels;
   }
 
-  static async load(dir: string = DEFAULT_PROMPTS_DIR): Promise<Prompts> {
+  static async load(dir: string = DEFAULT_PROMPTS_DIR, labels: LabelSettings = DEFAULT_LABELS): Promise<Prompts> {
     const entries = await Promise.all(
       PROMPT_NAMES.map(async (name) => [name, await readFile(join(dir, `${name}.md`), 'utf8')] as const),
     );
-    return new Prompts(new Map(entries));
+    return new Prompts(new Map(entries), labels);
   }
 
   template(name: PromptName): string {
@@ -177,11 +185,17 @@ export class Prompts {
     return { issueRef: `#${issue.issueNumber}`, structuredOutput: this.render('structured-output', {}) };
   }
 
+  /** A route Playbook rendered with the configured label names, so synced and inlined text always match. */
+  renderPlaybook(route: 'triage' | 'repair' | 'feature'): string {
+    const values: Record<string, string> = route === 'triage' ? { fixLabel: this.#labels.fix, engineerLabel: this.#labels.engineer } : {};
+    return this.render(`playbook-${route}`, values);
+  }
+
   /** The route's procedure: a pointer to the attached Playbook, or the Playbook text inlined once. */
   playbookSection(route: 'triage' | 'repair' | 'feature', delivery: PlaybookDelivery): string {
     return delivery === 'attached'
       ? this.render('playbook-attached', {})
-      : this.render('playbook-inline', { playbook: this.render(`playbook-${route}`, {}) });
+      : this.render('playbook-inline', { playbook: this.renderPlaybook(route) });
   }
 
   /** Other open bugs for the duplicate check, most recent first and bounded, or a statement that there are none. */
@@ -209,6 +223,7 @@ export class Prompts {
       issueUrl: issue.issueUrl,
       title: issue.title,
       body: issue.body,
+      issueAuthor: issue.author === null ? 'there' : `@${issue.author}`,
       humanContext: humanContextSection(comments, decision),
       otherBugs: this.otherBugsSection(issue.repo, options.otherBugs ?? []),
       playbook: this.playbookSection('triage', options.playbook ?? 'inline'),
@@ -228,6 +243,7 @@ export class Prompts {
       issueUrl: issue.issueUrl,
       title: issue.title,
       body: issue.body,
+      issueAuthor: issue.author === null ? 'there' : `@${issue.author}`,
       findings: findingsSection(findings),
       humanContext: humanContextSection(comments, decision),
       playbook: this.playbookSection('repair', options.playbook ?? 'inline'),
@@ -262,6 +278,7 @@ export class Prompts {
       issueUrl: issue.issueUrl,
       title: issue.title,
       criteria: issue.body,
+      issueAuthor: issue.author === null ? 'there' : `@${issue.author}`,
       humanContext: humanContextSection(comments, decision),
       playbook: this.playbookSection('feature', options.playbook ?? 'inline'),
     });
@@ -277,5 +294,17 @@ export class Prompts {
 
   postMergeAck(input: { issueRef: string; prUrl: string; mergeCommitSha: string; marker: string }): string {
     return this.render('post-merge-ack', { ...input });
+  }
+
+  verificationFlags(input: { prUrl: string; headSha: string; flags: string; marker: string }): string {
+    return this.render('verification-flags', { ...input });
+  }
+
+  reviewBlocker(input: { prUrl: string; headSha: string; blocker: string; findings: string; marker: string }): string {
+    return this.render('review-blocker', { ...input });
+  }
+
+  mergeRefused(input: { prUrl: string; headSha: string; reason: string; marker: string }): string {
+    return this.render('merge-refused', { ...input });
   }
 }

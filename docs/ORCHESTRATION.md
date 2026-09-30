@@ -11,7 +11,7 @@ exercised offline with `InMemoryTracker` and `OfflineDevin` (`test/orchestrator.
 | `contracts.ts` | `Verifier` (implemented by `src/verify/`, see `docs/VERIFICATION.md`), `DecisionPolicy` (M1.6), `VERIFICATION_STATUS_CONTEXT`, `verificationStatus`, `READY_STATUS_CONTEXT`, `readyStatus`, unavailable stubs, actor helpers |
 | `prompts.ts` | Loads and renders `prompts/*.md` strictly |
 | `playbooks.ts` | Route Playbook titles and bodies, and which synced Playbook ids to attach (see `docs/DEVIN-PROMPTS.md`) |
-| `comments.ts` | GitHub comment bodies (question, triage summary, notices) |
+| `comments.ts` | Text fragments for session messages and recorded questions (verification flags, waiting-session summaries) |
 | `../../prompts/` | Repository-owned prompt templates (see `prompts/README.md`) |
 
 ## Service wiring
@@ -24,6 +24,10 @@ empty; if not, it logs why and serves the scaffold as before. Live wiring: `BugS
 `DevinClient.fromSettings`, `Prompts.load()`, `requireLiveResults: true` (stub verifiers/policies are
 refused), `verifierFromSettings` when `verifierSettingsProblems` is empty (otherwise the unavailable
 verifier, with the reason logged), and the unavailable policy until M1.6 provides one.
+
+The service never comments: picking-up notices, triage findings and questions are Devin's own comments
+(its prompts say so), and verification flags, Review blockers and refused merges reach it as session
+messages. Policy outcomes show in the commit status and the dashboard only.
 
 ## Cycle
 
@@ -44,7 +48,9 @@ verifier, with the reason logged), and the unavailable policy until M1.6 provide
 4. Issue closed → `issue-closed` (running session stopped); reopened → `issue-reopened` (label routing).
    While closed, only the stopped session's live state is followed.
 5. A workflow label added **by a person** since the last step → that person's action (`github:<login>`,
-   the label event time). Service and bot label changes are not decisions.
+   the label event time). Bot label changes are not decisions, and neither are the service's own: the
+   record keeps each label it added or removed (`ownLabelChanges`) and the matching event is ignored,
+   so a person still counts even when the token belongs to them.
 6. Label snapshot → `labels-changed`, except that a snapshot never moves a `triaged` record into repair
    (`decision-label-ignored`): only a person's label event or a policy decides. The issue is re-read
    after the outbox moved labels in this step, so the snapshot is never older than those moves.
@@ -65,6 +71,7 @@ verifier, with the reason logged), and the unavailable policy until M1.6 provide
 | `outbox` | Pending `WorkflowOperation`s, written in the same atomic store write as the transition that caused them |
 | `relayedCommentIds` | Human comments already delivered to Devin (prompt or message) |
 | `handledEventIds` | Label events already considered as decisions |
+| `ownLabelChanges` | Each label the service added or removed, with the time it applied it — matched against labeled events so its own changes are never read as a person's |
 | `ready` | Last published `bug-smasher/ready` evaluation: head, `pending`/`success`, detail and time |
 | `workQuestion` | Question asked by a repair/feature session (the model's questions are triage-only) |
 | `notices` | One-time notices already queued |
@@ -72,7 +79,6 @@ verifier, with the reason logged), and the unavailable policy until M1.6 provide
 Operations are removed from the outbox only after they succeed, so a restart re-applies at most the
 operation that was in flight, and each is idempotent:
 
-- `post-comment` uses tracker **keyed comments** (`question:<id>`, `triage:<session>`, `existing-pr:<n>`, …).
 - `send-message` carries a `Reference: bug-smasher:…` marker; before sending, the session's messages are
   read and an already-delivered marker is skipped (`message-already-delivered`).
 - Labels are add-before-remove and no-ops when already applied; `stop-session` terminates
@@ -86,7 +92,7 @@ operation that was in flight, and each is idempotent:
 ## Dispatch, capacity and reconciliation
 
 - Before starting repair the orchestrator looks for an open linked closing PR; if one exists the record is
-  handed off (`handoff-requested`, reason `existing-pr`) with one comment instead of a duplicate session.
+  handed off (`handoff-requested`, reason `existing-pr`) instead of starting a duplicate session.
   Continuing a live investigation into repair gets the same check.
 - `consumesCapacity(record)`: a pending dispatch, or a live, not-stopping session in `triaging`, `fixing`
   or `verifying` without an open work question. Sessions waiting on a person (`needs-input`, `triaged`)
@@ -112,13 +118,12 @@ operation that was in flight, and each is idempotent:
 - Only valid structured output advances a record (`structuredOutputEvents`, `fixSubmittedEvent` with the
   tracker's current head). A reported fix PR must be open, in this repository and a closing PR for the issue. Absent, incomplete or invalid output changes nothing (`structured-output-ignored`);
   chat text is never parsed.
-- A triage session that opens a PR is refused (`unexpected-triage-pr`): no fix is recorded and one notice
-  is posted.
-- A triage question posts one comment; a completed investigation stores the findings and posts one summary
-  with evidence, the proposed check and the recommendation, stated as **not a decision**.
-- Human comments are those not written by the service (marker), by bots, or by `serviceLogins`. They are
-  relayed unchanged, one per step, with the same marker/ID bookkeeping across restarts. Comments present
-  at dispatch are included in the prompt instead.
+- A triage session that opens a PR is refused (`unexpected-triage-pr`): no fix is recorded.
+- A triage question is recorded for the dashboard; Devin asks it on the issue itself. A completed
+  investigation stores the findings; Devin posts the triage comment itself, with the evidence, the
+  proposed check and the recommendation, stated as **not a decision**.
+- Human comments are those not written by a bot. They are relayed unchanged, one per step, with the same
+  marker/ID bookkeeping across restarts. Comments present at dispatch are included in the prompt instead.
 - Repair approved while the investigation session is live → `repair-continue` message to that session;
   after it ended → a new session with saved findings and human context. A session that ends unexpectedly
   hands off (model rule); it is never silently restarted.
@@ -152,7 +157,7 @@ commit for `post-merge`), and is recorded through `verification-recorded` togeth
 `set-commit-status` operation (context `bug-smasher/verification`) on that SHA, so failed-proof (`MAX_FIX_RETRIES`) and infrastructure-error budgets stay separate
 as the model defines. A failed proof with retries left sends `verification-retry` to the same session for the
 same PR branch. With `requireLiveResults`, non-live verifiers and policies are not called. Policy decisions
-are attributed to `policy:<rule>` and explained in one comment.
+are attributed to `policy:<rule>` and recorded in the evaluation.
 
 ## Whether Devin is still working (`bug-smasher/ready`)
 
@@ -179,13 +184,12 @@ never touches branch protection.
 Policies act only through the model's actions (`fix`, `engineer`, `merge`) with actor `policy:<rule>`,
 and every Rule/Automatic evaluation is persisted (`policy-evaluated`) with each check, its detail and any
 reproduction evidence. An evaluation equal to the latest one for the same subject is not recorded again,
-and comments are keyed (`decision:`, `decision-wait:<hash of reasons>`, `merge-decision:<head>`), so
-restarts and repeated cycles post nothing twice. No policy ever closes an issue.
+so restarts and repeated cycles change nothing twice. No policy ever closes an issue.
 
 | `DECISION` | Behaviour for a `triaged` bug |
 | --- | --- |
 | `person` (default) | Nothing automatic; a person labels the issue on GitHub (or uses an interface action) |
-| `rule` (`decision-rule`) | Fix only when **all** hold: Devin recommends `devin_fix`; the issue has at least one class label (a label other than the four workflow labels) and every class label is in `DECISION_RULE_CLASSES`; the proposed test **fails** when run independently on the current default-branch head. Otherwise wait for a person, with the failing checks in one comment |
+| `rule` (`decision-rule`) | Fix only when **all** hold: Devin recommends `devin_fix`; the issue has at least one class label (a label other than the four workflow labels) and every class label is in `DECISION_RULE_CLASSES`; the proposed test **fails** when run independently on the current default-branch head. Otherwise wait for a person, with the failing checks in the evaluation |
 | `auto` (`decision-auto`) | Apply `devin_fix` (repair) and `needs_engineer` (handoff); `close` always waits for a person |
 
 Reproduction (Rule only, and only when the other checks pass): the reproducer checks out the default
@@ -201,7 +205,8 @@ Once a head is `ready-to-merge`:
    completes, then record the unresolved threads `devin-ai-integration[bot]` started on that commit. With
    findings, the correction is sent once to the same live session (`bug-smasher:review:<head>` marker);
    the new head is verified afresh and reviewed again. After `maxReviewRepairs` (default 2) correction
-   rounds per PR, or when the session has ended, the round gets a durable `blocker` and one keyed comment.
+   rounds per PR, or when the session has ended, the round gets a durable `blocker`, sent to the live
+   session as one message when there is one.
    While polling a requested Review, `not-requested` or an earlier commit's Review keeps the round
    `pending` for up to 30 minutes after the request, then the round is `unavailable`. An error, `forbidden`, `not-requested` (when requesting), `cancelled`, `skipped` or disabled Review is recorded as
    `unavailable` and never counts as passed. Auto-Fix is never assumed. Resolved or removed finding threads
@@ -224,15 +229,15 @@ Once a head is `ready-to-merge`:
 verifies the new head afresh) and branch protection is never bypassed. If GitHub refuses the
 request for a reason other than a moved head (for example a required approval is missing), the next
 cycle re-evaluates the same head and, if it still passes, asks GitHub again (`merge-retried`) without
-recording another decision. Direct merges by a person are detected the same way and record
-`mergedBy`/`mergedAt`/merge commit; a policy merge also gets one `merge-decision` comment. After any merge
-the merge commit is verified (`post-merge`); a failure hands off to an engineer. Exactly one thank-you
-comment (`thanks:<merge commit>`) addresses the reporter; the issue stays open unless GitHub closed it
-through a closing keyword, and the thank-you is posted either way.
+recording another decision. A refusal for a reason other than a moved head reaches the live session once
+per head as a `merge-refused` message. Direct merges by a person are detected the same way and record
+`mergedBy`/`mergedAt`/merge commit. After any merge the merge commit is verified (`post-merge`); a
+failure hands off to an engineer. The merge outcome lives in the commit status and the dashboard only —
+no comment is posted, and the issue stays open unless GitHub closed it through a closing keyword.
 
-When a session starts, one comment addresses the reporter with the session link (key
-`session-started:<session id>`, skipped if any comment already contains the URL). A continuation in the
-same session posts nothing; a new session gets its own comment.
+When a session starts, Devin itself posts the picking-up comment addressed to the issue author with its
+session link (its prompt tells it to post once per session and check the thread first). The service posts
+nothing.
 
 ## Actors
 
@@ -287,4 +292,4 @@ Tests are in `test/orchestrator.test.ts` unless noted.
 | Bot labels never approve repair; all undelivered comments reach Devin; stale repair questions do not free capacity; fix PRs must close the issue | `review hardening` |
 | Existing-PR handoff event, workflow validation | `test/transitions.test.ts` › existing pull request handoff |
 | Prompt assets and strict one-pass rendering | `test/orchestrator-prompts.test.ts` |
-| Decision and merge policies, Devin Review, reproduction, session-start and thank-you comments | `test/orchestrator-policies.test.ts`, `test/policies.test.ts`; see the M1.6 table in the PR and `docs/TESTING.md` |
+| Decision and merge policies, Devin Review, reproduction, session-start behaviour | `test/orchestrator-policies.test.ts`, `test/policies.test.ts`; see the M1.6 table in the PR and `docs/TESTING.md` |

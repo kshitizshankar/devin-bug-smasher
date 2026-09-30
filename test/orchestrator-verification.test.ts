@@ -174,14 +174,16 @@ describe('orchestrator with the independent verifier', () => {
     assert.equal((await statusOf(w.h, merge))?.state, 'success');
   });
 
-  it('comments the deletion-only flag for the person deciding the merge without failing verification', async (t) => {
+  it('messages the deletion-only flag to the live session without failing verification', async (t) => {
     const w = await start(t);
     const guard = ADD_TEST.replace('assert.equal(add(1, 2), 3);', 'assert.equal(add(2000, 0), 2000);');
     await openPr(w, { 'src/math.mjs': BASE_FILES['src/math.mjs']!.replace('  if (a > 1000) return 0;\n', ''), [ADD_TEST_PATH]: guard });
     await until(w.h, w.key, (record) => record.stage === 'ready-to-merge');
     await w.h.cycle();
-    const comments = await w.h.tracker.listComments(w.issueNumber);
-    assert.ok(comments.some((comment) => /flag for review/.test(comment.body) && /deletion-only/.test(comment.body)));
+    const flagged = w.h.messages(w.sessionId).filter((message) => message.includes('bug-smasher:verification-flags:'));
+    assert.equal(flagged.length, 1, 'the flags reach the Devin session as one message');
+    assert.match(flagged[0] ?? '', /deletion-only/);
+    assert.ok((await w.h.tracker.listComments(w.issueNumber)).every((comment) => !comment.fromService), 'no service comment is posted');
   });
 
   it('passes a fix with an added suppression and, under the person policy, waits for a person with the file and count', async (t) => {
@@ -197,11 +199,12 @@ describe('orchestrator with the independent verifier', () => {
     assert.equal(attempt?.result, 'pass', attempt?.reason);
     assert.deepEqual(attempt?.evidence?.flags.map((flag) => [flag.check, flag.file]), [['check-silenced', 'src/report.py']]);
     assert.match((await statusOf(w.h, head))?.description ?? '', /\[flagged\]/);
-    const flagged = (await w.h.tracker.listComments(w.issueNumber)).filter((comment) => /flag for review/.test(comment.body));
-    assert.equal(flagged.length, 1);
-    assert.match(flagged[0]!.body, /check-silenced in `src\/report\.py`: 1 suppression comment\(s\) added/);
-    assert.match(flagged[0]!.body, /A person should look at each added suppression comment/);
-    assert.doesNotMatch(flagged[0]!.body, /only delete code/);
+    const flagged = w.h.messages(w.sessionId).filter((message) => message.includes('bug-smasher:verification-flags:'));
+    assert.equal(flagged.length, 1, 'the flags reach the Devin session as one message');
+    assert.match(flagged[0] ?? '', /check-silenced in `src\/report\.py`: 1 suppression comment\(s\) added/);
+    assert.match(flagged[0] ?? '', /A person should look at each added suppression comment/);
+    assert.doesNotMatch(flagged[0] ?? '', /only delete code/);
+    assert.ok((await w.h.tracker.listComments(w.issueNumber)).every((comment) => !comment.fromService), 'no service comment is posted');
   });
 
   it('G7: relays a command proposed in an issue comment as text and never runs it', async (t) => {
