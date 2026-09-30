@@ -861,6 +861,19 @@ describe('orchestrator: interface actions', () => {
     assert.equal(h.createRequests().length, 1);
   });
 
+  it('acts on the tracked record when the interface key differs from the repository only in case', async (t) => {
+    const h = await setup(t);
+    const issue = await triaged(h);
+    const before = h.record(issue.key);
+    const outcome = await h.orchestrator.performAction(issue.key.toUpperCase(), { name: 'engineer' });
+    assert.equal(outcome.status, 'applied', JSON.stringify(outcome));
+    const record = h.record(issue.key);
+    assert.equal(record.stage, 'with-engineer');
+    assert.equal(record.createdAt, before.createdAt);
+    assert.deepEqual(record.decisions.slice(0, before.decisions.length), before.decisions);
+    assert.equal(record.decisions.at(-1)?.actor, 'interface:bug-smasher');
+  });
+
   it('keeps a repair started from the interface when its label move is retried', async (t) => {
     const h = await setup(t);
     const issue = await triaged(h);

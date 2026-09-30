@@ -12,7 +12,7 @@ import {
   type DevinSession,
 } from '../devin/sessions.ts';
 import type { StructuredSignal } from '../devin/structured-output.ts';
-import { parseBugKey } from '../model/keys.ts';
+import { formatBugKey, parseBugKey } from '../model/keys.ts';
 import { resolveLabels } from '../model/labels.ts';
 import { currentMergeVerifications, outstandingQuestion } from '../model/presentation.ts';
 import {
@@ -1867,15 +1867,16 @@ export class Orchestrator {
   // Interface actions --------------------------------------------------------------------------------------------
 
   async #performAction(
-    key: string,
+    requestedKey: string,
     request: { name: ActionName; context?: string; answer?: string },
   ): Promise<ActionOutcome> {
-    const stored = this.#store.get(key);
-    const parts = parseBugKey(key);
+    const parts = parseBugKey(requestedKey);
     const sameRepo = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();
     if (parts === null || !sameRepo(parts.owner, this.#repo.owner) || !sameRepo(parts.repo, this.#repo.name)) {
-      return { status: 'refused', code: 'not-tracked', message: `${key} is not an issue of this repository` };
+      return { status: 'refused', code: 'not-tracked', message: `${requestedKey} is not an issue of this repository` };
     }
+    const key = formatBugKey({ owner: this.#repo.owner, repo: this.#repo.name, number: parts.number });
+    const stored = this.#store.get(key);
     const issue = await this.#tracker.getIssue(parts.number);
     const pr = stored?.fix ? await this.#tracker.getPullRequest(stored.fix.prNumber) : null;
     const facts = toGitHubFacts(this.#repo, issue, pr);
