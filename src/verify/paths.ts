@@ -68,10 +68,14 @@ export function isTestPath(path: string): boolean {
   return TEST_FILE.some((pattern) => pattern.test(name));
 }
 
+/** Data files are fixtures even when named like a test (`payload.test.json`). */
+const DATA_FILE = /\.(json5?|jsonc|ya?ml|toml|xml|csv|tsv|txt|md|html?|snap|svg|png|jpe?g|gif)$/i;
+
 /** A test file the runner can run, by name; fixtures and helpers under a test directory are not. */
 export function isRunnableTestPath(path: string): boolean {
   if (isConfigPath(path)) return false;
   const name = segments(path).at(-1) ?? '';
+  if (DATA_FILE.test(name)) return false;
   return TEST_FILE.some((pattern) => pattern.test(name));
 }
 

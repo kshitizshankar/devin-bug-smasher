@@ -107,9 +107,11 @@ describe('independent verification against fixture repositories', () => {
 
   describe('fixtures and helpers listed as test files', () => {
     const FIXTURE_PATH = 'test/fixtures/sums.json';
+    const TEST_NAMED_FIXTURE_PATH = 'test/fixtures/payload.test.json';
     const HELPER_PATH = 'test/helpers/sums.mjs';
     const SUPPORT = {
       [FIXTURE_PATH]: '[{ "a": 1, "b": 2, "sum": 3 }]\n',
+      [TEST_NAMED_FIXTURE_PATH]: '{ "payload": true }\n',
       [HELPER_PATH]: [
         "import { readFileSync } from 'node:fs';",
         '',
@@ -128,7 +130,7 @@ describe('independent verification against fixture repositories', () => {
         '',
       ].join('\n'),
     };
-    const listed = [ADD_TEST_PATH, FIXTURE_PATH, HELPER_PATH];
+    const listed = [ADD_TEST_PATH, FIXTURE_PATH, TEST_NAMED_FIXTURE_PATH, HELPER_PATH];
 
     it('runs only the real test and passes when it fails on base and passes on head', async () => {
       const { attempt } = await verifyHead({ 'src/math.mjs': FIXED_MATH, ...SUPPORT }, listed);
@@ -138,7 +140,7 @@ describe('independent verification against fixture repositories', () => {
       assert.deepEqual(runs.map((run) => [run.role, run.outcome]), [['head', 'passed'], ['base', 'failed']]);
       for (const run of runs) {
         assert.equal(run.command.at(-1), ADD_TEST_PATH);
-        assert.ok(!run.command.includes(FIXTURE_PATH) && !run.command.includes(HELPER_PATH), run.command.join(' '));
+        for (const support of [FIXTURE_PATH, TEST_NAMED_FIXTURE_PATH, HELPER_PATH]) assert.ok(!run.command.includes(support), run.command.join(' '));
       }
     });
 
@@ -149,10 +151,11 @@ describe('independent verification against fixture repositories', () => {
     });
 
     it('rejects the list, running nothing, when no listed file is a runnable test', async () => {
-      const { attempt } = await verifyHead({ 'src/math.mjs': FIXED_MATH, ...SUPPORT }, [FIXTURE_PATH, HELPER_PATH]);
+      const { attempt } = await verifyHead({ 'src/math.mjs': FIXED_MATH, ...SUPPORT }, [FIXTURE_PATH, TEST_NAMED_FIXTURE_PATH, HELPER_PATH]);
       assert.equal(attempt.result, 'fail');
       assert.match(attempt.reason, /^Rejected test path\(s\): /);
       assert.match(attempt.reason, /"test\/fixtures\/sums\.json" is test support \(a fixture or helper\), not a runnable test file/);
+      assert.match(attempt.reason, /"test\/fixtures\/payload\.test\.json" is test support/);
       assert.match(attempt.reason, /"test\/helpers\/sums\.mjs" is test support/);
       assert.equal(world.runtime.starts.length, 0);
     });
