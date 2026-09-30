@@ -88,9 +88,16 @@ operation that was in flight, and each is idempotent:
   Continuing a live investigation into repair gets the same check.
 - `consumesCapacity(record)`: a pending dispatch, or a live, not-stopping session in `triaging`, `fixing`
   or `verifying` without an open work question. Sessions waiting on a person (`needs-input`, `triaged`)
-  do not count. New sessions, and transitions that would wake a waiting session (a reply, continuing into
-  repair), wait while `MAX_ACTIVE_SESSIONS` is reached (`waiting-for-capacity`); a waiting reply is
-  delivered once capacity frees.
+  do not count, and neither does a `verifying` record when its verification can never run (live results
+  required but no live verifier): the fix waits for the verifier, not for a session. New sessions, and
+  transitions that would wake a waiting session (a reply, continuing into repair), wait while
+  `MAX_ACTIVE_SESSIONS` is reached (`waiting-for-capacity`); a waiting reply is delivered once capacity
+  frees. A session suspended in a way a message cannot resume (provider limits, provider errors) is handed
+  off (`handoff-requested`, reason `session-suspended`) so it cannot hold a slot forever. A verifier run
+  that produces no result (`verifier-unavailable`) records no attempt, so consecutive unavailabilities for
+  one head count toward the same error budget; at the cap the record hands off as `verification-error`.
+  Review corrections due on `ready-to-merge` records whose session cannot take a message are recorded as a
+  round `blocker` instead of being sent to a session that can never receive them.
 - Sessions go through `DevinClient.createSession`, so every request carries `max_acu_limit`, the structured
   output schema, identifying tags and empty `secret_ids` / `session_secrets`.
 - An ambiguous create (timeout, reset, 5xx) keeps the intent with its attempt tag. Later cycles look the

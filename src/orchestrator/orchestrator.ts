@@ -18,6 +18,7 @@ import { currentMergeVerifications, outstandingQuestion } from '../model/present
 import {
   applyAction,
   applyEvent,
+  countSessionAttempts,
   DEFAULT_MAX_VERIFICATION_ERRORS,
   enrollBug,
   type ActionRequest,
@@ -186,7 +187,7 @@ type CommitStatus = 'applied' | 'unchanged' | 'refused' | 'deferred';
 
 const WORKING_STAGES: readonly Stage[] = ['triaging', 'fixing', 'verifying'];
 const RELAY_STAGES: readonly Stage[] = ['triaging', 'needs-input', 'fixing'];
-const HANDOFF_STAGES: readonly Stage[] = ['queued', 'triaging', 'needs-input', 'triaged', 'fixing'];
+const HANDOFF_STAGES: readonly Stage[] = ['queued', 'triaging', 'needs-input', 'triaged', 'fixing', 'verifying'];
 const OUTPUT_TAIL_CHARS = 4000;
 const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 /** How long a requested Review may be reported missing (or on another commit) before it counts as unavailable. */
@@ -195,7 +196,7 @@ const RECONCILE_WINDOW_MS = 5 * 60_000;
 const WAITING_QUESTION_PREFIX = 'w-';
 
 export function emptyWorkflow(): WorkflowState {
-  return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [] };
+  return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [], verifierUnavailable: null };
 }
 
 function workflowOf(record: BugRecord): WorkflowState {
@@ -205,12 +206,15 @@ function workflowOf(record: BugRecord): WorkflowState {
 /**
  * Whether a record occupies one of `MAX_ACTIVE_SESSIONS`: a session being created, or a live session doing
  * work. Sessions waiting on a person (an open question, a triaged record awaiting a decision) do not count.
+ * `verifying` counts only while a verifier can actually run (`canVerify`): a fix whose verification can
+ * never happen would otherwise hold a session slot forever without any session doing work.
  */
-export function consumesCapacity(record: BugRecord): boolean {
+export function consumesCapacity(record: BugRecord, canVerify = true): boolean {
   if (record.workflow?.dispatch) return true;
   const session = record.session;
   if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) return false;
   if (!WORKING_STAGES.includes(record.stage)) return false;
+  if (record.stage === 'verifying' && !canVerify) return false;
   return record.workflow?.workQuestion?.sessionId !== session.id;
 }
 
@@ -566,7 +570,7 @@ export class Orchestrator {
     const workflow = workflowOf(next);
     extra.mutate?.(workflow);
     next.workflow = workflow;
-    if (!consumesCapacity(before) && consumesCapacity(next) && this.#activeElsewhere(before.key) >= this.#maxActive()) {
+    if (!consumesCapacity(before, this.#canVerify()) && consumesCapacity(next, this.#canVerify()) && this.#activeElsewhere(before.key) >= this.#maxActive()) {
       this.#emit(before.key, 'waiting-for-capacity', { what, active: this.#activeElsewhere(before.key) });
       return 'deferred';
     }
@@ -762,8 +766,17 @@ export class Orchestrator {
     return this.#settings.devin.maxActiveSessions;
   }
 
+  /**
+   * Whether a `verifying` record can still progress. Results refused outright (live results required but
+   * the verifier is a stand-in) can never arrive, so such a record must not occupy a session slot.
+   */
+  #canVerify(): boolean {
+    return !this.#requireLive || this.#verifier.live;
+  }
+
   #activeElsewhere(key: string): number {
-    return this.#store.list().filter((record) => record.key !== key && consumesCapacity(record)).length;
+    const canVerify = this.#canVerify();
+    return this.#store.list().filter((record) => record.key !== key && consumesCapacity(record, canVerify)).length;
   }
 
   // People and comments ----------------------------------------------------------------------------------------
@@ -1171,7 +1184,7 @@ export class Orchestrator {
           );
           return true;
         }
-        return this.#applyStatus(issue, record, session);
+        return this.#settleSession(issue, record, session);
       }
       if (record.stage === 'triaging') {
         for (const event of structuredOutputEvents(session)) {
@@ -1258,7 +1271,25 @@ export class Orchestrator {
         }
       }
     }
-    return this.#applyStatus(issue, record, session);
+    return this.#settleSession(issue, record, session);
+  }
+
+  /**
+   * Records the session's live state, then — once the record already shows it — hands the record off when
+   * the session is suspended in a way a message cannot resume (provider limits, provider errors): it would
+   * otherwise occupy a session slot forever. Resumable suspensions (inactivity, user request) keep waiting.
+   */
+  async #settleSession(issue: TrackerIssue, record: BugRecord, session: DevinSession): Promise<boolean> {
+    if (await this.#applyStatus(issue, record, session)) return true;
+    if (session.activity.kind !== 'suspended' || session.activity.resumable) return false;
+    const fresh = this.#store.get(record.key) ?? record;
+    if (!HANDOFF_STAGES.includes(fresh.stage)) return false;
+    const result = this.#event(fresh, {
+      type: 'handoff-requested',
+      reason: 'session-suspended',
+      detail: `The Devin session was suspended and cannot resume on its own (${session.activity.detail ?? session.activity.reason})`,
+    });
+    return (await this.#commit(issue, fresh, result, 'session-suspended')) === 'applied';
   }
 
   /** On a closed issue only the stopped session's live state is followed, so a reopen can start new work. */
@@ -1386,8 +1417,13 @@ export class Orchestrator {
   async #verify(issue: TrackerIssue, record: BugRecord): Promise<void> {
     const fix = record.fix;
     if (fix === null) return;
-    const attempt = await this.#runVerifier(record, 'pre-merge', fix.headSha);
-    if (attempt === null) return;
+    const run = await this.#runVerifier(record, 'pre-merge', fix.headSha);
+    if (run === null) return;
+    if (run.kind === 'unavailable') {
+      await this.#verificationStalled(issue, record, fix.headSha, run.reason);
+      return;
+    }
+    const attempt = run.attempt;
     const result = this.#event(record, { type: 'verification-recorded', attempt });
     const ops: WorkflowOperation[] = [];
     if (result.ok && result.record.stage === 'fixing' && attempt.result === 'fail') {
@@ -1417,6 +1453,50 @@ export class Orchestrator {
       });
     }
     await this.#commit(issue, record, result, `verification-${attempt.result}`, { first: [verificationStatus(attempt)], ops });
+    if (result.ok && attempt.result === 'error' && HANDOFF_STAGES.includes(result.record.stage)) {
+      // Re-read the stored record: its workflow has the drained outbox, while `result.record` still holds
+      // the just-applied status operation and would requeue it ahead of the handoff effects.
+      const fresh = this.#store.get(record.key) ?? result.record;
+      const stalled = workflowOf(fresh).verifierUnavailable;
+      const unavailable = stalled?.headSha === fix.headSha ? stalled.count : 0;
+      const errors = countSessionAttempts(fresh, 'error');
+      if (unavailable + errors >= this.#model.maxVerificationErrors) {
+        const handoff = this.#event(fresh, {
+          type: 'handoff-requested',
+          reason: 'verification-error',
+          detail: `The verifier could not produce a result for ${fix.headSha} after ${unavailable + errors} infrastructure failures: ${attempt.reason}`,
+        });
+        await this.#commit(issue, fresh, handoff, 'verification-error');
+      }
+    }
+  }
+
+  /**
+   * A verifier run that produced nothing usable (`verifier-unavailable`) leaves no attempt, so the error
+   * budget never applies and `verifying` would hold a session slot forever. Unavailabilities for one head
+   * and recorded `error` attempts share the same budget — both are infrastructure failing to produce a
+   * result — and at the cap the record hands off as `verification-error`.
+   */
+  async #verificationStalled(issue: TrackerIssue, record: BugRecord, headSha: string, reason: string): Promise<void> {
+    const workflow = workflowOf(record);
+    const unavailable = (workflow.verifierUnavailable?.headSha === headSha ? workflow.verifierUnavailable.count : 0) + 1;
+    const total = unavailable + countSessionAttempts(record, 'error');
+    if (total < this.#model.maxVerificationErrors || !HANDOFF_STAGES.includes(record.stage)) {
+      await this.#persistWorkflow(
+        record,
+        (state) => {
+          state.verifierUnavailable = { headSha, count: unavailable };
+        },
+        [],
+      );
+      return;
+    }
+    const result = this.#event(record, {
+      type: 'handoff-requested',
+      reason: 'verification-error',
+      detail: `The verifier could not produce a result for ${headSha} after ${total} infrastructure failures: ${reason}`,
+    });
+    await this.#commit(issue, record, result, 'verification-error');
   }
 
   /** Post-merge verification is due until the merge commit has a pass or a failure, or errors ran out. */
@@ -1430,23 +1510,24 @@ export class Orchestrator {
   async #verifyMerge(issue: TrackerIssue, record: BugRecord): Promise<void> {
     const mergeCommitSha = record.fix?.mergeCommitSha ?? null;
     if (mergeCommitSha === null) return;
-    const attempt = await this.#runVerifier(record, 'post-merge', mergeCommitSha);
-    if (attempt === null) return;
+    const run = await this.#runVerifier(record, 'post-merge', mergeCommitSha);
+    if (run === null || run.kind === 'unavailable') return;
+    const attempt = run.attempt;
     const result = this.#event(record, { type: 'verification-recorded', attempt });
     await this.#commit(issue, record, result, `post-merge-verification-${attempt.result}`, { first: [verificationStatus(attempt)] });
   }
 
-  /** Runs the injected verifier for `sha`; `null` when nothing usable was verified (never a pass). */
+  /** Runs the injected verifier for `sha`; `null` when the record has no fix, `unavailable` when it produced no usable result (never a pass). */
   async #runVerifier(
     record: BugRecord,
     phase: VerificationPhase,
     sha: string,
-  ): Promise<Omit<VerificationAttempt, 'sessionId'> | null> {
+  ): Promise<{ kind: 'attempt'; attempt: Omit<VerificationAttempt, 'sessionId'> } | { kind: 'unavailable'; reason: string } | null> {
     const fix = record.fix;
     if (fix === null) return null;
     if (this.#requireLive && !this.#verifier.live) {
       this.#emit(record.key, 'verifier-unavailable', { reason: 'The configured verifier is not live' });
-      return null;
+      return { kind: 'unavailable', reason: 'The configured verifier is not live' };
     }
     const pr = await this.#tracker.getPullRequest(fix.prNumber);
     const outcome = await this.#verifier.verify({
@@ -1460,14 +1541,14 @@ export class Orchestrator {
     });
     if (outcome.status === 'unavailable') {
       this.#emit(record.key, 'verifier-unavailable', { reason: outcome.reason });
-      return null;
+      return { kind: 'unavailable', reason: outcome.reason };
     }
     const attempt = outcome.attempt;
     if (attempt.phase !== phase || attempt.headSha !== sha) {
       this.#emit(record.key, 'refused', { what: 'verification-recorded', code: 'stale-verification', message: `Result for ${attempt.phase} ${attempt.headSha} does not match ${phase} ${sha}` });
-      return null;
+      return { kind: 'unavailable', reason: 'The verifier reported a result that did not match the requested run' };
     }
-    return attempt;
+    return { kind: 'attempt', attempt };
   }
 
   async #decide(issue: TrackerIssue, record: BugRecord): Promise<void> {
@@ -1594,16 +1675,21 @@ export class Orchestrator {
         } else if (session === null || session.liveState === 'ended' || session.stopRequestedAt !== null) {
           round.blocker = 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
         } else {
-          const marker = `bug-smasher:review:${fix.headSha}`;
-          const message = [
-            correctionMessage(round.findings),
-            '',
-            'Resolve each review thread once it is addressed.',
-            '',
-            `<!-- ${marker} -->`,
-          ].join('\n');
-          ops.push({ type: 'send-message', sessionId: session.id, marker, message });
-          round.correctionSentAt = this.#nowIso();
+          const unreachable = await this.#sessionUnreachable(session.id);
+          if (unreachable === null) {
+            const marker = `bug-smasher:review:${fix.headSha}`;
+            const message = [
+              correctionMessage(round.findings),
+              '',
+              'Resolve each review thread once it is addressed.',
+              '',
+              `<!-- ${marker} -->`,
+            ].join('\n');
+            ops.push({ type: 'send-message', sessionId: session.id, marker, message });
+            round.correctionSentAt = this.#nowIso();
+          } else {
+            round.blocker = unreachable;
+          }
         }
         if (round.blocker !== null) {
           ops.push({
@@ -1618,6 +1704,29 @@ export class Orchestrator {
     }
     const result = this.#event(record, { type: 'review-recorded', review });
     return (await this.#commit(issue, record, result, 'review-recorded', { ops })) === 'applied';
+  }
+
+  /**
+   * Why findings cannot be sent back to a session the record believes is live: it is gone or suspended in a
+   * way a message cannot resume. A resumable suspension wakes on the message, so it is not a blocker.
+   */
+  async #sessionUnreachable(sessionId: string): Promise<string | null> {
+    let session: DevinSession | null;
+    try {
+      session = await this.#devin.getSession(sessionId);
+    } catch (error) {
+      if (error instanceof DevinError && error.kind === 'not-found') {
+        return 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
+      }
+      throw error;
+    }
+    if (session === null || session.activity.kind === 'ended') {
+      return 'The Devin session that opened the pull request has ended, so the findings could not be sent back to it.';
+    }
+    if (session.activity.kind === 'suspended' && session.activity.resumable === false) {
+      return 'The Devin session that opened the pull request is suspended and cannot resume, so the findings could not be sent back to it.';
+    }
+    return null;
   }
 
   async #reviewCall(record: BugRecord, call: () => Promise<ReviewState>): Promise<ReviewState | null> {

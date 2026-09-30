@@ -532,6 +532,67 @@ describe('orchestrator: capacity', () => {
     assert.equal(h.messages(idA).length, 1);
   });
 
+  it('does not hold a session slot for a fix waiting on a verifier that can never run', async (t) => {
+    const h = await setup(t, { env: { MAX_ACTIVE_SESSIONS: '1' }, requireLiveResults: true });
+    const a = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const pr = h.tracker.seedPullRequest({ title: 'Fix A', body: `Fixes #${a.number}`, headSha: HEAD_1, references: [a.number] });
+    h.opensPr(h.sessionId(a.key), pr.url);
+    await h.cycle(3);
+    const verifying = h.record(a.key);
+    assert.equal(verifying.stage, 'verifying');
+    assert.ok(h.types(a.key).includes('verifier-unavailable'), 'no live verifier: the proof can never be produced');
+    assert.equal(consumesCapacity(verifying, false), false, 'a fix that can never be verified holds no slot');
+
+    const b = h.tracker.seedIssue({ title: 'B', labels: ['bug-smasher'] });
+    await h.cycle(3);
+    const handed = h.record(a.key);
+    assert.equal(handed.stage, 'with-engineer', 'a verifier that can never run hands the fix off');
+    assert.equal(handed.handoff?.reason, 'verification-error');
+    assert.equal(h.record(b.key).stage, 'fixing', 'the free slot dispatches the next bug');
+    assert.equal(h.createRequests().length, 2);
+  });
+
+  it('hands off a verifying session suspended in a way that cannot resume', async (t) => {
+    const h = await setup(t, { env: { MAX_ACTIVE_SESSIONS: '1' } });
+    const a = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const idA = h.sessionId(a.key);
+    const pr = h.tracker.seedPullRequest({ title: 'Fix A', body: `Fixes #${a.number}`, headSha: HEAD_1, references: [a.number] });
+    h.opensPr(idA, pr.url);
+    await h.cycle(3);
+    assert.equal(h.record(a.key).stage, 'verifying');
+    h.offline.updateSession(idA, { status: 'suspended', status_detail: 'usage_limit_exceeded' });
+    const b = h.tracker.seedIssue({ title: 'B', labels: ['bug-smasher'] });
+    await h.cycle(4);
+    const recordA = h.record(a.key);
+    assert.equal(recordA.stage, 'with-engineer', 'a session that cannot resume is handed off even mid-verification');
+    assert.equal(recordA.handoff?.reason, 'session-suspended');
+    assert.equal(h.session(idA).status, 'exit', 'the stuck session is stopped');
+    assert.equal(h.record(b.key).stage, 'fixing', 'the freed slot dispatches the next bug');
+  });
+
+  it('hands off a session suspended in a way that cannot resume, freeing its slot', async (t) => {
+    const h = await setup(t, { env: { MAX_ACTIVE_SESSIONS: '1' } });
+    const a = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const idA = h.sessionId(a.key);
+    h.working(idA);
+    await h.cycle();
+    assert.equal(h.record(a.key).session?.liveState, 'running');
+
+    h.offline.updateSession(idA, { status: 'suspended', status_detail: 'usage_limit_exceeded' });
+    const b = h.tracker.seedIssue({ title: 'B', labels: ['bug-smasher'] });
+    await h.cycle(4);
+    const recordA = h.record(a.key);
+    assert.equal(recordA.stage, 'with-engineer', 'a session that cannot resume is handed off');
+    assert.equal(recordA.handoff?.reason, 'session-suspended');
+    assert.ok((await h.tracker.getIssue(a.number)).labels.includes('needs-engineer'));
+    assert.equal(h.session(idA).status, 'exit', 'the stuck session is stopped');
+    assert.equal(h.record(b.key).stage, 'fixing', 'the freed slot dispatches the next bug');
+    assert.equal(h.createRequests().length, 2);
+  });
+
   it('never runs two cycles at once', async (t) => {
     const h = await setup(t);
     h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
@@ -706,9 +767,47 @@ describe('orchestrator: verification contract', () => {
     await h.cycle(2);
     assert.equal(h.record(issue.key).fix?.headSha, HEAD_2);
     await h.cycle(3);
-    assert.deepEqual(h.record(issue.key).verifications.map((v) => v.result), ['error', 'fail'], 'unavailable is never recorded as a pass');
-    assert.equal(h.record(issue.key).stage, 'verifying');
+    const stalled = h.record(issue.key);
+    assert.deepEqual(stalled.verifications.map((v) => v.result), ['error', 'fail'], 'unavailable is never recorded as a pass');
     assert.ok(h.types(issue.key).includes('verifier-unavailable'));
+    assert.equal(stalled.stage, 'with-engineer', 'the unavailable streak spends the error budget instead of waiting forever');
+    assert.equal(stalled.handoff?.reason, 'verification-error');
+  });
+
+  it('shares one infrastructure budget between verifier errors and unavailable runs', async (t) => {
+    const verifier = new ScriptedVerifier(['error']); // then unavailable forever
+    const h = await setup(t, { verifier });
+    const issue = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const id = h.sessionId(issue.key);
+    const pr = h.tracker.seedPullRequest({ title: 'Fix', body: `Fixes #${issue.number}`, headSha: HEAD_1, references: [issue.number] });
+    h.opensPr(id, pr.url);
+    await h.cycle();
+    assert.equal(h.record(issue.key).stage, 'verifying');
+    await h.cycle(4);
+    const record = h.record(issue.key);
+    assert.deepEqual(record.verifications.map((v) => v.result), ['error']);
+    assert.equal(record.stage, 'with-engineer', 'two unavailabilities on top of the recorded error reach the cap');
+    assert.equal(record.handoff?.reason, 'verification-error');
+  });
+
+  it('hands off when unavailabilities and a recorded error together reach the budget', async (t) => {
+    const verifier = new ScriptedVerifier(['unavailable', 'unavailable', 'error']); // then unavailable forever
+    const h = await setup(t, { verifier });
+    const issue = h.tracker.seedIssue({ title: 'A', labels: ['bug-smasher'] });
+    await h.cycle(2);
+    const id = h.sessionId(issue.key);
+    const pr = h.tracker.seedPullRequest({ title: 'Fix', body: `Fixes #${issue.number}`, headSha: HEAD_1, references: [issue.number] });
+    h.opensPr(id, pr.url);
+    await h.cycle();
+    assert.equal(h.record(issue.key).stage, 'verifying');
+    await h.cycle(6);
+    const record = h.record(issue.key);
+    assert.equal(record.stage, 'with-engineer', 'the recorded error is the third infrastructure failure');
+    assert.equal(record.handoff?.reason, 'verification-error');
+    assert.equal(verifier.calls.length, 3, 'no further verifier runs after the budget is spent');
+    const applied = h.lines(['effect-applied']).filter((line) => line.includes('set-commit-status'));
+    assert.equal(applied.length, 1, 'the verification status is not reapplied ahead of the handoff effects');
   });
 
   it('refuses results from a non-live verifier when live results are required', async (t) => {

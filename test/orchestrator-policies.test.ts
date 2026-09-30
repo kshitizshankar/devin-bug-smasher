@@ -333,6 +333,22 @@ describe('Devin Review', () => {
     assert.equal((await f.h.tracker.getPullRequest(f.pr.number)).state, 'open');
   });
 
+  it('records a blocker instead of sending findings to a session suspended in a way that cannot resume', async (t) => {
+    const f = await readyFix(t);
+    await until(f.h, f.key, (record) => (record.review?.rounds.length ?? 0) === 1);
+    f.h.offline.updateSession(f.sessionId, { status: 'suspended', status_detail: 'usage_limit_exceeded' });
+    f.h.tracker.addReviewThread(f.pr.number, { author: BOT, body: 'First finding' });
+    completeReview(f.h, f.pr, HEAD_1);
+    await f.h.cycle(3);
+    const round = f.h.record(f.key).review?.rounds[0];
+    assert.equal(round?.status, 'completed');
+    assert.equal(round?.correctionSentAt, null);
+    assert.match(round?.blocker ?? '', /suspended and cannot resume/);
+    assert.equal(f.h.messages(f.sessionId).filter((message) => message.includes('bug-smasher:review:')).length, 0);
+    assert.equal((await comments(f.h, f.issueNumber, 'review-blocker:')).length, 1);
+    assert.equal(f.h.record(f.key).stage, 'ready-to-merge');
+  });
+
   it('stops after the repair cap with a durable blocker and one comment', async (t) => {
     const f = await readyFix(t, {}, { maxReviewRepairs: 1 });
     await f.h.cycle();
