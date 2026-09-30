@@ -10,8 +10,7 @@
 
 ## Change process
 
-- The initial bootstrap commit was the only change pushed directly to `main`.
-- **All subsequent changes must go through a pull request.** Devin must never merge a pull request itself,
+- **Devin's changes go through a pull request.** Devin must never merge a pull request itself,
   and must not push directly to `main`, change repository permissions or configure branch protection.
 
 ## Technical choices

@@ -37,8 +37,8 @@ spend source exists at all the spend figures read `Not reported by Devin on this
 Records arrive in `RecordSet`s tagged with `mode` (`live` or `replay`) and `engine` (`current` or `v1`); the
 report reads the main store as live/current, `--replay-store` as replay and `--v1-store` as v1. Records are
 grouped by repository, mode and engine. Only the target repository (`GITHUB_REPO`) in live mode with the
-current engine forms the live cohort behind the headline numbers; replay runs, v1 runs, Bug Smasher's own
-repository and any other repository are reported separately under "Other cohorts". Feature requests are
+current engine forms the live cohort behind the headline numbers; replay runs, v1 runs and any repository
+other than the target are reported separately under "Other cohorts". Feature requests are
 counted per cohort but never in bug outcomes.
 
 ## Proof of a fix
