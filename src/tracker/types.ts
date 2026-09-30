@@ -227,6 +227,13 @@ export interface Branch {
   requiredChecks: string[] | null;
 }
 
+/** A commit reachable in the repository. */
+export interface Commit {
+  sha: string;
+  /** Committer date: when the commit was created. */
+  committedAt: Timestamp;
+}
+
 export type MergeMethod = 'merge' | 'squash' | 'rebase';
 
 export interface MergeRequest {
@@ -281,6 +288,8 @@ export interface Tracker {
   listReviewThreads(number: number): Promise<ReviewThread[]>;
   getBranch(name: string): Promise<Branch>;
   getDefaultBranch(): Promise<Branch>;
+  /** A commit by SHA or ref; throws `not-found` when the provider does not have it. */
+  getCommit(ref: string): Promise<Commit>;
   listCheckRuns(ref: string): Promise<CheckRuns>;
   getCombinedStatus(ref: string): Promise<CombinedStatus>;
   createCommitStatus(sha: string, status: NewCommitStatus): Promise<CommitStatus>;

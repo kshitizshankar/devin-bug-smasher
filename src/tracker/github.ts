@@ -14,6 +14,7 @@ import {
   type CheckRun,
   type CheckRuns,
   type CombinedStatus,
+  type Commit,
   type CommitStatus,
   type CommitStatusState,
   type IssueCloseReason,
@@ -454,6 +455,19 @@ export class GitHubTracker implements Tracker, RepositoryAdmin {
     const response = await this.#send(op, 'GET', `repos/${encodeURIComponent(this.repo.owner)}/${encodeURIComponent(this.repo.name)}`);
     const name = this.#string(op, this.#object(op, this.#json(op, response), 'repository'), 'default_branch');
     return this.getBranch(name);
+  }
+
+  async getCommit(ref: string): Promise<Commit> {
+    const op = 'getCommit';
+    this.#checkRef(op, ref);
+    const response = await this.#send(op, 'GET', this.#repoPath(`commits/${encodeURIComponent(ref)}`));
+    const item = this.#object(op, this.#json(op, response), 'commit');
+    const inner = this.#object(op, item.commit, 'commit object');
+    const committer = inner.committer ?? inner.author;
+    return {
+      sha: this.#string(op, item, 'sha'),
+      committedAt: this.#string(op, this.#object(op, committer, 'commit.committer'), 'date'),
+    };
   }
 
   async listCheckRuns(ref: string): Promise<CheckRuns> {

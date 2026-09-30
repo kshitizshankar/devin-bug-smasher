@@ -11,6 +11,7 @@ import type {
 import { hasLabel } from '../tracker/common.ts';
 import type { Branch, CheckRuns, CombinedStatus, TrackerIssue, TrackerPullRequest } from '../tracker/types.ts';
 import {
+  READY_STATUS_CONTEXT,
   UNAVAILABLE_POLICY,
   VERIFICATION_STATUS_CONTEXT,
   type DecisionPolicy,
@@ -217,13 +218,16 @@ export interface CiSummary {
 
 const PASSING_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
 
+/** The service's own commit statuses; they never count as CI. */
+const OWN_STATUS_CONTEXTS = new Set([VERIFICATION_STATUS_CONTEXT, READY_STATUS_CONTEXT]);
+
 /**
- * CI for one commit from check runs and commit statuses. The service's own verification status is excluded,
- * so it never counts as CI. Green needs at least one check and every check finished successfully.
+ * CI for one commit from check runs and commit statuses. The service's own statuses are excluded,
+ * so they never count as CI. Green needs at least one check and every check finished successfully.
  */
 export function evaluateCi(runs: CheckRuns, combined: CombinedStatus): CiSummary {
   if (!runs.complete || !combined.complete) return { state: 'unknown', detail: 'CI could not be read completely' };
-  const statuses = combined.statuses.filter((status) => status.context !== VERIFICATION_STATUS_CONTEXT);
+  const statuses = combined.statuses.filter((status) => !OWN_STATUS_CONTEXTS.has(status.context));
   const failing = [
     ...runs.runs.filter((run) => run.status === 'completed' && !PASSING_CONCLUSIONS.has(run.conclusion ?? '')).map((run) => `${run.name} (${run.conclusion ?? 'no conclusion'})`),
     ...statuses.filter((status) => status.state === 'failure' || status.state === 'error').map((status) => `${status.context} (${status.state})`),
@@ -279,7 +283,8 @@ export interface MergeFacts {
 /**
  * Merge readiness for the current head. Rule: verification passed on this head with no flags, CI green,
  * every Devin Review finding resolved and at most `MERGE_MAX_LINES` changed lines. Automatic: verification
- * passed on this head and CI green. Branch protection is reported but not enforced here; GitHub enforces it.
+ * passed on this head and CI green. Both also wait for `bug-smasher/ready` to say Devin is done with the
+ * current head. Branch protection is reported but not enforced here; GitHub enforces it.
  */
 export function evaluateMerge(policy: AutomaticPolicy, facts: MergeFacts, now: Date): PolicyEvaluation {
   const { record, pr } = facts;
@@ -299,6 +304,19 @@ export function evaluateMerge(policy: AutomaticPolicy, facts: MergeFacts, now: D
         : `No passing verification for the current head ${pr.headSha.slice(0, 12)}`,
   });
   checks.push({ name: 'ci', ok: facts.ci.state === 'green', blocking: true, detail: facts.ci.detail });
+
+  const published = record.workflow?.ready;
+  const done = published !== undefined && published.headSha === pr.headSha && published.state === 'success';
+  checks.push({
+    name: 'ready',
+    ok: done,
+    blocking: true,
+    detail: done
+      ? `${READY_STATUS_CONTEXT} says Devin is done working on the pull request`
+      : published !== undefined && published.headSha === pr.headSha
+        ? `Devin is still working on the pull request: ${published.detail}`
+        : `${READY_STATUS_CONTEXT} has not been published for the current head ${pr.headSha.slice(0, 12)} yet`,
+  });
 
   const flags = verified ? (attempt?.evidence?.flags ?? []) : [];
   const violations = verified ? (attempt?.evidence?.violations ?? []) : [];

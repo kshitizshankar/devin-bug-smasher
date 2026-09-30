@@ -465,6 +465,7 @@ describe('merge policies in the orchestrator', () => {
     f.h.tracker.pushHead(f.pr.number, HEAD_3);
     await until(f.h, f.key, (record) => record.fix?.headSha === HEAD_3 && record.stage === 'ready-to-merge');
     greenCi(f.h, HEAD_3);
+    f.h.advance(95 * 1000);
     const merged = await until(f.h, f.key, (record) => record.stage === 'merged');
     const evaluation = mergeEvaluations(merged).at(-1);
     assert.equal(evaluation?.rule, 'merge-auto');
@@ -493,6 +494,7 @@ describe('merge policies in the orchestrator', () => {
     auto.h.tracker.pushHead(auto.pr.number, HEAD_2);
     await until(auto.h, auto.key, (record) => record.fix?.headSha === HEAD_2 && record.stage === 'ready-to-merge');
     greenCi(auto.h, HEAD_2);
+    auto.h.advance(95 * 1000);
     const merged = await until(auto.h, auto.key, (record) => record.stage === 'merged');
     const evaluation = mergeEvaluations(merged).at(-1);
     assert.equal(evaluation?.subject, HEAD_2);
@@ -559,6 +561,7 @@ describe('merge policies in the orchestrator', () => {
     const record = await until(f.h, f.key, (r) => r.fix?.headSha === HEAD_2 && r.stage === 'ready-to-merge');
     assert.deepEqual(f.world.calls.filter((call) => call.phase === 'pre-merge').map((call) => call.headSha), [HEAD_1, HEAD_2]);
     greenCi(f.h, HEAD_2);
+    f.h.advance(95 * 1000);
     const merged = await until(f.h, f.key, (r) => r.stage === 'merged');
     assert.equal((await f.h.tracker.getPullRequest(f.pr.number)).headSha, HEAD_2);
     assert.equal(merged.fix?.headSha, HEAD_2);

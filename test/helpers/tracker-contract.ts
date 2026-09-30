@@ -376,6 +376,22 @@ export function trackerContract(name: string, setup: () => Promise<TrackerHarnes
       await rejectsWith(h.tracker.getBranch('missing'), 'not-found');
     });
 
+    it('reports commit dates for seeded, pushed and merged heads, and refuses unknown commits', async () => {
+      const pr = h.sim.seedPullRequest({ title: 'Fix', headSha: HEAD_1, committedAt: '2020-05-05T00:00:00.000Z' });
+      const seeded = await h.tracker.getCommit(HEAD_1);
+      assert.deepEqual(seeded, { sha: HEAD_1, committedAt: '2020-05-05T00:00:00.000Z' });
+      h.sim.pushHead(pr.number, HEAD_2);
+      const pushed = await h.tracker.getCommit(HEAD_2);
+      assert.equal(pushed.sha, HEAD_2);
+      assert.ok(Date.parse(pushed.committedAt) > Date.parse(seeded.committedAt), 'a pushed head is newer than the seeded one');
+      const byRef = await h.tracker.getCommit((await h.tracker.getPullRequest(pr.number)).headRef);
+      assert.deepEqual(byRef, pushed);
+      const mergeSha = h.sim.externalMerge(pr.number, 'maintainer');
+      assert.equal((await h.tracker.getCommit(mergeSha)).sha, mergeSha);
+      await rejectsWith(h.tracker.getCommit('3'.repeat(40)), 'not-found');
+      await rejectsWith(h.tracker.getCommit(''), 'validation');
+    });
+
     it('reports rate limits and server errors as retryable with a wait hint', async () => {
       const issue = h.sim.seedIssue({ title: 'bug', labels: ['needs-triage'] });
       h.sim.failNext('listOpenIssues', 'rate-limited');

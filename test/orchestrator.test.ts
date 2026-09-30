@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it, type TestContext } from 'node:test';
-import { UNAVAILABLE_POLICY, type VerificationOutcome, type Verifier } from '../src/orchestrator/contracts.ts';
+import { UNAVAILABLE_POLICY, VERIFICATION_STATUS_CONTEXT, type VerificationOutcome, type Verifier } from '../src/orchestrator/contracts.ts';
 import { attention, presentBug } from '../src/model/presentation.ts';
 import { consumesCapacity } from '../src/orchestrator/orchestrator.ts';
 import type { TrackerComment } from '../src/tracker/types.ts';
@@ -806,7 +806,9 @@ describe('orchestrator: verification contract', () => {
     assert.equal(record.stage, 'with-engineer', 'the recorded error is the third infrastructure failure');
     assert.equal(record.handoff?.reason, 'verification-error');
     assert.equal(verifier.calls.length, 3, 'no further verifier runs after the budget is spent');
-    const applied = h.lines(['effect-applied']).filter((line) => line.includes('set-commit-status'));
+    const applied = h.lines(['effect-applied']).filter(
+      (line) => line.includes('set-commit-status') && line.includes(VERIFICATION_STATUS_CONTEXT),
+    );
     assert.equal(applied.length, 1, 'the verification status is not reapplied ahead of the handoff effects');
   });
 

@@ -217,7 +217,17 @@ const DELETION_ONLY: DiffFinding = { check: 'deletion-only', file: '', detail: '
 
 function ready(flags: DiffFinding[] = []): BugRecord {
   const passed = attempt('pass', HEAD_A);
-  return event(verifyingRecord(), { type: 'verification-recorded', attempt: { ...passed, evidence: { runs: [], violations: [], flags } } });
+  const record = event(verifyingRecord(), { type: 'verification-recorded', attempt: { ...passed, evidence: { runs: [], violations: [], flags } } });
+  record.workflow = {
+    dispatch: null,
+    outbox: [],
+    relayedCommentIds: [],
+    handledEventIds: [],
+    workQuestion: null,
+    notices: [],
+    ready: { headSha: HEAD_A, state: 'success', detail: 'Devin is done working on this pull request', at: '2026-01-01T00:00:00.000Z' },
+  };
+  return record;
 }
 
 function round(status: ReviewRound['status'] = 'completed', headSha = HEAD_A): ReviewRound {
@@ -260,7 +270,7 @@ describe('merge policies', () => {
     assert.deepEqual(blocked('rule', facts({ review: { ...REVIEWED, unresolved: 1 } })), ['review']);
     assert.deepEqual(blocked('rule', facts({ pr: pr(201) })), ['size']);
     const older = event(ready(), { type: 'head-changed', prNumber: 7, headSha: HEAD_B });
-    assert.deepEqual(blocked('rule', facts({ record: older, pr: pr(200, HEAD_B), review: { ...REVIEWED, round: round('completed', HEAD_B) } })), ['verification', 'diff-checks']);
+    assert.deepEqual(blocked('rule', facts({ record: older, pr: pr(200, HEAD_B), review: { ...REVIEWED, round: round('completed', HEAD_B) } })), ['verification', 'ready', 'diff-checks']);
   });
 
   it('Rule never treats an unavailable, pending, missing or disabled Review as passed', () => {

@@ -193,7 +193,7 @@
         "labels": 0,
         "reply": 1,
         "decision": 1,
-        "merge": 1,
+        "merge": 0,
         "engineer": 1
       }
     },
@@ -274,9 +274,9 @@
         "statusLabel": "Ready to merge",
         "group": "Fix",
         "attention": {
-          "gate": "merge",
-          "waitingOn": "person",
-          "text": "Review and merge the pull request on GitHub."
+          "gate": null,
+          "waitingOn": "devin",
+          "text": "Devin is still working on the pull request."
         },
         "recommendation": null,
         "timestamp": {

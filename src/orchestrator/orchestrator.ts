@@ -75,6 +75,7 @@ import {
   githubActor,
   INTERFACE_ACTOR,
   policyActor,
+  readyStatus,
   UNAVAILABLE_VERIFIER,
   verificationStatus,
   type DecisionPolicy,
@@ -197,6 +198,12 @@ const DEFAULT_MAX_REVIEW_REPAIRS = 2;
 const REVIEW_MISSING_GRACE_MS = 30 * 60 * 1000;
 const RECONCILE_WINDOW_MS = 5 * 60_000;
 const WAITING_QUESTION_PREFIX = 'w-';
+/** How new the fix head's commit may be before Devin counts as still working on it. */
+const READY_COMMIT_AGE_MS = 90 * 1000;
+/** Marker on Devin Review's auto-fix status review on the pull request. */
+const DEVIN_REVIEW_STATUS_MARKER = 'devin-review-autofix-status';
+/** The status review's phrasing while Devin is addressing its findings. */
+const DEVIN_REVIEW_ADDRESSING = /devin is addressing/i;
 
 export function emptyWorkflow(): WorkflowState {
   return { dispatch: null, outbox: [], relayedCommentIds: [], handledEventIds: [], workQuestion: null, notices: [], verifierUnavailable: null };
@@ -493,6 +500,9 @@ export class Orchestrator {
       const labels = await this.#commit(issue, record, snapshot, 'labels-changed');
       if (labels === 'applied' || labels === 'deferred') return;
     }
+
+    await this.#publishReady(issue, record);
+    record = this.#store.get(key) as BugRecord;
 
     if (record.workflow?.dispatch) {
       await this.#reconcileDispatch(issue, record);
@@ -942,6 +952,81 @@ export class Orchestrator {
     const quiet = record.stage === 'closed' || record.stage === 'with-engineer';
     const result = this.#event(record, event);
     return (await this.#commit(issue, record, result, event.type, { first: ops, ops: after, quiet })) === 'applied';
+  }
+
+  /**
+   * Publishes `bug-smasher/ready` on the fix PR's current head and keeps it current: `pending` while the
+   * session is working, Devin's review comment says it is addressing findings, or the head commit is very
+   * new; `success` otherwise. Anything that cannot be read keeps it pending — it never turns green on
+   * missing information — and only a changed evaluation posts a new status.
+   */
+  async #publishReady(issue: TrackerIssue, record: BugRecord): Promise<void> {
+    const fix = record.fix;
+    if (fix === null || fix.mergeCommitSha !== null) return;
+    const pr = await this.#tracker.getPullRequest(fix.prNumber);
+    if (pr.state !== 'open' || pr.headSha !== fix.headSha) return;
+    const ready = await this.#readyEvaluation(record, pr);
+    const last = record.workflow?.ready;
+    if (last !== undefined && last.headSha === pr.headSha && last.state === ready.state && last.detail === ready.detail) return;
+    await this.#persistWorkflow(
+      record,
+      (state) => {
+        state.ready = { headSha: pr.headSha, state: ready.state, detail: ready.detail, at: this.#nowIso() };
+      },
+      [readyStatus(pr.headSha, ready)],
+    );
+  }
+
+  /**
+   * Whether Devin is still working on the PR head: the session is starting or working, Devin's review
+   * comment says it is addressing findings, or the commit is younger than `READY_COMMIT_AGE_MS`. Evidence
+   * of work decides pending before gaps in what could be read, which are pending too, with the reason.
+   */
+  async #readyEvaluation(record: BugRecord, pr: TrackerPullRequest): Promise<{ state: 'pending' | 'success'; detail: string }> {
+    const missing: string[] = [];
+
+    let sessionWorking = false;
+    const session = record.session;
+    if (session === null) {
+      missing.push('the Devin session is not recorded');
+    } else if (session.liveState !== 'ended' && session.stopRequestedAt === null) {
+      try {
+        const live = await this.#devin.getSession(session.id);
+        if (live.activity.kind === 'starting' || live.activity.kind === 'working') sessionWorking = true;
+        else if (live.activity.kind === 'unknown') missing.push(`the Devin session status (${live.status}) is not understood`);
+      } catch (error) {
+        if (error instanceof DevinError && error.kind === 'not-found') {
+          // A session that is gone cannot still be working on the pull request.
+        } else {
+          missing.push('the Devin session could not be read');
+        }
+      }
+    }
+
+    let addressing = false;
+    try {
+      const reviews = await this.#tracker.listReviews(pr.number);
+      const latest = reviews.findLast(
+        (review) => review.reviewer?.login === DEVIN_REVIEW_BOT_LOGIN && review.body.includes(DEVIN_REVIEW_STATUS_MARKER),
+      );
+      addressing = latest !== undefined && DEVIN_REVIEW_ADDRESSING.test(latest.body);
+    } catch {
+      missing.push("Devin's review comment could not be read");
+    }
+
+    let fresh = false;
+    try {
+      const commit = await this.#tracker.getCommit(pr.headSha);
+      fresh = this.#now().getTime() - Date.parse(commit.committedAt) < READY_COMMIT_AGE_MS;
+    } catch {
+      missing.push('the newest commit could not be read');
+    }
+
+    if (sessionWorking) return { state: 'pending', detail: 'the Devin session is still working' };
+    if (addressing) return { state: 'pending', detail: 'Devin is still addressing Devin Review findings' };
+    if (fresh) return { state: 'pending', detail: 'the newest commit is under about 90 seconds old' };
+    if (missing.length > 0) return { state: 'pending', detail: missing.join('; ') };
+    return { state: 'success', detail: 'Devin is done working on this pull request' };
   }
 
   async #existingPullRequest(issue: TrackerIssue): Promise<TrackerPullRequest | null> {
